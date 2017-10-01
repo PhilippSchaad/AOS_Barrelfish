@@ -59,13 +59,26 @@ void mm_destroy(struct mm *mm)
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     debug_printf("libmm: add capability of size %zu at %zx", size, base);
-
-    // TODO: implement
     
+    // create the capability struct
+    struct capinfo capability = {
+        .cap = cap,
+        .base = base,
+        .size = size;
+    };
     
+    // create the node
+    struct mmnode *node = NULL;
     
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    // finish the node and add it to the list
+    errval_t err = mm_mmnode_add(mm, capability, &node)
+    
+    // add the capability to the node
+    if (err_is_ok(err)) {
+        assert(node != NULL);
+        node->cap = capability;
+    }
+    return err;
 }
 
 /**
@@ -161,9 +174,14 @@ errval_t mm_free_slab();
 /**
  * add a mmnode to doubly linked list of mmnodes in mm.
  *
+ * \param  cap  Capability to add
+ * \param  base Physical base address of the capability
+ * \param  size Size of the capability (in bytes)
  */
-errval_t mm_mmnode_add();
+errval_t mm_mmnode_add(struct mm *mm, struct capinfo capability, struct mmnode **node);
 {
+    // this function should create a node in the memory (slab) and should add the node to the linked list (at the right position)
+    
     // TODO: Implement
     // TODO: add description
     // TODO: add entry in declaration in .h
@@ -172,7 +190,7 @@ errval_t mm_mmnode_add();
 
 /**
  * remove a mmnode from doubly linked list of mmnodes in mm.
- * 
+ *
  */
 errval_t mm_mmnode_remove();
 {
