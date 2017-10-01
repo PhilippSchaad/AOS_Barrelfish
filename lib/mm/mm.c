@@ -23,9 +23,23 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
                  slot_refill_t slot_refill_func,
                  void *slot_alloc_inst)
 {
+    debug_printf("mm_init started\n");
     assert(mm != NULL);
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+
+    mm->slot_alloc = slot_alloc_func;
+    mm->slot_refill = slot_refill_func;
+    mm->objtype = objtype;
+    mm->slot_alloc_inst = slot_alloc_inst;
+
+    // there is a default slab refill function that can be used if no function is provided.
+    if(slab_refill_func == NULL){
+        slab_refill_func = slab_default_refill;
+    }
+    // create the first slab to hold exactly one mnode
+    slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
+
+    debug_printf("mm ready\n");
+    return SYS_ERR_OK;
 }
 
 /**
