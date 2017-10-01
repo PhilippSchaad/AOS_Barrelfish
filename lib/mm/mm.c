@@ -23,7 +23,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
                  slot_refill_t slot_refill_func,
                  void *slot_alloc_inst)
 {
-    debug_printf("mm_init started\n");
+    debug_printf("libmm: mm_init started\n");
     assert(mm != NULL);
 
     mm->slot_alloc = slot_alloc_func;
@@ -38,7 +38,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     // create the first slab to hold exactly one mnode
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
 
-    debug_printf("mm ready\n");
+    debug_printf("libmm: mm ready\n");
     return SYS_ERR_OK;
 }
 
@@ -58,6 +58,12 @@ void mm_destroy(struct mm *mm)
  */
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
+    debug_printf("libmm: add capability of size %zu at %zx", size, base);
+
+    // TODO: implement
+    
+    
+    
     // TODO: Implement
     return LIB_ERR_NOT_IMPLEMENTED;
 }
@@ -102,3 +108,79 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     // TODO: Implement
     return LIB_ERR_NOT_IMPLEMENTED;
 }
+
+
+/**
+ * Allocate slot.
+ *
+ */
+errval_t mm_alloc_slot();
+{
+    // TODO: Implement
+    // TODO: add description
+    // TODO: add entry in declaration in .h
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * Free slot.
+ *
+ */
+errval_t mm_free_slot();
+{
+    // TODO: Implement
+    // TODO: add description
+    // TODO: add entry in declaration in .h
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * Allocate slab.
+ *
+ */
+errval_t mm_alloc_slab();
+{
+    // TODO: Implement
+    // TODO: add description
+    // TODO: add entry in declaration in .h
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * Free slab.
+ *
+ */
+errval_t mm_free_slab();
+{
+    // TODO: Implement
+    // TODO: add description
+    // TODO: add entry in declaration in .h
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * add a mmnode to doubly linked list of mmnodes in mm.
+ *
+ */
+errval_t mm_mmnode_add();
+{
+    // TODO: Implement
+    // TODO: add description
+    // TODO: add entry in declaration in .h
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * remove a mmnode from doubly linked list of mmnodes in mm.
+ * 
+ */
+errval_t mm_mmnode_remove();
+{
+    // TODO: Implement
+    // TODO: add description
+    // TODO: add entry in declaration in .h
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+
+
