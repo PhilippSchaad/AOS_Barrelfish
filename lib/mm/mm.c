@@ -6,6 +6,19 @@
 #include <mm/mm.h>
 #include <aos/debug.h>
 
+//#############################
+// private function definitions
+//#############################
+errval_t mm_alloc_slot(void);
+errval_t mm_free_slot(void);
+errval_t mm_alloc_slab(void);
+errval_t mm_free_slab(void);
+errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node);
+struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
+errval_t mm_mmnode_remove(void);
+//#############################
+
+
 
 /**
  * Initialize the memory manager.
@@ -38,6 +51,9 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     // create the first slab to hold exactly one mnode
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
 
+    // create the head of the doubly linked list
+    // TODO: do
+    
     debug_printf("libmm: mm ready\n");
     return SYS_ERR_OK;
 }
@@ -58,23 +74,24 @@ void mm_destroy(struct mm *mm)
  */
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
-    debug_printf("libmm: add capability of size %zu at %zx", size, base);
-    
-    // create the capability struct
-    struct capinfo capability = {
-        .cap = cap,
-        .base = base,
-        .size = size;
-    };
+    debug_printf("libmm: add capability of size %zu at %zx \n", size, base);
     
     // create the node
     struct mmnode *node = NULL;
     
     // finish the node and add it to the list
-    errval_t err = mm_mmnode_add(mm, capability, &node)
+    errval_t err = mm_mmnode_add(mm, base, size, &node);
     
     // add the capability to the node
     if (err_is_ok(err)) {
+        
+        // create the capability struct
+        struct capinfo capability = {
+            .cap = cap,
+            .base = base,
+            .size = size
+        };
+        
         assert(node != NULL);
         node->cap = capability;
     }
@@ -127,7 +144,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
  * Allocate slot.
  *
  */
-errval_t mm_alloc_slot();
+errval_t mm_alloc_slot(void)
 {
     // TODO: Implement
     // TODO: add description
@@ -139,7 +156,7 @@ errval_t mm_alloc_slot();
  * Free slot.
  *
  */
-errval_t mm_free_slot();
+errval_t mm_free_slot(void)
 {
     // TODO: Implement
     // TODO: add description
@@ -151,7 +168,7 @@ errval_t mm_free_slot();
  * Allocate slab.
  *
  */
-errval_t mm_alloc_slab();
+errval_t mm_alloc_slab(void)
 {
     // TODO: Implement
     // TODO: add description
@@ -163,7 +180,7 @@ errval_t mm_alloc_slab();
  * Free slab.
  *
  */
-errval_t mm_free_slab();
+errval_t mm_free_slab(void)
 {
     // TODO: Implement
     // TODO: add description
@@ -178,27 +195,90 @@ errval_t mm_free_slab();
  * \param  base Physical base address of the capability
  * \param  size Size of the capability (in bytes)
  */
-errval_t mm_mmnode_add(struct mm *mm, struct capinfo capability, struct mmnode **node);
+errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node)
 {
     // this function should create a node in the memory (slab) and should add the node to the linked list (at the right position)
+    // TODO: define alignment
+
+    // check that the memory is still free
+    struct mmnode* current_node = mm->head;
+    while(current_node != NULL){
+        if (base < current_node->base){
+            // the address is smaller
+            if (current_node->base < base + size){
+                // the base is within an already allocated sector of memory. raise an error
+                // TODO: Raise error
+                return 1;
+            } else {
+                // we have found the right spot
+                break;
+            }
+        } else {
+            // base is larger than the current node (or equal)
+            if (base < current_node->base + current_node->size){
+                // the base is within an already allocated sector of memory. raise an error
+                // TODO: Raise error
+                return 1;
+            }
+            // else go to the next node
+        }
+        
+        current_node = current_node->next;
+    }
     
-    // TODO: Implement
-    // TODO: add description
-    // TODO: add entry in declaration in .h
-    return LIB_ERR_NOT_IMPLEMENTED;
+    struct mmnode* actual_node = mm_create_node(mm, NodeType_Allocated, base, size);
+    
+    if (current_node == NULL){
+        // append to the end of the list
+        current_node = mm->head;
+        if (current_node == NULL){
+            // we just created the first node
+            mm->head = actual_node;
+            actual_node->prev = NULL;
+            actual_node->next = NULL;
+        } else{
+            // go to the end of the list
+            while(current_node->next != NULL){
+                current_node = current_node->next;
+            }
+            actual_node->prev = current_node;
+            actual_node->next = NULL;
+            current_node->next = actual_node;
+        }
+    } else {
+        // append before the current_node
+        actual_node->next = current_node;
+        actual_node->prev = current_node->prev;
+        current_node->prev = actual_node;
+    }
+    
+    // set node to the one we just created
+    *node = actual_node;
+        return 0;
+        // TODO: check for freed memory
+}
+
+struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size){
+    // create the node in memory
+    struct mmnode* node = slab_alloc(&mm->slabs);
+    node->base=base;
+    node->size=size;
+    node->type=type;
+    return node;
 }
 
 /**
  * remove a mmnode from doubly linked list of mmnodes in mm.
  *
  */
-errval_t mm_mmnode_remove();
+errval_t mm_mmnode_remove(void)
 {
     // TODO: Implement
     // TODO: add description
     // TODO: add entry in declaration in .h
     return LIB_ERR_NOT_IMPLEMENTED;
 }
+
 
 
 
