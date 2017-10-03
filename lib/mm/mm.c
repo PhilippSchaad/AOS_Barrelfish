@@ -191,11 +191,11 @@ errval_t mm_free_slab(void)
 /**
  * Add a mmnode to doubly linked list of mmnodes in mm.
  *
- * \param mm    The mm structure to insert into
- * \param cap   Capability to add
- * \param base  Physical base address of the capability
- * \param size  Size of the capability (in bytes)
- * \param node  Pointe to the newly added node
+ * \param       mm      The mm structure to insert into
+ * \param       cap     Capability to add
+ * \param       base    Physical base address of the capability
+ * \param       size    Size of the capability (in bytes)
+ * \param[out]  node    Pointe to the newly added node
  */
 errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node)
 {
