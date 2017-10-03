@@ -66,7 +66,7 @@ void mm_destroy(struct mm *mm)
  */
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
-    debug_printf("libmm: add capability of size %"PRIu64" at %zx \n", size, base);
+    debug_printf("libmm: add capability of size %"PRIu64" MB at %zx \n", size / 1048576, base);
 
     // create the node
     struct mmnode *node = NULL;
