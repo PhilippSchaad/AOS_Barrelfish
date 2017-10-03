@@ -140,55 +140,6 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
-
-/**
- * Allocate slot.
- *
- */
-errval_t mm_alloc_slot(void)
-{
-    // TODO: Implement
-    // TODO: add description
-    // TODO: add entry in declaration in .h
-    return LIB_ERR_NOT_IMPLEMENTED;
-}
-
-/**
- * Free slot.
- *
- */
-errval_t mm_free_slot(void)
-{
-    // TODO: Implement
-    // TODO: add description
-    // TODO: add entry in declaration in .h
-    return LIB_ERR_NOT_IMPLEMENTED;
-}
-
-/**
- * Allocate slab.
- *
- */
-errval_t mm_alloc_slab(void)
-{
-    // TODO: Implement
-    // TODO: add description
-    // TODO: add entry in declaration in .h
-    return LIB_ERR_NOT_IMPLEMENTED;
-}
-
-/**
- * Free slab.
- *
- */
-errval_t mm_free_slab(void)
-{
-    // TODO: Implement
-    // TODO: add description
-    // TODO: add entry in declaration in .h
-    return LIB_ERR_NOT_IMPLEMENTED;
-}
-
 /**
  * Add a mmnode to doubly linked list of mmnodes in mm.
  *
