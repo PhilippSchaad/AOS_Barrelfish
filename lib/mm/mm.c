@@ -204,6 +204,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmno
 
     // check that the memory is still free
     struct mmnode* current_node = mm->head;
+    struct mmnode* prev_node = NULL;
     while(current_node != NULL){
         if (base < current_node->base){
             // the address is smaller
@@ -225,6 +226,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmno
             // else go to the next node
         }
 
+        prev_node = current_node;
         current_node = current_node->next;
     }
 
@@ -232,20 +234,16 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmno
 
     if (current_node == NULL){
         // append to the end of the list
-        current_node = mm->head;
-        if (current_node == NULL){
+        if (mm->head == NULL){
             // we just created the first node
             mm->head = actual_node;
             actual_node->prev = NULL;
             actual_node->next = NULL;
         } else {
-            // go to the end of the list
-            while(current_node->next != NULL){
-                current_node = current_node->next;
-            }
-            actual_node->prev = current_node;
+            // prev_node holds the last node of the list
+            prev_node->next = actual_node;
             actual_node->next = NULL;
-            current_node->next = actual_node;
+            actual_node->prev = prev_node;
         }
     } else {
         // append before the current_node
