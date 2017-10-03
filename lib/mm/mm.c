@@ -16,6 +16,7 @@ errval_t mm_free_slab(void);
 errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node);
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
 errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
+void mm_print_manager(struct mm *mm);
 //#############################
 
 
@@ -296,3 +297,15 @@ errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
 
     return SYS_ERR_OK;
 }
+
+// debug print
+void mm_print_manager(struct mm *mm){
+    struct mmnode* node = mm->head;
+    int i = 0;
+    while(node != NULL){
+        printf("Node %d: start: %zx, size: %zu \n", i, node->base, node->size);
+        node = node->next;
+        ++i;
+    }
+}
+
