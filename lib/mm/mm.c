@@ -53,7 +53,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
 
     // create the head of the doubly linked list
     // TODO: do
-    
+
     debug_printf("libmm: mm ready\n");
     return SYS_ERR_OK;
 }
@@ -75,23 +75,23 @@ void mm_destroy(struct mm *mm)
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     debug_printf("libmm: add capability of size %zu at %zx \n", size, base);
-    
+
     // create the node
     struct mmnode *node = NULL;
-    
+
     // finish the node and add it to the list
     errval_t err = mm_mmnode_add(mm, base, size, &node);
-    
+
     // add the capability to the node
     if (err_is_ok(err)) {
-        
+
         // create the capability struct
         struct capinfo capability = {
             .cap = cap,
             .base = base,
             .size = size
         };
-        
+
         assert(node != NULL);
         node->cap = capability;
     }
@@ -222,12 +222,12 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmno
             }
             // else go to the next node
         }
-        
+
         current_node = current_node->next;
     }
-    
+
     struct mmnode* actual_node = mm_create_node(mm, NodeType_Allocated, base, size);
-    
+
     if (current_node == NULL){
         // append to the end of the list
         current_node = mm->head;
@@ -236,7 +236,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmno
             mm->head = actual_node;
             actual_node->prev = NULL;
             actual_node->next = NULL;
-        } else{
+        } else {
             // go to the end of the list
             while(current_node->next != NULL){
                 current_node = current_node->next;
@@ -249,9 +249,10 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmno
         // append before the current_node
         actual_node->next = current_node;
         actual_node->prev = current_node->prev;
+        current_node->prev->next = actual_node;
         current_node->prev = actual_node;
     }
-    
+
     // set node to the one we just created
     *node = actual_node;
         return 0;
@@ -278,7 +279,3 @@ errval_t mm_mmnode_remove(void)
     // TODO: add entry in declaration in .h
     return LIB_ERR_NOT_IMPLEMENTED;
 }
-
-
-
-
