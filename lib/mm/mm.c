@@ -13,13 +13,11 @@ errval_t mm_alloc_slot(void);
 errval_t mm_free_slot(void);
 errval_t mm_alloc_slab(void);
 errval_t mm_free_slab(void);
-errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node);
+errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mmnode **node);
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
 errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
 void mm_print_manager(struct mm *mm);
 //#############################
-
-
 
 /**
  * Initialize the memory manager.
@@ -75,7 +73,7 @@ void mm_destroy(struct mm *mm)
  */
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
-    debug_printf("libmm: add capability of size %zu at %zx \n", size, base);
+    debug_printf("libmm: add capability of size %"PRIu64" at %zx \n", size, base);
 
     // create the node
     struct mmnode *node = NULL;
@@ -149,7 +147,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
  * \param       size    Size of the capability (in bytes)
  * \param[out]  node    Pointe to the newly added node
  */
-errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node)
+errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mmnode **node)
 {
     // this function should create a node in the memory (slab) and should add the node to the linked list (at the right position)
     // TODO: define alignment
@@ -254,7 +252,7 @@ void mm_print_manager(struct mm *mm){
     struct mmnode* node = mm->head;
     int i = 0;
     while(node != NULL){
-        printf("Node %d: start: %zx, size: %zu \n", i, node->base, node->size);
+        printf("Node %d: start: %zx, size: %"PRIu64" \n", i, node->base, node->size);
         node = node->next;
         ++i;
     }
