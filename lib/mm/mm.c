@@ -15,7 +15,7 @@ errval_t mm_alloc_slab(void);
 errval_t mm_free_slab(void);
 errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node);
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
-errval_t mm_mmnode_remove(void);
+errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
 //#############################
 
 
@@ -189,11 +189,13 @@ errval_t mm_free_slab(void)
 }
 
 /**
- * add a mmnode to doubly linked list of mmnodes in mm.
+ * Add a mmnode to doubly linked list of mmnodes in mm.
  *
- * \param  cap  Capability to add
- * \param  base Physical base address of the capability
- * \param  size Size of the capability (in bytes)
+ * \param mm    The mm structure to insert into
+ * \param cap   Capability to add
+ * \param base  Physical base address of the capability
+ * \param size  Size of the capability (in bytes)
+ * \param node  Pointe to the newly added node
  */
 errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, uint8_t size, struct mmnode **node)
 {
@@ -271,11 +273,28 @@ struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base
 /**
  * remove a mmnode from doubly linked list of mmnodes in mm.
  *
+ * \param mm    The mm structure to remove from
+ * \param node  The mmnode to remove
  */
-errval_t mm_mmnode_remove(void)
+errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
 {
-    // TODO: Implement
-    // TODO: add description
     // TODO: add entry in declaration in .h
-    return LIB_ERR_NOT_IMPLEMENTED;
+
+    // Ease of use pointer
+    struct mmnode *node = *p_node;
+    if (node->prev == NULL) {
+        // We are removing the head
+        mm->head = node->next;
+        if (mm->head)
+            mm->head->prev = NULL;
+    } else {
+        node->prev->next = node->next;
+        if (node->next)
+            node->next->prev = node->prev;
+    }
+
+    // Free the node memory
+    slab_free(&mm->slabs, node);
+
+    return SYS_ERR_OK;
 }
