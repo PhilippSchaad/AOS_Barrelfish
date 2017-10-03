@@ -9,10 +9,6 @@
 //#############################
 // private function definitions
 //#############################
-errval_t mm_alloc_slot(void);
-errval_t mm_free_slot(void);
-errval_t mm_alloc_slab(void);
-errval_t mm_free_slab(void);
 errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mmnode **node);
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
 errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
@@ -50,9 +46,6 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     // create the first slab to hold exactly one mnode
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
 
-    // create the head of the doubly linked list
-    // TODO: do
-
     debug_printf("libmm: mm ready\n");
     return SYS_ERR_OK;
 }
@@ -71,7 +64,7 @@ void mm_destroy(struct mm *mm)
  * \param  base Physical base address of the capability
  * \param  size Size of the capability (in bytes)
  */
-errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
+errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
     debug_printf("libmm: add capability of size %"PRIu64" at %zx \n", size, base);
 
@@ -205,8 +198,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
 
     // set node to the one we just created
     *node = actual_node;
-        return 0;
-        // TODO: check for freed memory
+    return SYS_ERR_OK;
 }
 
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size){
@@ -226,8 +218,6 @@ struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base
  */
 errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
 {
-    // TODO: add entry in declaration in .h
-
     // Ease of use pointer
     struct mmnode *node = *p_node;
     if (node->prev == NULL) {
