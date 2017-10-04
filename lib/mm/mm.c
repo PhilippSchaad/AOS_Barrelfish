@@ -12,6 +12,7 @@
 errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mmnode **node);
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
 errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
+errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode *retnode);
 void mm_print_manager(struct mm *mm);
 //#############################
 
@@ -235,6 +236,17 @@ errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
     slab_free(&mm->slabs, node);
 
     return SYS_ERR_OK;
+}
+
+/**
+ * Find a mmnode with at least [size] in the mm doubly linked list.
+ *
+ * \param       mm      The mm struct to search in
+ * \param       size    The size to try and fit
+ * \param[out]  retnode The fitting node
+ */
+errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode *retnode)
+{
 }
 
 // debug print
