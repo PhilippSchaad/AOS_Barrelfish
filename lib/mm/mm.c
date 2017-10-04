@@ -135,7 +135,6 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
     if (err_is_fail(err)) {
         return err;
     }
-
     
     assert(node != NULL);
     assert(node->type == NodeType_Free);
@@ -184,7 +183,7 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
     
     new_node->type = NodeType_Allocated;
     *retcap = new_node->cap.cap;
-
+    
     debug_printf("Allocated %u bytes\n", size);
     return SYS_ERR_OK;
 }
@@ -263,9 +262,11 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
     } else {
         // append before the current_node
         if(prev_node == NULL){
+            // new head
             new_node->next = current_node;
-            new_node->prev = prev_node;
+            new_node->prev = NULL;
             current_node->prev = new_node;
+            mm->head = new_node;
         } else {
             new_node->next = current_node;
             new_node->prev = prev_node;
