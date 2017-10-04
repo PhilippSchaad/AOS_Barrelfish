@@ -159,9 +159,15 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
             .base = orig_node_base,
             .size = size
         };
-
+        new_node->cap = capability;
+        err = mm->slot_alloc(mm->slot_alloc_inst, 1, &(new_node->cap.cap));
+        if (err_is_fail(err)) {
+            debug_printf("mm_alloc: could not create a slot");
+            return err;
+        }
+        
         assert(new_node != NULL);
-        node->cap = capability;
+        
     } else {
         slab_free(&(mm->slabs), new_node);
         new_node = node;
