@@ -39,6 +39,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->slot_refill = slot_refill_func;
     mm->objtype = objtype;
     mm->slot_alloc_inst = slot_alloc_inst;
+    mm->head = NULL;
 
     // there is a default slab refill function that can be used if no function is provided.
     if(slab_refill_func == NULL){
@@ -174,31 +175,31 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
         current_node = current_node->next;
     }
 
-    struct mmnode* actual_node = mm_create_node(mm, NodeType_Allocated, base, size);
+    struct mmnode* new_node = mm_create_node(mm, NodeType_Allocated, base, size);
 
     if (current_node == NULL){
         // append to the end of the list
         if (mm->head == NULL){
             // we just created the first node
-            mm->head = actual_node;
-            actual_node->prev = NULL;
-            actual_node->next = NULL;
+            mm->head = new_node;
+            new_node->prev = NULL;
+            new_node->next = NULL;
         } else {
             // prev_node holds the last node of the list
-            prev_node->next = actual_node;
-            actual_node->next = NULL;
-            actual_node->prev = prev_node;
+            prev_node->next = new_node;
+            new_node->next = NULL;
+            new_node->prev = prev_node;
         }
     } else {
         // append before the current_node
-        actual_node->next = current_node;
-        actual_node->prev = current_node->prev;
-        current_node->prev->next = actual_node;
-        current_node->prev = actual_node;
+        new_node->next = current_node;
+        new_node->prev = current_node->prev;
+        current_node->prev->next = new_node;
+        current_node->prev = new_node;
     }
 
     // set node to the one we just created
-    *node = actual_node;
+    *node = new_node;
     return SYS_ERR_OK;
 }
 
@@ -247,14 +248,19 @@ errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
  */
 errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode)
 {
+    assert(retnode != NULL);
+
+    // Start at head of mm list.
     struct mmnode *node = mm->head;
 
     while (node != NULL) {
         if (node->type == NodeType_Free &&
                 ((gensize_t) size <= node->size)) {
+            // Free node found where size fits.
             *retnode = node;
             return SYS_ERR_OK;
         }
+        // No match, continue iterating.
         node = node->next;
     }
 
@@ -264,10 +270,19 @@ errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode)
 
 // debug print
 void mm_print_manager(struct mm *mm){
+    debug_printf("Dumping Memory Manager nodes:\n");
     struct mmnode* node = mm->head;
     int i = 0;
+
+    if (node == NULL)
+        printf("    MM list empty!\n");
     while(node != NULL){
-        printf("Node %d: start: %zx, size: %"PRIu64" \n", i, node->base, node->size);
+        printf("    Node %d: start: %zx, size: %"PRIu64" MB - ",
+                i, node->base, node->size / 1024 / 1024);
+        if (node->type == NodeType_Free)
+            printf("Node free\n");
+        if (node->type == NodeType_Allocated)
+            printf("Node allocated\n");
         node = node->next;
         ++i;
     }
