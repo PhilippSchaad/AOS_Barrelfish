@@ -175,7 +175,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
         current_node = current_node->next;
     }
 
-    struct mmnode* new_node = mm_create_node(mm, NodeType_Allocated, base, size);
+    struct mmnode* new_node = mm_create_node(mm, NodeType_Free, base, size);
 
     if (current_node == NULL){
         // append to the end of the list
