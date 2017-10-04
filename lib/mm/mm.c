@@ -111,8 +111,61 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
  */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    assert(retcap != NULL);
+    debug_printf("Allocate %u bytes\n", size);
+
+    errval_t err;
+    struct mmnode *node = NULL;
+
+    // Find a free node in the list.
+    err = mm_mmnode_find(mm, size, &node);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    assert(node != NULL);
+    assert(node->type == NodeType_Free);
+
+    // Split the capability and the corresponding node.
+    // The remaining size after splitting.
+    gensize_t size_left = node->size - ((gensize_t) size);
+
+    // Create and insert a new node before the selected one.
+    struct mmnode *new_node = mm_create_node(mm, node->type, node->base, node->size);
+    new_node->prev = node->prev;
+    new_node->next = node;
+    
+    // If the selected node was the head, reajust the list head.
+    if (mm->head == node) {
+        mm->head = new_node;
+    }
+
+    // Adjust our old node's base and size according to our insertions.
+    node->base = node->base + size;
+    node->size = size_left;
+
+    // Allocate space for the new node's capability.
+    struct capinfo capability = {
+        .base = new_node->base,
+        .size = new_node->size
+    };
+    new_node->cap = capability;
+    err = mm->slot_alloc(mm->slot_alloc_inst, 1, &(new_node->cap.cap));
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    // Split the capability.
+    err = cap_retype(new_node->cap.cap, node->cap.cap, /* No offset */0,
+            mm->objtype, size, 1);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    *retcap = new_node->cap.cap;
+
+    debug_printf("Allocated %u bytes\n", size);
+    return SYS_ERR_OK;
 }
 
 /**
@@ -124,6 +177,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
  */
 errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 {
+    return mm_alloc_aligned(mm, size, BASE_PAGE_SIZE, retcap);
+    /*
     assert(retcap != NULL);
     debug_printf("Allocate %u bytes\n", size);
     
@@ -181,6 +236,7 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 
     debug_printf("Allocated %u bytes\n", size);
     return SYS_ERR_OK;
+    */
 }
 
 /**
