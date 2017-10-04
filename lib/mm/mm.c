@@ -115,8 +115,31 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
  */
 errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    assert(retcap != NULL);
+
+    errval_t err;
+    struct mmnode *node = NULL;
+
+    // Find a free node in the list.
+    err = mm_mmnode_find(mm, size, &node);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    assert(node != NULL);
+    assert(node->type == NodeType_Free);
+
+    // Split the node down until the size is right.
+    /*
+    while (node->size > (gensize_t)size) {
+    }
+    */
+
+    node->type = NodeType_Allocated;
+    *retcap = node->cap.cap;
+
+    debug_printf("Allocated %u bytes\n", size);
+    return SYS_ERR_OK;
 }
 
 /**
