@@ -95,5 +95,16 @@ errval_t initialize_ram_alloc(void)
         return err_push(err, LIB_ERR_RAM_ALLOC_SET);
     }
 
+    struct capref cap;
+    mm_alloc(&aos_mm, 20, &cap);
+
+    for (int i = 0; i < 50; i++) {
+        struct capref frame;
+        mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
+        if (i > 0 && i % 50 == 0) {
+            printf("Allocated %i frame of size %u\n", i, BASE_PAGE_SIZE);
+        }
+    }
+
     return SYS_ERR_OK;
 }
