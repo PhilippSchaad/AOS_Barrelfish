@@ -57,6 +57,15 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
  */
 void mm_destroy(struct mm *mm)
 {
+    // Iterate over all mm nodes and destroy their capabilities.
+    struct mmnode *node = mm->head;
+    struct mmnode *next_node = mm->head;
+    while (node != NULL) {
+        cap_destroy(node->cap.cap);
+        next_node = node->next;
+        mm_mmnode_remove(mm, &node);
+        node = next_node;
+    }
 }
 
 /**
