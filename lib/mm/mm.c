@@ -125,7 +125,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 {
     assert(retcap != NULL);
-
+    debug_printf("Allocate %u bytes\n", size);
+    
     errval_t err;
     struct mmnode *node = NULL;
 
@@ -135,17 +136,48 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
         return err;
     }
 
+    
     assert(node != NULL);
     assert(node->type == NodeType_Free);
 
-    // Split the node down until the size is right.
-    /*
-    while (node->size > (gensize_t)size) {
-    }
-    */
+    // Split the node
+    struct mmnode *new_node = NULL;
+    if (node->size > (gensize_t)size){
+        // store old size
+        gensize_t orig_node_size = node->size;
+        genpaddr_t orig_node_base = node->base;
 
-    node->type = NodeType_Allocated;
-    *retcap = node->cap.cap;
+        // set size of existing node
+        node->size = orig_node_size - size;
+        node->base = orig_node_base + orig_node_size;
+
+        // update the current capability
+        node->cap.base = orig_node_base + orig_node_size;
+        node->cap.size = orig_node_size - size;
+
+        // create the new node
+        err = mm_mmnode_add(mm, orig_node_base, size, &new_node);
+
+        // add the capability to the node
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
+        // create the new capability
+        struct capinfo capability = {
+            .base = orig_node_base,
+            .size = size
+        };
+
+        assert(new_node != NULL);
+        node->cap = capability;
+    } else {
+        slab_free(&(mm->slabs), new_node);
+        new_node = node;
+    }
+    
+    new_node->type = NodeType_Allocated;
+    *retcap = new_node->cap.cap;
 
     debug_printf("Allocated %u bytes\n", size);
     return SYS_ERR_OK;
@@ -224,10 +256,16 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
         }
     } else {
         // append before the current_node
-        new_node->next = current_node;
-        new_node->prev = current_node->prev;
-        current_node->prev->next = new_node;
-        current_node->prev = new_node;
+        if(prev_node == NULL){
+            new_node->next = current_node;
+            new_node->prev = prev_node;
+            current_node->prev = new_node;
+        } else {
+            new_node->next = current_node;
+            new_node->prev = prev_node;
+            prev_node->next = new_node;
+            current_node->prev = new_node;
+        }
     }
 
     // set node to the one we just created
