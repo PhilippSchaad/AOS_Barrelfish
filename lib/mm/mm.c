@@ -12,7 +12,7 @@
 errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mmnode **node);
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
 errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
-errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode *retnode);
+errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode);
 void mm_print_manager(struct mm *mm);
 //#############################
 
@@ -239,14 +239,27 @@ errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
 }
 
 /**
- * Find a mmnode with at least [size] in the mm doubly linked list.
+ * Find a free mmnode with at least [size] in the mm doubly linked list.
  *
  * \param       mm      The mm struct to search in
  * \param       size    The size to try and fit
  * \param[out]  retnode The fitting node
  */
-errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode *retnode)
+errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode)
 {
+    struct mmnode *node = mm->head;
+
+    while (node != NULL) {
+        if (node->type == NodeType_Free &&
+                ((gensize_t) size <= node->size)) {
+            *retnode = node;
+            return SYS_ERR_OK;
+        }
+        node = node->next;
+    }
+
+    // No matching node found.
+    return MM_ERR_NOT_FOUND;
 }
 
 // debug print
