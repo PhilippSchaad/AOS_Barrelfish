@@ -178,8 +178,22 @@ size_t slab_freecount(struct slab_allocator *slabs)
  */
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
-    USER_PANIC("TODO: Not yet implemented.")
-    return LIB_ERR_NOT_IMPLEMENTED;
+    debug_printf("slab: refill with %d byte\n", bytes);
+    
+    // allocate a new frame
+    struct capref frame;
+    
+    errval_t err;
+    // NOTE: after the next line, bytes contains the size of the created frame
+    // TODO: this line fails. find out why.
+    err = frame_alloc(&frame, bytes, &bytes);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    slab_grow(slabs, &frame, bytes);
+    debug_printf("slab: refilled %d bytes\n", bytes);
+    return SYS_ERR_OK;
 }
 
 /**

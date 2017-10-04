@@ -40,6 +40,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->objtype = objtype;
     mm->slot_alloc_inst = slot_alloc_inst;
     mm->head = NULL;
+    mm->refilling_slabs = false;
 
     // there is a default slab refill function that can be used if no function is provided.
     if(slab_refill_func == NULL){
@@ -293,6 +294,19 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
 }
 
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size){
+    // check if we have enough slabs left. If we fill the last slab, we cannot create new slabs because they need slabs themselves.
+    if(slab_freecount(&mm->slabs) < 2 && ! mm->refilling_slabs){
+        // indicate that we are refilling the slabs
+        mm->refilling_slabs = true;
+        errval_t err;
+        err = mm->slabs.refill_func(&mm->slabs);
+        //done
+        mm->refilling_slabs = false;
+        if(err_is_fail(err)){
+            return NULL;
+        }
+    }
+    
     // create the node in memory
     struct mmnode* node = slab_alloc(&mm->slabs);
     node->base=base;
