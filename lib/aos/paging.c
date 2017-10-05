@@ -182,6 +182,58 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
+    errval_t err;
+    
+    // according to the book, the L1 page table is at the following address
+    struct capref l1_pagetable = {
+        .cnode = cnode_page,
+        .slot = 0,
+    };
+    
+    // create a L2 pagetable
+    struct capref l2_pagetable;
+    // get the index of the L2 table in the L1 table
+    lvaddr_t l1_index = ARM_L1_OFFSET(vaddr);
+    
+    // check if the table already exists
+    if (st->l2_page_tables[l1_index].init) {
+        // table exists
+        l2_pagetable = st->l2_page_tables[l1_index].cap;
+    } else {
+        // create a new table
+        err = arml2_alloc(st, &l2_pagetable);
+        if (err_is_fail(err)) {
+            debug_printf("Paging: unable to create L2 page table");
+            return err;
+        }
+        
+        // write the L1 table entry
+        struct capref l2_l1_mapping;
+        st->slot_alloc->alloc(st->slot_alloc, &l2_l1_mapping);
+        //TODO: which rights are suited here?
+        err = vnode_map(l1_pagetable, l2_pagetable, l1_index, VREGION_FLAGS_READ_WRITE, 0, 1,
+                        l2_l1_mapping);
+        if (err_is_fail(err)) {
+            debug_printf("Paging: unable to create L1 L2 mapping");
+            return err;
+        }
+        
+        // add cap to tracking array
+        st->l2_page_tables[l1_index].cap = l2_pagetable;
+        st->l2_page_tables[l1_index].init = true;
+    }
+    
+    // get the frame from the L2 table
+    lvaddr_t l2_index = ARM_L2_OFFSET(vaddr);
+    struct capref l2_frame;
+    st->slot_alloc->alloc(st->slot_alloc, &l2_frame);
+    err = vnode_map(l2_pagetable, frame, l2_index, flags, 0, 1,l2_frame);
+
+    if (err_is_fail(err)) {
+        debug_printf("Paging: unable to create L2 frame mapping");
+        return err;
+    }
+    
     return SYS_ERR_OK;
 }
 

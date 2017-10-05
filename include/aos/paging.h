@@ -48,8 +48,12 @@ typedef int paging_flags_t;
 struct paging_state {
     struct slot_allocator* slot_alloc;
     // TODO: add struct members to keep track of the page tables etc
+    // l2 page tables
+    struct l2_page_table{
+        struct capref cap;
+        bool init;
+    } l2_page_tables[ARM_L1_MAX_ENTRIES];
 };
-
 
 struct thread;
 /// Initialize paging_state struct
