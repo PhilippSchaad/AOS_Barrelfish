@@ -69,6 +69,7 @@ errval_t paging_init(void)
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
     set_current_paging_state(&current);
+    current.slot_alloc = get_default_slot_allocator();
     return SYS_ERR_OK;
 }
 
@@ -202,6 +203,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     } else {
         // create a new table
         err = arml2_alloc(st, &l2_pagetable);
+
         if (err_is_fail(err)) {
             debug_printf("Paging: unable to create L2 page table");
             return err;

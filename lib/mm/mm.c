@@ -307,7 +307,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
 
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size){
     // check if we have enough slabs left. If we fill the last slab, we cannot create new slabs because they need slabs themselves.
-    if(slab_freecount(&mm->slabs) < 2 && ! mm->refilling_slabs){
+    if(slab_freecount(&mm->slabs) < 8 && ! mm->refilling_slabs){
         // indicate that we are refilling the slabs
         mm->refilling_slabs = true;
         errval_t err;

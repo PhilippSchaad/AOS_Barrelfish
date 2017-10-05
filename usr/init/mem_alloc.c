@@ -103,6 +103,14 @@ errval_t initialize_ram_alloc(void)
         mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
         mm_free(&aos_mm, frame, 0, 0);
         if (i > 0 && i % 50 == 0) {
+            printf("Allocated and freed %i frame of size %u\n", i, BASE_PAGE_SIZE);
+        }
+    }
+    
+    for (int i = 0; i < 300; i++) {
+        struct capref frame;
+        mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
+        if (i > 0 && i % 50 == 0) {
             printf("Allocated %i frame of size %u\n", i, BASE_PAGE_SIZE);
         }
     }
