@@ -185,13 +185,18 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     
     errval_t err;
     // NOTE: after the next line, bytes contains the size of the created frame
-    // TODO: this line fails. find out why.
     err = frame_alloc(&frame, bytes, &bytes);
     if (err_is_fail(err)) {
         return err;
     }
     
-    slab_grow(slabs, &frame, bytes);
+    // map the frame
+    void *buf;
+    paging_map_frame_attr(get_current_paging_state(), &buf, bytes, frame,VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    
+    // grow the slabs
+    slab_grow(slabs, &buf, bytes);
+
     debug_printf("slab: refilled %d bytes\n", bytes);
     return SYS_ERR_OK;
 }
