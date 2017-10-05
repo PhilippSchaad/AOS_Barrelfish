@@ -209,7 +209,12 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 {
     struct mmnode *node = mm->head;
     while (node != NULL) {
-        if (node->base == base && node->size == size) {
+        // Try matching based on capability, or base and size.
+        if ((node->base == base && node->size == size) ||
+                (node->cap.cap.slot == cap.slot &&
+                 node->cap.cap.cnode.croot == cap.cnode.croot &&
+                 node->cap.cap.cnode.cnode == cap.cnode.cnode &&
+                 node->cap.cap.cnode.level == cap.cnode.level)) {
             node->type = NodeType_Free;
             cap_destroy(node->cap.cap);
             debug_printf("Freed\n");
