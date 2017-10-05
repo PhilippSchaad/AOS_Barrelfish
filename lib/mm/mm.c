@@ -207,8 +207,19 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
  */
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    struct mmnode *node = mm->head;
+    while (node != NULL) {
+        if (node->base == base && node->size == size) {
+            node->type = NodeType_Free;
+            cap_destroy(node->cap.cap);
+            debug_printf("Freed\n");
+            return SYS_ERR_OK;
+        }
+        node = node->next;
+    }
+
+    debug_printf("Failed to free\n");
+    return MM_ERR_MM_FREE;
 }
 
 /**
