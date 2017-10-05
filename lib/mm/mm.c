@@ -169,14 +169,11 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             node->size += size;
             node->base -= size;
             return err;
-        } else {
-            debug_printf("I worked\n");
         }
         assert(new_node != NULL);
         
     } else {
-        printf("call?????abs\n");
-
+        // TODO: I don't think this works atm
         slab_free(&(mm->slabs), new_node);
         new_node = node;
     }
@@ -185,7 +182,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     *retcap = new_node->cap.cap;
     
     debug_printf("Allocated %u bytes\n", size);
-    mm_print_manager(mm);
     return SYS_ERR_OK;
 }
 
