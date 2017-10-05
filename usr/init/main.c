@@ -51,6 +51,20 @@ int main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
+    
+    //TODO: remove
+    debug_printf("Test Frame\n");
+    size_t bytes = 100;
+    // allocate a new frame
+    struct capref frame;
+    
+    // NOTE: after the next line, bytes contains the size of the created frame
+    // TODO: this line fails. find out why.
+    err = frame_alloc(&frame, bytes, &bytes);
+    if (err_is_fail(err)) {
+        debug_printf("Error: %s\n", err);
+    }
+//END
 
     debug_printf("Message handler loop\n");
     // Hang around

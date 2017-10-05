@@ -87,16 +87,16 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
 
     // add the capability to the node
     if (err_is_ok(err)) {
-
-        // create the capability struct
-        struct capinfo capability = {
-            .cap = cap,
-            .base = base,
-            .size = size
-        };
-
         assert(node != NULL);
-        node->cap = capability;
+        
+        // create the capability
+        node->cap.cap = cap;
+        node->cap.base = base;
+        node->cap.size = size;
+        
+        mm->initial_base = base;
+    } else {
+        debug_printf("mm_add: %s", err_getstring(err));
     }
     return err;
 }
@@ -112,7 +112,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
     if (size % alignment != 0) {
-        size += alignment - (size % alignment);
+        size += (size_t) alignment - (size % alignment);
     }
     assert(retcap != NULL);
     debug_printf("Allocate %u bytes\n", size);
@@ -133,40 +133,49 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     struct mmnode *new_node = NULL;
     if (node->size > (gensize_t)size){
         // store old size
-        gensize_t orig_node_size = node->size;
         genpaddr_t orig_node_base = node->base;
 
         // set size of existing node
-        node->size = orig_node_size - size;
-        node->base = orig_node_base + orig_node_size;
-
-        // update the current capability
-        node->cap.base = orig_node_base + orig_node_size;
-        node->cap.size = orig_node_size - size;
+        node->size -= size;
+        node->base += size;
 
         // create the new node
         err = mm_mmnode_add(mm, orig_node_base, size, &new_node);
 
         // add the capability to the node
         if (err_is_fail(err)) {
+            node->size += size;
+            node->base -= size;
             return err;
         }
         
         // create the new capability
-        struct capinfo capability = {
-            .base = orig_node_base,
-            .size = size
-        };
-        new_node->cap = capability;
         err = mm->slot_alloc(mm->slot_alloc_inst, 1, &(new_node->cap.cap));
         if (err_is_fail(err)) {
             debug_printf("mm_alloc: could not create a slot");
+            node->size += size;
+            node->base -= size;
             return err;
         }
+        new_node->cap.base = orig_node_base;
+        new_node->cap.size = size;
+        node->cap.size -= size;
+        node->cap.base += size;
         
+        err = cap_retype(new_node->cap.cap, node->cap.cap, new_node->base - mm->initial_base, mm->objtype, (gensize_t) size, 1);
+        if (err_is_fail(err)) {
+            debug_printf("mm_alloc: could not retype cap %s \n", err_getstring(err));
+            node->size += size;
+            node->base -= size;
+            return err;
+        } else {
+            debug_printf("I worked\n");
+        }
         assert(new_node != NULL);
         
     } else {
+        printf("call?????abs\n");
+
         slab_free(&(mm->slabs), new_node);
         new_node = node;
     }
@@ -175,6 +184,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     *retcap = new_node->cap.cap;
     
     debug_printf("Allocated %u bytes\n", size);
+    mm_print_manager(mm);
     return SYS_ERR_OK;
 }
 
@@ -356,8 +366,8 @@ void mm_print_manager(struct mm *mm){
     if (node == NULL)
         printf("    MM list empty!\n");
     while(node != NULL){
-        printf("    Node %d: start: %zx, size: %"PRIu64" MB - ",
-                i, node->base, node->size / 1024 / 1024);
+        printf("    Node %d: start: %zx, size: %"PRIu64" KB - Cap says: base: %zx size: %"PRIu64" KB - ",
+                i, node->base, node->size / 1024 , node->cap.base, node->cap.size / 1024);
         if (node->type == NodeType_Free)
             printf("Node free\n");
         if (node->type == NodeType_Allocated)
