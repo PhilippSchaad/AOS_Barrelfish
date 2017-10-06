@@ -195,7 +195,14 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     
     // map the frame
     void *buf;
-    paging_map_frame_attr(get_current_paging_state(), &buf, bytes, frame,VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    struct paging_state* st = get_current_paging_state();
+    buf = (void *) st->next_addr;
+    st->next_addr += BASE_PAGE_SIZE;
+    err = paging_map_frame_attr(st, &buf, bytes, frame,VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    if (err_is_fail(err)) {
+        debug_printf("error while refilling slab %s", err_getstring(err));
+        return err;
+    }
     
     // grow the slabs
     slab_grow(slabs, &buf, bytes);

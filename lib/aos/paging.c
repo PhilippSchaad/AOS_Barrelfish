@@ -70,6 +70,11 @@ errval_t paging_init(void)
     // avoid code duplication.
     set_current_paging_state(&current);
     current.slot_alloc = get_default_slot_allocator();
+    current.next_addr = 0x00001000;
+    size_t i;
+    for (i = 0; i < ARM_L1_MAX_ENTRIES; ++i) {
+        current.l2_page_tables[i].init = false;
+    }
     return SYS_ERR_OK;
 }
 
