@@ -3,7 +3,7 @@
 #include <aos/paging.h>
 
 static void mm_alloc_100f(void){
-    TEST_PRINT_INFO("allocate 100 frames (sizes 30 + 100*i)");
+    TEST_PRINT_INFO("allocate 100 frames (sizes 30 + 100*i) \n This will also demonstrate slab refills");
     
     errval_t err;
     
@@ -19,7 +19,30 @@ static void mm_alloc_100f(void){
     }
     
     TEST_PRINT_SUCCESS();
+}
+
+static void mm_alloc_and_map_10f(void){
+    TEST_PRINT_INFO("allocate 10 frames of different sizes and map them");
     
+    errval_t err;
+    
+    struct capref frame[10];
+    
+    for(int i = 0; i<10; ++i){
+        size_t frame_size=0;
+        size_t bytes = 30 + i*1000 ;
+        err = frame_alloc(&frame[i], bytes, &frame_size);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+        void *buf;
+        err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes, frame[i],VREGION_FLAGS_READ_WRITE, NULL, NULL);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+    }
+    
+    TEST_PRINT_SUCCESS();
 }
 
 static void mm_alloc_free_20(void){
@@ -103,13 +126,15 @@ static void mm_alloc_free_10(void){
     }
     
     TEST_PRINT_SUCCESS();
-    
 }
+
+
 
 static void mm_tests_run(void){
     mm_alloc_free_20();
     mm_alloc_free_10();
     mm_alloc_100f();
+    mm_alloc_and_map_10f();
 }
 
 //    for(int i = 1; i<3; ++i){
