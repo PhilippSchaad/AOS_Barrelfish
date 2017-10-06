@@ -180,12 +180,15 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
     debug_printf("slab: refill with %d byte\n", bytes);
     
+    // store the size of the frame
+    size_t frame_size=0;
+    
     // allocate a new frame
     struct capref frame;
     
     errval_t err;
     // NOTE: after the next line, bytes contains the size of the created frame
-    err = frame_alloc(&frame, bytes, &bytes);
+    err = frame_alloc(&frame, bytes, &frame_size);
     if (err_is_fail(err)) {
         return err;
     }
@@ -197,7 +200,7 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     // grow the slabs
     slab_grow(slabs, &buf, bytes);
 
-    debug_printf("slab: refilled %d bytes\n", bytes);
+    debug_printf("slab: refilled %d bytes\n", frame_size);
     return SYS_ERR_OK;
 }
 
