@@ -237,25 +237,18 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
  */
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
-    // TODO
-    // capref might change
-    // ram_identify oder so
-    // remerge nodes
+    // TODO: remerge nodes
     errval_t err;
     struct mmnode *node = mm->head;
     while (node != NULL) {
         // Try matching based on capability, or base and size.
-        if ((node->base == base && node->size == size) ||
-                (node->cap.cap.slot == cap.slot &&
-                 node->cap.cap.cnode.croot == cap.cnode.croot &&
-                 node->cap.cap.cnode.cnode == cap.cnode.cnode &&
-                 node->cap.cap.cnode.level == cap.cnode.level)) {
+        if (node->base == base && node->size == size) {
             node->type = NodeType_Free;
             err = cap_destroy(node->cap.cap);
-                    if(err_is_fail(err)){
-                        DEBUG_ERR(err,"cap destroy in mm_free:");
-                        return err;
-                    }
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"cap destroy in mm_free:");
+                return err;
+            }
             debug_printf("Freed\n");
             return SYS_ERR_OK;
         }

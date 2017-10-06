@@ -102,6 +102,7 @@ errval_t initialize_ram_alloc(void)
 
     
     
+    /*
     for(int i = 1; i<3; ++i){
         struct capref frame;
         size_t frame_size=0;
@@ -127,6 +128,7 @@ errval_t initialize_ram_alloc(void)
             printf("Allocated %i chunk of size %u\n", i, BASE_PAGE_SIZE);
         }
     }
+    */
     
    // USER_PANIC("HERE");
 
@@ -134,7 +136,13 @@ errval_t initialize_ram_alloc(void)
     for (int i = 0; i < 300; i++) {
         struct capref frame;
         mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
-        mm_free(&aos_mm, frame, 0, 0);
+
+        struct frame_identity fi;
+        errval_t ferr = frame_identify(frame, &fi);
+        if (err_is_fail(ferr)) {
+            DEBUG_ERR(ferr, "frame_identify in mem_alloc");
+        }
+        mm_free(&aos_mm, frame, fi.base, fi.bytes);
         if (i > 0 && i % 50 == 0) {
             printf("Allocated and freed %i chunk of size %u\n", i, BASE_PAGE_SIZE);
         }
