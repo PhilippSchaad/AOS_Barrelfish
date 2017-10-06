@@ -98,12 +98,23 @@ errval_t initialize_ram_alloc(void)
     struct capref cap;
     mm_alloc(&aos_mm, 20, &cap);
 
+    for(int i = 1; i<3; ++i){
+        struct capref frame;
+        size_t frame_size=0;
+        size_t bytes = 3000 * i;
+        err = frame_alloc(&frame, bytes, &frame_size);
+        debug_printf("Allocating a frame with %u bytes results in %u byte frame\n", bytes, frame_size);
+        if (err_is_fail(err)) {
+            return err;
+        }
+    }
+    
     for (int i = 0; i < 300; i++) {
         struct capref frame;
         mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
         mm_free(&aos_mm, frame, 0, 0);
         if (i > 0 && i % 50 == 0) {
-            printf("Allocated and freed %i frame of size %u\n", i, BASE_PAGE_SIZE);
+            printf("Allocated and freed %i chunk of size %u\n", i, BASE_PAGE_SIZE);
         }
     }
     
@@ -111,7 +122,7 @@ errval_t initialize_ram_alloc(void)
         struct capref frame;
         mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
         if (i > 0 && i % 50 == 0) {
-            printf("Allocated %i frame of size %u\n", i, BASE_PAGE_SIZE);
+            printf("Allocated %i chunk of size %u\n", i, BASE_PAGE_SIZE);
         }
     }
 
