@@ -119,12 +119,12 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         alignment += (size_t) BASE_PAGE_SIZE - (alignment % BASE_PAGE_SIZE);
     }
     
-    debug_printf("PRE:Allocate %u bytes\n", size);
+    //debug_printf("PRE:Allocate %u bytes\n", size);
     if (size % alignment != 0) {
         size += (size_t) alignment - (size % alignment);
     }
     assert(retcap != NULL);
-    debug_printf("Allocate %u bytes\n", size);
+    //debug_printf("Allocate %u bytes\n", size);
     
     errval_t err;
     struct mmnode *node = NULL;
@@ -132,8 +132,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     // check if we have enough slabs left first. If we fill the last slab, we cannot create new slabs because they need slabs themselves.
     // we do this here to not disrupt the addition of the actual node
     //debug_printf("slabs: %d\n", slab_freecount(&mm->slabs));
-     debug_printf("PRE free slabs: %d \n", slab_freecount(&mm->slabs));
-    if(slab_freecount(&mm->slabs) < 10 && ! mm->refilling_slabs){
+    //debug_printf("PRE free slabs: %d \n", slab_freecount(&mm->slabs));
+    if(slab_freecount(&mm->slabs) < 4 && ! mm->refilling_slabs){
         // indicate that we are refilling the slabs
         mm->refilling_slabs = true;
         err = mm->slabs.refill_func(&mm->slabs);
@@ -143,7 +143,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             debug_printf("error while creating slabs: %s", err_getstring(err));
             return err;
         }
-        debug_printf("free slabs: %d \n", slab_freecount(&mm->slabs));
+        //debug_printf("free slabs: %d \n", slab_freecount(&mm->slabs));
     }
     
     // Find a free node in the list.
@@ -166,7 +166,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         node->base += (genpaddr_t) size;
 
         // create the new node
-        debug_printf("node base: %"PRIxGENPADDR"", orig_node_base);
+        //debug_printf("node base: %"PRIxGENPADDR"", orig_node_base);
         err = mm_mmnode_add(mm, orig_node_base, size, &new_node);
  
 

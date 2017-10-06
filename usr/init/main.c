@@ -23,6 +23,8 @@
 #include <mm/mm.h>
 #include "mem_alloc.h"
 
+#include "../tests/test.h"
+
 coreid_t my_core_id;
 struct bootinfo *bi;
 
@@ -52,6 +54,8 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
+    // run tests
+    tests_run();
     
     debug_printf("Message handler loop\n");
     // Hang around

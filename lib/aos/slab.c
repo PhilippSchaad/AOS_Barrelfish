@@ -162,7 +162,7 @@ size_t slab_freecount(struct slab_allocator *slabs)
     size_t ret = 0;
 
     for (struct slab_head *sh = slabs->slabs; sh != NULL; sh = sh->next) {
-        debug_printf("SLAB: Block : %zx free: %d\n", sh, sh->free);
+        //debug_printf("SLAB: Block : %zx free: %d\n", sh, sh->free);
         ret += sh->free;
     }
 
@@ -208,7 +208,7 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     // grow the slabs
     slab_grow(slabs, buf, bytes);
 
-    debug_printf("slab: refilled %d bytes\n", frame_size);
+    //debug_printf("slab: refilled %d bytes\n", frame_size);
     return SYS_ERR_OK;
 }
 

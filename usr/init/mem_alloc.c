@@ -10,7 +10,7 @@
 /// MM allocator instance data
 struct mm aos_mm;
 
-static errval_t aos_ram_alloc_aligned(struct capref *ret, size_t size, size_t alignment)
+errval_t aos_ram_alloc_aligned(struct capref *ret, size_t size, size_t alignment)
 {
     return mm_alloc_aligned(&aos_mm, size, alignment, ret);
 }
@@ -99,48 +99,6 @@ errval_t initialize_ram_alloc(void)
     mm_alloc(&aos_mm, 20, &cap);
 
     // TODO: test fram alloc + map
-
-    
-    
-    for(int i = 1; i<3; ++i){
-        struct capref frame;
-        size_t frame_size=0;
-        size_t bytes = 3000 * i;
-        err = frame_alloc(&frame, bytes, &frame_size);
-        debug_printf("Allocating a frame with %u bytes results in %u byte frame\n", bytes, frame_size);
-        if (err_is_fail(err)) {
-            return err;
-        }
-        
-        void* buf;
-        err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes, frame,VREGION_FLAGS_READ_WRITE, NULL, NULL);
-        if (err_is_fail(err)) {
-            debug_printf("error while refilling slab %s", err_getstring(err));
-            return err;
-        }
-    }
-    
-    for (int i = 0; i < 300; i++) {
-        struct capref frame;
-        mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
-        if (i > 0 && i % 50 == 0) {
-            printf("Allocated %i chunk of size %u\n", i, BASE_PAGE_SIZE);
-        }
-    }
-    
-   // USER_PANIC("HERE");
-
-    
-    for (int i = 0; i < 300; i++) {
-        struct capref frame;
-        mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
-        mm_free(&aos_mm, frame, 0, 0);
-        if (i > 0 && i % 50 == 0) {
-            printf("Allocated and freed %i chunk of size %u\n", i, BASE_PAGE_SIZE);
-        }
-    }
-    
-    
     
 
     return SYS_ERR_OK;

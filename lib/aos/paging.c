@@ -168,8 +168,6 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
                                size_t bytes, struct capref frame,
                                int flags, void *arg1, void *arg2)
 {
-    debug_printf("1");
-
     errval_t err = paging_alloc(st, buf, bytes);
     if (err_is_fail(err)) {
         return err;
