@@ -62,6 +62,7 @@ struct mm {
     struct mmnode *head;         ///< Head of doubly-linked list of nodes in order
     bool refilling_slabs;        ///< This indicates that a slab refilling is taking place
     genpaddr_t initial_base;     ///< Store the initial offset of the ram cap
+    struct capref ram_cap;
 };
 
 errval_t mm_init(struct mm *mm, enum objtype objtype,
