@@ -133,10 +133,11 @@ static void mm_alloc_free_10(void){
 
 
 static void mm_tests_run(void){
+    mm_alloc_and_map_10f();
+
     mm_alloc_free_20();
     mm_alloc_free_10();
     mm_alloc_100f();
-    mm_alloc_and_map_10f();
 }
 
 //    for(int i = 1; i<3; ++i){
