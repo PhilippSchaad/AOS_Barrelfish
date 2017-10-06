@@ -98,8 +98,5 @@ errval_t initialize_ram_alloc(void)
     struct capref cap;
     mm_alloc(&aos_mm, 20, &cap);
 
-    // TODO: test fram alloc + map
-    
-
     return SYS_ERR_OK;
 }
