@@ -45,6 +45,8 @@ static void mm_alloc_and_map_10f(void){
     TEST_PRINT_SUCCESS();
 }
 
+//TODO: alloc more than 256
+
 static void mm_alloc_free_20(void){
     TEST_PRINT_INFO("allocate 20 chunks of ram (sizes 30 + 500*i). Repeated twice");
     
