@@ -152,9 +152,11 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
  * \brief Find a bit of free virtual address space that is large enough to
  *        accomodate a buffer of size `bytes`.
  */
+int COUNT=0;
+
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
-    *buf = NULL;
+    *buf = (void*) (++COUNT * BASE_PAGE_SIZE);
     return SYS_ERR_OK;
 }
 
@@ -166,6 +168,8 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
                                size_t bytes, struct capref frame,
                                int flags, void *arg1, void *arg2)
 {
+    debug_printf("1");
+
     errval_t err = paging_alloc(st, buf, bytes);
     if (err_is_fail(err)) {
         return err;

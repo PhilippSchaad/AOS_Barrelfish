@@ -113,11 +113,18 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
  */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
+    // TODO: verify and make nicer
+    // TODO: some space is lost here (page tables)
+    if (alignment % BASE_PAGE_SIZE != 0) {
+        alignment += (size_t) BASE_PAGE_SIZE - (alignment % BASE_PAGE_SIZE);
+    }
+    
+    debug_printf("PRE:Allocate %u bytes\n", size);
     if (size % alignment != 0) {
         size += (size_t) alignment - (size % alignment);
     }
     assert(retcap != NULL);
-    //debug_printf("Allocate %u bytes\n", size);
+    debug_printf("Allocate %u bytes\n", size);
     
     errval_t err;
     struct mmnode *node = NULL;
@@ -125,7 +132,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     // check if we have enough slabs left first. If we fill the last slab, we cannot create new slabs because they need slabs themselves.
     // we do this here to not disrupt the addition of the actual node
     //debug_printf("slabs: %d\n", slab_freecount(&mm->slabs));
-    if(slab_freecount(&mm->slabs) < 4 && ! mm->refilling_slabs){
+     debug_printf("PRE free slabs: %d \n", slab_freecount(&mm->slabs));
+    if(slab_freecount(&mm->slabs) < 10 && ! mm->refilling_slabs){
         // indicate that we are refilling the slabs
         mm->refilling_slabs = true;
         err = mm->slabs.refill_func(&mm->slabs);
@@ -155,9 +163,10 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
         // set size of existing node
         node->size -= size;
-        node->base += size;
+        node->base += (genpaddr_t) size;
 
         // create the new node
+        debug_printf("node base: %"PRIxGENPADDR"", orig_node_base);
         err = mm_mmnode_add(mm, orig_node_base, size, &new_node);
  
 
@@ -185,7 +194,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         
         err = cap_retype(new_node->cap.cap, node->cap.cap, new_node->base - mm->initial_base, mm->objtype, (gensize_t) size, 1);
         if (err_is_fail(err)) {
-            debug_printf("mm_alloc: could not retype cap %s \n", err_getstring(err));
+            debug_printf("mm_alloc: could not retype cap %s size:%d offset:%zu \n", err_getstring(err), size, new_node->base - mm->initial_base);
             node->size += size;
             node->base -= size;
             return err;
@@ -228,6 +237,11 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
  */
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
+    // TODO
+    // capref might change
+    // ram_identify oder so
+    // remerge nodes
+    errval_t err;
     struct mmnode *node = mm->head;
     while (node != NULL) {
         // Try matching based on capability, or base and size.
@@ -237,7 +251,11 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
                  node->cap.cap.cnode.cnode == cap.cnode.cnode &&
                  node->cap.cap.cnode.level == cap.cnode.level)) {
             node->type = NodeType_Free;
-            cap_destroy(node->cap.cap);
+            err = cap_destroy(node->cap.cap);
+                    if(err_is_fail(err)){
+                        DEBUG_ERR(err,"cap destroy in mm_free:");
+                        return err;
+                    }
             debug_printf("Freed\n");
             return SYS_ERR_OK;
         }
