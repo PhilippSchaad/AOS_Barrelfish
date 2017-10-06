@@ -85,7 +85,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
 
     // finish the node and add it to the list
     errval_t err = mm_mmnode_add(mm, base, size, &node);
-
+ 
     // add the capability to the node
     if (err_is_ok(err)) {
         assert(node != NULL);
@@ -99,6 +99,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
     } else {
         debug_printf("mm_add: %s", err_getstring(err));
     }
+ 
     return err;
 }
 
@@ -116,17 +117,33 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         size += (size_t) alignment - (size % alignment);
     }
     assert(retcap != NULL);
-    debug_printf("Allocate %u bytes\n", size);
+    //debug_printf("Allocate %u bytes\n", size);
     
     errval_t err;
     struct mmnode *node = NULL;
 
+    // check if we have enough slabs left first. If we fill the last slab, we cannot create new slabs because they need slabs themselves.
+    // we do this here to not disrupt the addition of the actual node
+    //debug_printf("slabs: %d\n", slab_freecount(&mm->slabs));
+    if(slab_freecount(&mm->slabs) < 4 && ! mm->refilling_slabs){
+        // indicate that we are refilling the slabs
+        mm->refilling_slabs = true;
+        err = mm->slabs.refill_func(&mm->slabs);
+        //done
+        mm->refilling_slabs = false;
+        if(err_is_fail(err)){
+            debug_printf("error while creating slabs: %s", err_getstring(err));
+            return err;
+        }
+        debug_printf("free slabs: %d \n", slab_freecount(&mm->slabs));
+    }
+    
     // Find a free node in the list.
     err = mm_mmnode_find(mm, size, &node);
     if (err_is_fail(err)) {
         return err;
     }
-    
+ 
     assert(node != NULL);
     assert(node->type == NodeType_Free);
 
@@ -142,6 +159,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
         // create the new node
         err = mm_mmnode_add(mm, orig_node_base, size, &new_node);
+ 
 
         // add the capability to the node
         if (err_is_fail(err)) {
@@ -149,6 +167,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             node->base -= size;
             return err;
         }
+ 
         
         // create the new capability
         err = mm->slot_alloc(mm->slot_alloc_inst, 1, &(new_node->cap.cap));
@@ -158,6 +177,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             node->base -= size;
             return err;
         }
+ 
         new_node->cap.base = orig_node_base;
         new_node->cap.size = size;
         node->cap.size -= size;
@@ -170,6 +190,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             node->base -= size;
             return err;
         }
+ 
         assert(new_node != NULL);
         
     } else {
@@ -177,8 +198,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         slab_free(&(mm->slabs), new_node);
         new_node = node;
     }
-    
     new_node->type = NodeType_Allocated;
+
     *retcap = new_node->cap.cap;
     
     debug_printf("Allocated %u bytes\n", size);
@@ -222,7 +243,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         }
         node = node->next;
     }
-
+ 
     debug_printf("Failed to free\n");
     return MM_ERR_MM_FREE;
 }
@@ -255,6 +276,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
                 // we have found the right spot
                 break;
             }
+         
         } else {
             // base is larger than the current node (or equal)
             if (base < current_node->base + current_node->size){
@@ -264,11 +286,11 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
             }
             // else go to the next node
         }
-
+     
         prev_node = current_node;
         current_node = current_node->next;
     }
-
+ 
     struct mmnode* new_node = mm_create_node(mm, NodeType_Free, base, size);
 
     if (current_node == NULL){
@@ -285,6 +307,7 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
             new_node->prev = prev_node;
         }
     } else {
+     
         // append before the current_node
         if(prev_node == NULL){
             // new head
@@ -302,24 +325,12 @@ errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mm
 
     // set node to the one we just created
     *node = new_node;
+ 
     return SYS_ERR_OK;
 }
 
 struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size){
-    // check if we have enough slabs left. If we fill the last slab, we cannot create new slabs because they need slabs themselves.
-    if(slab_freecount(&mm->slabs) < 8 && ! mm->refilling_slabs){
-        // indicate that we are refilling the slabs
-        mm->refilling_slabs = true;
-        errval_t err;
-        err = mm->slabs.refill_func(&mm->slabs);
-        //done
-        mm->refilling_slabs = false;
-        if(err_is_fail(err)){
-            return NULL;
-        }
-    }
-    
-    // create the node in memory
+     // create the node in memory
     struct mmnode* node = slab_alloc(&mm->slabs);
     node->base=base;
     node->size=size;
