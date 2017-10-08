@@ -207,7 +207,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         node->cap.size -= size;
         node->cap.base += size;
         
-        err = cap_retype(new_node->cap.cap, node->cap.cap, new_node->base - mm->initial_base, mm->objtype, (gensize_t) size, 1);
+        err = cap_retype(new_node->cap.cap, mm->ram_cap, new_node->base - mm->initial_base, mm->objtype, (gensize_t) size, 1);
         if (err_is_fail(err)) {
             debug_printf("mm_alloc: could not retype cap err: %s size:%"PRIuGENSIZE" offset:%"PRIxGENPADDR" base: %"PRIxGENPADDR" when trying to input to node base: %"PRIxGENPADDR"  \n", err_getstring(err), (gensize_t) size, new_node->base - mm->initial_base, new_node->base, node->base);
             node->size += size;
@@ -254,6 +254,8 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     // TODO: remerge nodes
     errval_t err = SYS_ERR_OK;
     struct mmnode *node = mm->head;
+    //mm_print_manager(mm);
+    //debug_printf("----->node to remove: Base %"PRIxGENPADDR" and size %"PRIuGENSIZE"\n",base,size);
     while (node != NULL) {
 
         // Try matching based on capability, or base and size.
@@ -283,7 +285,8 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
                     return err;
                 }
             }
-            
+            //mm_print_manager(mm);
+
             return SYS_ERR_OK;
         }
         node = node->next;
@@ -311,7 +314,7 @@ errval_t mm_mnode_merge(struct mm *mm, struct mmnode *first, struct mmnode *seco
     slot_free(second->cap.cap);
     
     // retype cap
-    cap_retype(first->cap.cap, mm->ram_cap, first->base - mm->initial_base, mm->objtype, (gensize_t) first->size, 1);
+    //cap_retype(first->cap.cap, mm->ram_cap, first->base - mm->initial_base, mm->objtype, (gensize_t) first->size, 1);
     
     // remove node
     mm_mmnode_remove(mm, &second);
@@ -474,8 +477,10 @@ void mm_print_manager(struct mm *mm){
     if (node == NULL)
         printf("    MM list empty!\n");
     while(node != NULL){
+        struct frame_identity fi;
+        frame_identify(node->cap.cap, &fi);
         printf("    Node %d: start: %zx, size: %"PRIu64" KB - Cap says: base: %zx size: %"PRIu64" KB - ",
-                i, node->base, node->size / 1024 , node->cap.base, node->cap.size / 1024);
+                i, node->base, node->size / 1024 , fi.base, fi.bytes / 1024);
         if (node->type == NodeType_Free)
             printf("Node free\n");
         if (node->type == NodeType_Allocated)
