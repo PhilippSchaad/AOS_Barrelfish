@@ -18,6 +18,16 @@ static void mm_alloc_100f(void){
         }
     }
     
+    for(int i = 0; i<100; ++i){
+        size_t bytes = 30 + i*100;
+        
+        err = aos_ram_free(frame[i], bytes);
+        cap_destroy(frame[i]);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+    }
+    
     TEST_PRINT_SUCCESS();
 }
 
@@ -42,10 +52,17 @@ static void mm_alloc_and_map_10f(void){
         }
     }
     
+    for(int i = 0; i<10; ++i){
+        size_t bytes = 30 + i*1000 ;
+        err = aos_ram_free(frame[i], bytes);
+        cap_destroy(frame[i]);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+    }
+    
     TEST_PRINT_SUCCESS();
 }
-
-//TODO: alloc more than 256
 
 static void mm_alloc_free_20(void){
     TEST_PRINT_INFO("allocate 20 chunks of ram (sizes 30 + 500*i). Repeated twice");
@@ -76,30 +93,29 @@ static void mm_alloc_free_20(void){
     
 }
 
-static void mm_alloc_free_500(void){
-    TEST_PRINT_INFO("allocate 500 chunks of ram (size 30). and free again");
+static void mm_alloc_free_600(void){
+    TEST_PRINT_INFO("allocate 400 chunks of ram (size 30). and free again. This also uses slot alloc.");
     
     errval_t err;
     
-    for (int j=0; j<2;++j) {
-        struct capref frame[500];
-        
-        for(int i = 0; i<500; ++i){
-            size_t bytes = 30 ;
-            err = aos_ram_alloc_aligned(&frame[i], bytes, BASE_PAGE_SIZE);
-            if (err_is_fail(err)) {
-                TEST_PRINT_FAIL();
-            }
-        }
-        
-        for(int i = 0; i<500; ++i){
-            size_t bytes = 30 ;
-            err = aos_ram_free(frame[i], bytes);
-            if (err_is_fail(err)) {
-                TEST_PRINT_FAIL();
-            }
+    struct capref frame[600];
+    
+    for(int i = 0; i<600; ++i){
+        size_t bytes = 30 ;
+        err = aos_ram_alloc_aligned(&frame[i], bytes, BASE_PAGE_SIZE);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
         }
     }
+    
+    for(int i = 0; i<600; ++i){
+        size_t bytes = 30 ;
+        err = aos_ram_free(frame[i], bytes);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+    }
+    
     
     TEST_PRINT_SUCCESS();
     
@@ -162,11 +178,16 @@ static void mm_alloc_free_10(void){
 
 
 static void mm_tests_run(void){
+    mm_alloc_free_600();
+
+    mm_alloc_100f();
+    
+    mm_alloc_free_20();
+    
+    mm_alloc_free_10();
+
+
     mm_alloc_and_map_10f();
 
-    mm_alloc_free_20();
-    mm_alloc_free_10();
-    mm_alloc_100f();
-    mm_alloc_free_500();
 }
 

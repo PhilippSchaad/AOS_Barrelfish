@@ -4,7 +4,7 @@
 #define TEST_PRINT(message) debug_printf("%s: %s\n", __func__, message)
 #define TEST_PRINT_INFO(message) debug_printf("\033[33m %s: %s \033[0m\n", __func__, message)
 #define TEST_PRINT_SUCCESS() debug_printf("\033[33m Test: %s: \033[0m \033[32m OK \033[0m\n\n\n", __func__); return
-#define TEST_PRINT_FAIL() DEBUG_ERR(err,"err: "); debug_printf("\033[33m Test: %s: \033[0m \033[31m FAILED \033[0m\n\n\n", __func__); return
+#define TEST_PRINT_FAIL() DEBUG_ERR(err,"err: "); debug_printf("\033[33m Test: %s: \033[0m \033[31m FAILED \033[0m\n\n\n", __func__); USER_PANIC("test failed"); return
 
 #include <stdio.h>
 #include <aos/aos.h>
