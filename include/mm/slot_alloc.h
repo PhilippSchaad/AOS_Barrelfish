@@ -46,6 +46,9 @@ struct slot_prealloc {
 
     /// RAM allocator to allocate space for new cnodes
     struct mm *mm;
+    
+    /// check if we are refilling
+    bool is_refilling;
 };
 
 /// Initialiser for the pre-allocating implementation

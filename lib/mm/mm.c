@@ -15,6 +15,7 @@ errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
 errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode);
 void mm_print_manager(struct mm *mm);
 errval_t mm_mnode_merge(struct mm *mm, struct mmnode *first, struct mmnode *second);
+errval_t mm_slot_alloc(struct mm *mm, uint64_t slots, struct capref* cap);
 //#############################
 
 /**
@@ -101,7 +102,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
     }
     
     // add the capability to the node
-    err = mm->slot_alloc(mm->slot_alloc_inst, 1, &(node->cap.cap));
+    err = mm_slot_alloc(mm, 1, &(node->cap.cap));
     if (err_is_fail(err)) {
         debug_printf("mm_add: could not create a slot");
         return err;
@@ -115,6 +116,34 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t siz
         return err;
     }
     
+    return err;
+}
+
+/**
+ * Allocate slots, refill if necessary
+ *
+ */
+errval_t mm_slot_alloc(struct mm *mm, uint64_t slots, struct capref* cap){
+    errval_t err;
+    struct slot_prealloc* sa = (struct slot_prealloc*) mm->slot_alloc_inst;
+    // check both entries of the metadata array for free slots
+    // we need slots to allocate new ones so make sure the slot count is above
+    // a certain threshold. Also make sure that we are not currently refilling
+    // as this would lead to a infinite recursion.
+    // in the worst case we also need to refill the slabs
+    // debug_printf("0:%"PRIu64" 1:%"PRIu64" \n", sa->meta[0].free, sa->meta[1].free);
+    if (sa->meta[0].free < (uint64_t) 4 && sa->meta[1].free < (uint64_t) 4 && !sa->is_refilling) {
+        // no free slots left, try to create new ones
+        sa->is_refilling = true;
+        err = mm->slot_refill(mm->slot_alloc_inst);
+        sa->is_refilling = false;
+        if (err_is_fail(err)){
+           DEBUG_ERR(err,"mm_slot_alloc: ");
+            return err;
+        }
+        printf("new Slots created \n");
+    }
+    err = mm->slot_alloc(mm->slot_alloc_inst, slots, cap);
     return err;
 }
 
@@ -192,40 +221,40 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             return err;
         }
  
-        
-        // create the new capability
-        err = mm->slot_alloc(mm->slot_alloc_inst, 1, &(new_node->cap.cap));
-        if (err_is_fail(err)) {
-            debug_printf("mm_alloc: could not create a slot");
-            node->size += size;
-            node->base -= size;
-            return err;
-        }
- 
         new_node->cap.base = orig_node_base;
         new_node->cap.size = size;
         node->cap.size -= size;
         node->cap.base += size;
-        
-        err = cap_retype(new_node->cap.cap, mm->ram_cap, new_node->base - mm->initial_base, mm->objtype, (gensize_t) size, 1);
-        if (err_is_fail(err)) {
-            debug_printf("mm_alloc: could not retype cap err: %s size:%"PRIuGENSIZE" offset:%"PRIxGENPADDR" base: %"PRIxGENPADDR" when trying to input to node base: %"PRIxGENPADDR"  \n", err_getstring(err), (gensize_t) size, new_node->base - mm->initial_base, new_node->base, node->base);
-            node->size += size;
-            node->base -= size;
-            return err;
-        }
  
         assert(new_node != NULL);
         
     } else {
+        // size of the node exactly as needed
         slab_free(&(mm->slabs), new_node);
         new_node = node;
+        debug_printf("Reuse %"PRIxGENPADDR"\n", node->base);
     }
+    
+    //TODO: cleanup
+    
+    // create the capability
+    err = mm_slot_alloc(mm, 1, &(new_node->cap.cap));
+    if (err_is_fail(err)) {
+        debug_printf("mm_alloc: could not create a slot");
+        return err;
+    }
+    
+    err = cap_retype(new_node->cap.cap, mm->ram_cap, new_node->base - mm->initial_base, mm->objtype, (gensize_t) size, 1);
+    if (err_is_fail(err)) {
+        mm_print_manager(mm);
+        debug_printf("mm_alloc: could not retype cap err: %s size:%"PRIuGENSIZE" offset:%"PRIxGENPADDR" base: %"PRIxGENPADDR" when trying to input to node base: %"PRIxGENPADDR"  \n", err_getstring(err), (gensize_t) size, new_node->base - mm->initial_base, new_node->base, node->base);
+        return err;
+    }
+    
     new_node->type = NodeType_Allocated;
 
     *retcap = new_node->cap.cap;
-    
-    debug_printf("Allocated %u bytes\n", size);
+    debug_printf("Allocated %"PRIuGENSIZE" bytes @ %"PRIxGENPADDR"\n", new_node->size, new_node->cap.base);
     return SYS_ERR_OK;
 }
 
@@ -251,7 +280,6 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
  */
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
-    // TODO: remerge nodes
     errval_t err = SYS_ERR_OK;
     struct mmnode *node = mm->head;
     //mm_print_manager(mm);
@@ -266,12 +294,21 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 //                DEBUG_ERR(err,"cap destroy in mm_free:");
 //                return err;
 //            }
-            debug_printf("Freed\n");
+            debug_printf("Freed %"PRIxGENPADDR"", base);
+            
+            // revoke children and delete cap
+            err = cap_revoke(node->cap.cap);
+            // destroy = delete + free slot
+            err = cap_destroy(node->cap.cap);
+//            if(err_is_fail(err)){
+//                DEBUG_ERR(err,"cap destroy in mm_free:");
+//                return err;
+//            }
             
             // try to merge with node before or after or both
             if (node->next != NULL && node->next->type == NodeType_Free) {
                 // merge with next
-                mm_mnode_merge(mm,node,node->next);
+                err = mm_mnode_merge(mm,node,node->next);
                 if(err_is_fail(err)){
                     DEBUG_ERR(err,"cap destroy in mm_free:");
                     return err;
@@ -279,14 +316,14 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
             }
             if (node->prev != NULL && node->prev->type == NodeType_Free) {
                 // merge with prev
-                mm_mnode_merge(mm,node->prev,node);
+                err = mm_mnode_merge(mm,node->prev,node);
                 if(err_is_fail(err)){
                     DEBUG_ERR(err,"cap destroy in mm_free:");
                     return err;
                 }
             }
             //mm_print_manager(mm);
-
+            printf("\n");
             return SYS_ERR_OK;
         }
         node = node->next;
@@ -297,28 +334,15 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 }
 
 errval_t mm_mnode_merge(struct mm *mm, struct mmnode *first, struct mmnode *second){
-    errval_t err;
     // adjust node
     first->size += second->size;
-    
-    // adjust capinfo
-    first->cap.size += second->size;
-    
-    // delete second cap
-    // ignore errors here
-    err = cap_delete(second->cap.cap);
-    
-    err = cap_delete(first->cap.cap);
-    
-    // remove the slot
-    slot_free(second->cap.cap);
     
     // retype cap
     //cap_retype(first->cap.cap, mm->ram_cap, first->base - mm->initial_base, mm->objtype, (gensize_t) first->size, 1);
     
     // remove node
     mm_mmnode_remove(mm, &second);
-    debug_printf("merge done\n");
+    printf(" and merge done");
     return SYS_ERR_OK;
 }
 

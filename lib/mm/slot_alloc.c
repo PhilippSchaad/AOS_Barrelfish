@@ -133,7 +133,8 @@ errval_t slot_prealloc_init(struct slot_prealloc *this,
     this->meta[0].cap       = initial_cnode;
     this->meta[0].free      = initial_space;
     this->meta[1].free      = 0;
-
+    this->is_refilling      = false;
+    
     return SYS_ERR_OK;
 }
 
