@@ -76,6 +76,35 @@ static void mm_alloc_free_20(void){
     
 }
 
+static void mm_alloc_free_500(void){
+    TEST_PRINT_INFO("allocate 500 chunks of ram (size 30). and free again");
+    
+    errval_t err;
+    
+    for (int j=0; j<2;++j) {
+        struct capref frame[500];
+        
+        for(int i = 0; i<500; ++i){
+            size_t bytes = 30 ;
+            err = aos_ram_alloc_aligned(&frame[i], bytes, BASE_PAGE_SIZE);
+            if (err_is_fail(err)) {
+                TEST_PRINT_FAIL();
+            }
+        }
+        
+        for(int i = 0; i<500; ++i){
+            size_t bytes = 30 ;
+            err = aos_ram_free(frame[i], bytes);
+            if (err_is_fail(err)) {
+                TEST_PRINT_FAIL();
+            }
+        }
+    }
+    
+    TEST_PRINT_SUCCESS();
+    
+}
+
 static void mm_alloc_free_10(void){
     TEST_PRINT_INFO("allocate 10 chunks of ram (sizes 30 + 1000*i). Free every second. allocate 10 chunks of different size again and free all");
     
@@ -138,42 +167,6 @@ static void mm_tests_run(void){
     mm_alloc_free_20();
     mm_alloc_free_10();
     mm_alloc_100f();
+    mm_alloc_free_500();
 }
 
-//    for(int i = 1; i<3; ++i){
-//        struct capref frame;
-//        size_t frame_size=0;
-//        size_t bytes = 3000 * i;
-//        err = frame_alloc(&frame, bytes, &frame_size);
-//        debug_printf("Allocating a frame with %u bytes results in %u byte frame\n", bytes, frame_size);
-//        if (err_is_fail(err)) {
-//            return err;
-//        }
-//
-//        void* buf;
-//        err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes, frame,VREGION_FLAGS_READ_WRITE, NULL, NULL);
-//        if (err_is_fail(err)) {
-//            debug_printf("error while refilling slab %s", err_getstring(err));
-//            return err;
-//        }
-//    }
-//
-//    for (int i = 0; i < 300; i++) {
-//        struct capref frame;
-//        mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
-//        if (i > 0 && i % 50 == 0) {
-//            printf("Allocated %i chunk of size %u\n", i, BASE_PAGE_SIZE);
-//        }
-//    }
-//
-//   // USER_PANIC("HERE");
-//
-//
-//    for (int i = 0; i < 300; i++) {
-//        struct capref frame;
-//        mm_alloc(&aos_mm, BASE_PAGE_SIZE, &frame);
-//        mm_free(&aos_mm, frame, 0, 0);
-//        if (i > 0 && i % 50 == 0) {
-//            printf("Allocated and freed %i chunk of size %u\n", i, BASE_PAGE_SIZE);
-//        }
-//    }
