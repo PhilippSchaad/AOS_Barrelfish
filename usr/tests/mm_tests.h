@@ -3,7 +3,9 @@
 #include <aos/paging.h>
 
 static void mm_alloc_100f(void){
-    TEST_PRINT_INFO("allocate 100 frames (sizes 30 + 100*i) \n This will also demonstrate slab refills");
+    TEST_PRINT_INFO("Allocate 100 frames (sizes 30 + 100*i).\n"  \
+            "           "   \
+            "This will also demonstrate slab refills.");
     
     errval_t err;
     
@@ -32,7 +34,7 @@ static void mm_alloc_100f(void){
 }
 
 static void mm_alloc_and_map_10f(void){
-    TEST_PRINT_INFO("allocate 10 frames of different sizes and map them");
+    TEST_PRINT_INFO("Allocate 10 frames of different sizes and map them.");
     
     errval_t err;
     
@@ -65,7 +67,7 @@ static void mm_alloc_and_map_10f(void){
 }
 
 static void mm_alloc_free_20(void){
-    TEST_PRINT_INFO("allocate 20 chunks of ram (sizes 30 + 500*i). Repeated twice");
+    TEST_PRINT_INFO("Allocate 20 chunks of ram (sizes 30 + 500*i). Repeated twice.");
     
     errval_t err;
     
@@ -94,7 +96,7 @@ static void mm_alloc_free_20(void){
 }
 
 static void mm_alloc_free_600(void){
-    TEST_PRINT_INFO("allocate 400 chunks of ram (size 30). and free again. This also uses slot alloc.");
+    TEST_PRINT_INFO("Allocate 400 chunks of ram (size 30) and free again. This also uses slot alloc.");
     
     errval_t err;
     
@@ -122,7 +124,9 @@ static void mm_alloc_free_600(void){
 }
 
 static void mm_alloc_free_10(void){
-    TEST_PRINT_INFO("allocate 10 chunks of ram (sizes 30 + 1000*i). Free every second. allocate 10 chunks of different size again and free all");
+    TEST_PRINT_INFO("Allocate 10 chunks of ram (sizes 30 + 1000*i). Free every second.\n"   \
+            "           "   \
+            "Allocate 10 chunks of different size again and free all.");
     
     errval_t err;
     

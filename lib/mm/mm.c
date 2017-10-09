@@ -34,7 +34,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
                  slot_refill_t slot_refill_func,
                  void *slot_alloc_inst)
 {
-    debug_printf("libmm: mm_init started\n");
+    debug_printf("libmm: Initializing...\n");
     assert(mm != NULL);
 
     mm->slot_alloc = slot_alloc_func;
@@ -51,7 +51,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     // create the first slab to hold exactly one mnode
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
 
-    debug_printf("libmm: mm ready\n");
+    debug_printf("libmm: Initialized\n");
     return SYS_ERR_OK;
 }
 
@@ -80,7 +80,8 @@ void mm_destroy(struct mm *mm)
  */
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
-    debug_printf("libmm: add capability of size %"PRIu64" MB at %zx \n", size / 1048576, base);
+    debug_printf("libmm: Adding a capability of size %"PRIu64" MB at %zx \n",
+                 size / 1048576, base);
 
     errval_t err;
     
@@ -141,7 +142,7 @@ errval_t mm_slot_alloc(struct mm *mm, uint64_t slots, struct capref* cap){
            DEBUG_ERR(err,"mm_slot_alloc: ");
             return err;
         }
-        printf("new Slots created \n");
+        //printf("new Slots created \n");
     }
     err = mm->slot_alloc(mm->slot_alloc_inst, slots, cap);
     return err;
@@ -173,7 +174,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     errval_t err;
     struct mmnode *node = NULL;
 
-    // check if we have enough slabs left first. If we fill the last slab, we cannot create new slabs because they need slabs themselves.
+    // check if we have enough slabs left first. If we fill the last slab,
+    // we cannot create new slabs because they need slabs themselves.
     // we do this here to not disrupt the addition of the actual node
     //debug_printf("slabs: %d\n", slab_freecount(&mm->slabs));
     //debug_printf("PRE free slabs: %d \n", slab_freecount(&mm->slabs));
@@ -232,7 +234,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // size of the node exactly as needed
         slab_free(&(mm->slabs), new_node);
         new_node = node;
-        debug_printf("Reuse %"PRIxGENPADDR"\n", node->base);
+        //debug_printf("Reuse %"PRIxGENPADDR"\n", node->base);
     }
     
     //TODO: cleanup
@@ -254,7 +256,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     new_node->type = NodeType_Allocated;
 
     *retcap = new_node->cap.cap;
-    debug_printf("Allocated %"PRIuGENSIZE" bytes @ %"PRIxGENPADDR"\n", new_node->size, new_node->cap.base);
+    //debug_printf("Allocated %"PRIuGENSIZE" bytes @ %"PRIxGENPADDR"\n", new_node->size, new_node->cap.base);
     return SYS_ERR_OK;
 }
 
@@ -294,7 +296,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 //                DEBUG_ERR(err,"cap destroy in mm_free:");
 //                return err;
 //            }
-            debug_printf("Freed %"PRIxGENPADDR"", base);
+            //debug_printf("Freed %"PRIxGENPADDR"", base);
             
             // revoke children and delete cap
             err = cap_revoke(node->cap.cap);
@@ -323,7 +325,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
                 }
             }
             //mm_print_manager(mm);
-            printf("\n");
+            //printf("\n");
             return SYS_ERR_OK;
         }
         node = node->next;
@@ -342,7 +344,7 @@ errval_t mm_mnode_merge(struct mm *mm, struct mmnode *first, struct mmnode *seco
     
     // remove node
     mm_mmnode_remove(mm, &second);
-    printf(" and merge done");
+    //printf(" and merge done");
     return SYS_ERR_OK;
 }
 
@@ -513,4 +515,3 @@ void mm_print_manager(struct mm *mm){
         ++i;
     }
 }
-
