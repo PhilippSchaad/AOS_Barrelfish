@@ -100,7 +100,8 @@ void *slab_alloc(struct slab_allocator *slabs)
                 DEBUG_ERR(err, "slab refill_func failed");
                 return NULL;
             }
-            for (sh = slabs->slabs; sh != NULL && sh->free == 0; sh = sh->next);
+            for (sh = slabs->slabs; sh != NULL && sh->free == 0;
+                    sh = sh->next);
             if (sh == NULL) {
                 return NULL;
             }
@@ -180,30 +181,31 @@ size_t slab_freecount(struct slab_allocator *slabs)
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
     //debug_printf("slab: refill with %d byte\n", bytes);
-    
+
     // store the size of the frame
     size_t frame_size=0;
-    
+
     // allocate a new frame
     struct capref frame;
-    
+
     errval_t err;
     // NOTE: after the next line, bytes contains the size of the created frame
     err = frame_alloc(&frame, bytes, &frame_size);
     if (err_is_fail(err)) {
         return err;
     }
-    
+
     // map the frame
     void *buf;
     struct paging_state* st = get_current_paging_state();
     buf = (void *) st->next_addr;
-    err = paging_map_frame_attr(st, &buf, bytes, frame,VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    err = paging_map_frame_attr(st, &buf, bytes, frame,
+                                VREGION_FLAGS_READ_WRITE, NULL, NULL);
     if (err_is_fail(err)) {
         debug_printf("error while refilling slab %s", err_getstring(err));
         return err;
     }
-    
+
     // grow the slabs
     slab_grow(slabs, buf, bytes);
 

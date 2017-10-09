@@ -125,7 +125,8 @@ errval_t slot_prealloc_init(struct slot_prealloc *this,
 
     assert(initial_space == L2_CNODE_SLOTS);
     if (initial_space != L2_CNODE_SLOTS) {
-        debug_printf("Initial CNode for 2 level preallocating slot allocator needs to be 16kB");
+        debug_printf("Initial CNode for 2 level preallocating slot allocator "
+                     "needs to be 16kB");
         return LIB_ERR_SLOT_ALLOC_INIT;
     }
 

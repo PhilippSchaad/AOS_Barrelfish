@@ -6,431 +6,11 @@
 #include <mm/mm.h>
 #include <aos/debug.h>
 
-//#############################
-// private function definitions
-//#############################
-errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mmnode **node);
-struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size);
-errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **node);
-errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode);
-void mm_print_manager(struct mm *mm);
-errval_t mm_mnode_merge(struct mm *mm, struct mmnode *first, struct mmnode *second);
-errval_t mm_slot_alloc(struct mm *mm, uint64_t slots, struct capref* cap);
-//#############################
-
-/**
- * Initialize the memory manager.
- *
- * \param  mm               The mm struct to initialize.
- * \param  objtype          The cap type this manager should deal with.
- * \param  slab_refill_func Custom function for refilling the slab allocator.
- * \param  slot_alloc_func  Function for allocating capability slots.
- * \param  slot_refill_func Function for refilling (making) new slots.
- * \param  slot_alloc_inst  Pointer to a slot allocator instance (typically passed to the alloc and refill functions).
- */
-errval_t mm_init(struct mm *mm, enum objtype objtype,
-                 slab_refill_func_t slab_refill_func,
-                 slot_alloc_t slot_alloc_func,
-                 slot_refill_t slot_refill_func,
-                 void *slot_alloc_inst)
+/// Create a new node.
+static struct mmnode* mm_create_node(struct mm *mm, enum nodetype type,
+                                     genpaddr_t base, gensize_t size)
 {
-    debug_printf("libmm: Initializing...\n");
-    assert(mm != NULL);
-
-    mm->slot_alloc = slot_alloc_func;
-    mm->slot_refill = slot_refill_func;
-    mm->objtype = objtype;
-    mm->slot_alloc_inst = slot_alloc_inst;
-    mm->head = NULL;
-    mm->refilling_slabs = false;
-
-    // there is a default slab refill function that can be used if no function is provided.
-    if(slab_refill_func == NULL){
-        slab_refill_func = slab_default_refill;
-    }
-    // create the first slab to hold exactly one mnode
-    slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
-
-    debug_printf("libmm: Initialized\n");
-    return SYS_ERR_OK;
-}
-
-/**
- * Destroys the memory allocator.
- */
-void mm_destroy(struct mm *mm)
-{
-    // Iterate over all mm nodes and destroy their capabilities.
-    struct mmnode *node = mm->head;
-    struct mmnode *next_node = mm->head;
-    while (node != NULL) {
-        cap_destroy(node->cap.cap);
-        next_node = node->next;
-        mm_mmnode_remove(mm, &node);
-        node = next_node;
-    }
-}
-
-/**
- * Adds a capability to the memory manager.
- *
- * \param  cap  Capability to add
- * \param  base Physical base address of the capability
- * \param  size Size of the capability (in bytes)
- */
-errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
-{
-    debug_printf("libmm: Adding a capability of size %"PRIu64" MB at %zx \n",
-                 size / 1048576, base);
-
-    errval_t err;
-    
-    // create the node
-    struct mmnode *node = NULL;
-    
-    // finish the node and add it to the list
-    err = mm_mmnode_add(mm, base, size, &node);
-    if (err_is_ok(err)) {
-        assert(node != NULL);
-        
-        // create the capability
-        node->cap.base = base;
-        node->cap.size = size;
-        
-        mm->initial_base = base;
-    } else {
-        debug_printf("mm_add: %s", err_getstring(err));
-    }
-    
-    // add the capability to the node
-    err = mm_slot_alloc(mm, 1, &(node->cap.cap));
-    if (err_is_fail(err)) {
-        debug_printf("mm_add: could not create a slot");
-        return err;
-    }
-    
-    // store reference to the cap
-    mm->ram_cap = cap;
-    err = cap_retype(node->cap.cap, mm->ram_cap, 0, mm->objtype, (gensize_t) size, 1);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err,"mm_add: ");
-        return err;
-    }
-    
-    return err;
-}
-
-/**
- * Allocate slots, refill if necessary
- *
- */
-errval_t mm_slot_alloc(struct mm *mm, uint64_t slots, struct capref* cap){
-    errval_t err;
-    struct slot_prealloc* sa = (struct slot_prealloc*) mm->slot_alloc_inst;
-    // check both entries of the metadata array for free slots
-    // we need slots to allocate new ones so make sure the slot count is above
-    // a certain threshold. Also make sure that we are not currently refilling
-    // as this would lead to a infinite recursion.
-    // in the worst case we also need to refill the slabs
-    // debug_printf("0:%"PRIu64" 1:%"PRIu64" \n", sa->meta[0].free, sa->meta[1].free);
-    if (sa->meta[0].free < (uint64_t) 4 && sa->meta[1].free < (uint64_t) 4 && !sa->is_refilling) {
-        // no free slots left, try to create new ones
-        sa->is_refilling = true;
-        err = mm->slot_refill(mm->slot_alloc_inst);
-        sa->is_refilling = false;
-        if (err_is_fail(err)){
-           DEBUG_ERR(err,"mm_slot_alloc: ");
-            return err;
-        }
-        //printf("new Slots created \n");
-    }
-    err = mm->slot_alloc(mm->slot_alloc_inst, slots, cap);
-    return err;
-}
-
-/**
- * Allocate aligned physical memory.
- *
- * \param       mm        The memory manager.
- * \param       size      How much memory to allocate.
- * \param       alignment The alignment requirement of the base address for your memory.
- * \param[out]  retcap    Capability for the allocated region.
- */
-errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
-{
-    // TODO: verify and make nicer
-    // TODO: some space is lost here (page tables)
-    if (alignment % BASE_PAGE_SIZE != 0) {
-        alignment += (size_t) BASE_PAGE_SIZE - (alignment % BASE_PAGE_SIZE);
-    }
-    
-    //debug_printf("PRE:Allocate %u bytes\n", size);
-    if (size % alignment != 0) {
-        size += (size_t) alignment - (size % alignment);
-    }
-    assert(retcap != NULL);
-    //debug_printf("Allocate %u bytes\n", size);
-    
-    errval_t err;
-    struct mmnode *node = NULL;
-
-    // check if we have enough slabs left first. If we fill the last slab,
-    // we cannot create new slabs because they need slabs themselves.
-    // we do this here to not disrupt the addition of the actual node
-    //debug_printf("slabs: %d\n", slab_freecount(&mm->slabs));
-    //debug_printf("PRE free slabs: %d \n", slab_freecount(&mm->slabs));
-    if(slab_freecount(&mm->slabs) < 4 && ! mm->refilling_slabs){
-        // indicate that we are refilling the slabs
-        mm->refilling_slabs = true;
-        err = mm->slabs.refill_func(&mm->slabs);
-        //done
-        mm->refilling_slabs = false;
-        if(err_is_fail(err)){
-            debug_printf("error while creating slabs: %s", err_getstring(err));
-            return err;
-        }
-        //debug_printf("free slabs: %d \n", slab_freecount(&mm->slabs));
-    }
-    
-    // Find a free node in the list.
-    err = mm_mmnode_find(mm, size, &node);
-    if (err_is_fail(err)) {
-        return err;
-    }
- 
-    assert(node != NULL);
-    assert(node->type == NodeType_Free);
-
-    // Split the node
-    struct mmnode *new_node = NULL;
-    if (node->size > (gensize_t)size){
-        // store old size
-        genpaddr_t orig_node_base = node->base;
-
-        // set size of existing node
-        node->size -= size;
-        node->base += (genpaddr_t) size;
-
-        // create the new node
-        //debug_printf("node base: %"PRIxGENPADDR"", orig_node_base);
-        err = mm_mmnode_add(mm, orig_node_base, size, &new_node);
- 
-
-        // add the capability to the node
-        if (err_is_fail(err)) {
-            node->size += size;
-            node->base -= size;
-            return err;
-        }
- 
-        new_node->cap.base = orig_node_base;
-        new_node->cap.size = size;
-        node->cap.size -= size;
-        node->cap.base += size;
- 
-        assert(new_node != NULL);
-        
-    } else {
-        // size of the node exactly as needed
-        slab_free(&(mm->slabs), new_node);
-        new_node = node;
-        //debug_printf("Reuse %"PRIxGENPADDR"\n", node->base);
-    }
-    
-    //TODO: cleanup
-    
-    // create the capability
-    err = mm_slot_alloc(mm, 1, &(new_node->cap.cap));
-    if (err_is_fail(err)) {
-        debug_printf("mm_alloc: could not create a slot");
-        return err;
-    }
-    
-    err = cap_retype(new_node->cap.cap, mm->ram_cap, new_node->base - mm->initial_base, mm->objtype, (gensize_t) size, 1);
-    if (err_is_fail(err)) {
-        mm_print_manager(mm);
-        debug_printf("mm_alloc: could not retype cap err: %s size:%"PRIuGENSIZE" offset:%"PRIxGENPADDR" base: %"PRIxGENPADDR" when trying to input to node base: %"PRIxGENPADDR"  \n", err_getstring(err), (gensize_t) size, new_node->base - mm->initial_base, new_node->base, node->base);
-        return err;
-    }
-    
-    new_node->type = NodeType_Allocated;
-
-    *retcap = new_node->cap.cap;
-    //debug_printf("Allocated %"PRIuGENSIZE" bytes @ %"PRIxGENPADDR"\n", new_node->size, new_node->cap.base);
-    return SYS_ERR_OK;
-}
-
-/**
- * Allocate physical memory.
- *
- * \param       mm        The memory manager.
- * \param       size      How much memory to allocate.
- * \param[out]  retcap    Capability for the allocated region.
- */
-errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
-{
-    return mm_alloc_aligned(mm, size, BASE_PAGE_SIZE, retcap);
-}
-
-/**
- * Free a certain region (for later re-use).
- *
- * \param       mm        The memory manager.
- * \param       cap       The capability to free.
- * \param       base      The physical base address of the region.
- * \param       size      The size of the region.
- */
-errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
-{
-    errval_t err = SYS_ERR_OK;
-    struct mmnode *node = mm->head;
-    //mm_print_manager(mm);
-    //debug_printf("----->node to remove: Base %"PRIxGENPADDR" and size %"PRIuGENSIZE"\n",base,size);
-    while (node != NULL) {
-
-        // Try matching based on capability, or base and size.
-        if (node->base == base && node->size - size <= BASE_PAGE_SIZE) {
-            node->type = NodeType_Free;
-//            err = cap_delete(cap);
-//            if(err_is_fail(err)){
-//                DEBUG_ERR(err,"cap destroy in mm_free:");
-//                return err;
-//            }
-            //debug_printf("Freed %"PRIxGENPADDR"", base);
-            
-            // revoke children and delete cap
-            err = cap_revoke(node->cap.cap);
-            // destroy = delete + free slot
-            err = cap_destroy(node->cap.cap);
-//            if(err_is_fail(err)){
-//                DEBUG_ERR(err,"cap destroy in mm_free:");
-//                return err;
-//            }
-            
-            // try to merge with node before or after or both
-            if (node->next != NULL && node->next->type == NodeType_Free) {
-                // merge with next
-                err = mm_mnode_merge(mm,node,node->next);
-                if(err_is_fail(err)){
-                    DEBUG_ERR(err,"cap destroy in mm_free:");
-                    return err;
-                }
-            }
-            if (node->prev != NULL && node->prev->type == NodeType_Free) {
-                // merge with prev
-                err = mm_mnode_merge(mm,node->prev,node);
-                if(err_is_fail(err)){
-                    DEBUG_ERR(err,"cap destroy in mm_free:");
-                    return err;
-                }
-            }
-            //mm_print_manager(mm);
-            //printf("\n");
-            return SYS_ERR_OK;
-        }
-        node = node->next;
-    }
-
-    debug_printf("Failed to free\n");
-    return MM_ERR_MM_FREE;
-}
-
-errval_t mm_mnode_merge(struct mm *mm, struct mmnode *first, struct mmnode *second){
-    // adjust node
-    first->size += second->size;
-    
-    // retype cap
-    //cap_retype(first->cap.cap, mm->ram_cap, first->base - mm->initial_base, mm->objtype, (gensize_t) first->size, 1);
-    
-    // remove node
-    mm_mmnode_remove(mm, &second);
-    //printf(" and merge done");
-    return SYS_ERR_OK;
-}
-
-/**
- * Add a mmnode to doubly linked list of mmnodes in mm.
- *
- * \param       mm      The mm structure to insert into
- * \param       cap     Capability to add
- * \param       base    Physical base address of the capability
- * \param       size    Size of the capability (in bytes)
- * \param[out]  node    Pointe to the newly added node
- */
-errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size, struct mmnode **node)
-{
-    // this function should create a node in the memory (slab) and should add the node to the linked list (at the right position)
-    // TODO: define alignment
-
-    // check that the memory is still free
-    struct mmnode* current_node = mm->head;
-    struct mmnode* prev_node = NULL;
-    while(current_node != NULL){
-        if (base < current_node->base){
-            // the address is smaller
-            if (current_node->base < base + size){
-                // the base is within an already allocated sector of memory. raise an error
-                // TODO: Raise error
-                return 1;
-            } else {
-                // we have found the right spot
-                break;
-            }
-         
-        } else {
-            // base is larger than the current node (or equal)
-            if (base < current_node->base + current_node->size){
-                // the base is within an already allocated sector of memory. raise an error
-                // TODO: Raise error
-                return 1;
-            }
-            // else go to the next node
-        }
-     
-        prev_node = current_node;
-        current_node = current_node->next;
-    }
- 
-    struct mmnode* new_node = mm_create_node(mm, NodeType_Free, base, size);
-
-    if (current_node == NULL){
-        // append to the end of the list
-        if (mm->head == NULL){
-            // we just created the first node
-            mm->head = new_node;
-            new_node->prev = NULL;
-            new_node->next = NULL;
-        } else {
-            // prev_node holds the last node of the list
-            prev_node->next = new_node;
-            new_node->next = NULL;
-            new_node->prev = prev_node;
-        }
-    } else {
-     
-        // append before the current_node
-        if(prev_node == NULL){
-            // new head
-            new_node->next = current_node;
-            new_node->prev = NULL;
-            current_node->prev = new_node;
-            mm->head = new_node;
-        } else {
-            new_node->next = current_node;
-            new_node->prev = prev_node;
-            prev_node->next = new_node;
-            current_node->prev = new_node;
-        }
-    }
-
-    // set node to the one we just created
-    *node = new_node;
- 
-    return SYS_ERR_OK;
-}
-
-struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base, gensize_t size){
-     // create the node in memory
+    // Create the node in memory.
     struct mmnode* node = slab_alloc(&mm->slabs);
     node->base=base;
     node->size=size;
@@ -438,18 +18,83 @@ struct mmnode* mm_create_node(struct mm *mm, enum nodetype type, genpaddr_t base
     return node;
 }
 
-/**
- * remove a mmnode from doubly linked list of mmnodes in mm.
- *
- * \param mm    The mm structure to remove from
- * \param node  The mmnode to remove
- */
-errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
+/// Add a new node to the correct position in the mm structure.
+static errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size,
+                              struct mmnode **retnode)
 {
-    // Ease of use pointer
+    // Check that the memory is still free by iterating over the mm list.
+    struct mmnode* current_node = mm->head;
+    struct mmnode* prev_node = NULL;
+    while(current_node != NULL){
+        if (base < current_node->base){
+            // We want to insert before this node.
+            if (current_node->base < base + size){
+                // The base is within an already allocated sector of memory.
+                return MM_ERR_ALREADY_ALLOCATED;
+            } else {
+                // We have found the right spot.
+                break;
+            }
+
+        } else {
+            // We have not found our spot yet.
+            if (base < current_node->base + current_node->size){
+                // The base is within an already allocated sector of memory.
+                return MM_ERR_ALREADY_ALLOCATED;
+            }
+            // Else, fall through and go to the next node
+        }
+
+        prev_node = current_node;
+        current_node = current_node->next;
+    }
+
+    // Create the new node.
+    struct mmnode* new_node = mm_create_node(mm, NodeType_Free, base, size);
+
+    if (current_node == NULL){
+        // We are appending to the end of the list.
+        if (mm->head == NULL){
+            // We just created the first node.
+            mm->head = new_node;
+            new_node->prev = NULL;
+            new_node->next = NULL;
+        } else {
+            // prev_node holds the last node of the list.
+            prev_node->next = new_node;
+            new_node->next = NULL;
+            new_node->prev = prev_node;
+        }
+    } else {
+        // Append before the current_node.
+        if(prev_node == NULL){
+            // We are inserting at the first position, replacing the list head.
+            new_node->next = current_node;
+            new_node->prev = NULL;
+            current_node->prev = new_node;
+            mm->head = new_node;
+        } else {
+            // Insert between the current_node and previous_node.
+            new_node->next = current_node;
+            new_node->prev = prev_node;
+            prev_node->next = new_node;
+            current_node->prev = new_node;
+        }
+    }
+
+    // Return the node we just created.
+    *retnode = new_node;
+
+    return SYS_ERR_OK;
+}
+
+/// Remove a node from the mm structure.
+static errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
+{
+    // Ease of use pointer.
     struct mmnode *node = *p_node;
     if (node->prev == NULL) {
-        // We are removing the head
+        // We are removing the head.
         mm->head = node->next;
         if (mm->head)
             mm->head->prev = NULL;
@@ -459,20 +104,31 @@ errval_t mm_mmnode_remove(struct mm *mm, struct mmnode **p_node)
             node->next->prev = node->prev;
     }
 
-    // Free the node memory
+    // Free the node memory.
     slab_free(&mm->slabs, node);
 
     return SYS_ERR_OK;
 }
 
-/**
- * Find a free mmnode with at least [size] in the mm doubly linked list.
- *
- * \param       mm      The mm struct to search in
- * \param       size    The size to try and fit
- * \param[out]  retnode The fitting node
- */
-errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode)
+/// Merge two mm nodes together.
+static errval_t mm_mmnode_merge(struct mm *mm, struct mmnode *first,
+                               struct mmnode *second)
+{
+    // Adjust the size of the first node.
+    first->size += second->size;
+    // Remove the second node.
+    errval_t err = mm_mmnode_remove(mm, &second);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "mm_mmnode_remove in mm_mmnode_merge");
+        return err;
+    }
+
+    return SYS_ERR_OK;
+}
+
+/// Find a free node with at least [size] in the mm structure.
+static errval_t mm_mmnode_find(struct mm *mm, size_t size,
+                               struct mmnode **retnode)
 {
     assert(retnode != NULL);
 
@@ -494,8 +150,36 @@ errval_t mm_mmnode_find(struct mm *mm, size_t size, struct mmnode **retnode)
     return MM_ERR_NOT_FOUND;
 }
 
-// debug print
-void mm_print_manager(struct mm *mm){
+/// Allocate slots and refill the slot allocator if necessary.
+static errval_t mm_slot_alloc(struct mm *mm, uint64_t slots,
+                              struct capref* cap)
+{
+    errval_t err;
+    struct slot_prealloc* sa = (struct slot_prealloc*) mm->slot_alloc_inst;
+
+    // Check both entries of the metadata array for free slots
+    // we need slots to allocate new ones so make sure the slot count is above
+    // a certain threshold. Also make sure that we are not currently refilling
+    // as this would lead to a infinite recursion.
+    // In the worst case we also need to refill the slabs
+
+    if (sa->meta[0].free < (uint64_t) 4 && sa->meta[1].free < (uint64_t) 4 &&
+            !sa->is_refilling) {
+        // No free slots left, try to create new ones.
+        sa->is_refilling = true;
+        err = mm->slot_refill(mm->slot_alloc_inst);
+        sa->is_refilling = false;
+        if (err_is_fail(err)){
+            DEBUG_ERR(err,"slot_refill in mm_slot_alloc");
+            return err;
+        }
+    }
+    err = mm->slot_alloc(mm->slot_alloc_inst, slots, cap);
+    return err;
+}
+
+/// Debug printer for the mm structure.
+static void mm_print_manager(struct mm *mm){
     debug_printf("Dumping Memory Manager nodes:\n");
     struct mmnode* node = mm->head;
     int i = 0;
@@ -505,7 +189,8 @@ void mm_print_manager(struct mm *mm){
     while(node != NULL){
         struct frame_identity fi;
         frame_identify(node->cap.cap, &fi);
-        printf("    Node %d: start: %zx, size: %"PRIu64" KB - Cap says: base: %zx size: %"PRIu64" KB - ",
+        printf("    Node %d: start: %zx, size: %"PRIu64" KB - Cap says: " \
+               "base: %zx size: %"PRIu64" KB - ",
                 i, node->base, node->size / 1024 , fi.base, fi.bytes / 1024);
         if (node->type == NodeType_Free)
             printf("Node free\n");
@@ -514,4 +199,296 @@ void mm_print_manager(struct mm *mm){
         node = node->next;
         ++i;
     }
+}
+
+/**
+ * \brief Initialize the memory manager.
+ *
+ * \param  mm               The mm struct to initialize.
+ * \param  objtype          The cap type this manager should deal with.
+ * \param  slab_refill_func Custom function for refilling the slab allocator.
+ * \param  slot_alloc_func  Function for allocating capability slots.
+ * \param  slot_refill_func Function for refilling (making) new slots.
+ * \param  slot_alloc_inst  Pointer to a slot allocator instance.
+ * \returns                 Error return code.
+ */
+errval_t mm_init(struct mm *mm, enum objtype objtype,
+                 slab_refill_func_t slab_refill_func,
+                 slot_alloc_t slot_alloc_func,
+                 slot_refill_t slot_refill_func,
+                 void *slot_alloc_inst)
+{
+    debug_printf("libmm: Initializing...\n");
+    assert(mm != NULL);
+
+    mm->slot_alloc = slot_alloc_func;
+    mm->slot_refill = slot_refill_func;
+    mm->objtype = objtype;
+    mm->slot_alloc_inst = slot_alloc_inst;
+    mm->head = NULL;
+    mm->refilling_slabs = false;
+
+    // There is a default slab refill function that can be used if no
+    // custom function is provided.
+    if(slab_refill_func == NULL){
+        slab_refill_func = slab_default_refill;
+    }
+    // Create the first slab to hold exactly one mmnode.
+    slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
+
+    debug_printf("libmm: Initialized\n");
+    return SYS_ERR_OK;
+}
+
+/**
+ * Destroys a/the memory allocator.
+ *
+ * \param   mm  The memory allocator to destroy.
+ */
+void mm_destroy(struct mm *mm)
+{
+    // Iterate over all mm nodes and destroy their capabilities.
+    struct mmnode *node = mm->head;
+    struct mmnode *next_node = mm->head;
+    while (node != NULL) {
+        cap_destroy(node->cap.cap);
+        next_node = node->next;
+        mm_mmnode_remove(mm, &node);
+        node = next_node;
+    }
+}
+
+/**
+ * \brief Adds a capability to the memory manager.
+ *
+ * \param  cap  Capability to add.
+ * \param  base Physical base address of the capability.
+ * \param  size Size of the capability (in bytes).
+ * \returns     Error return code.
+ */
+errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base,
+                gensize_t size)
+{
+    debug_printf("libmm: Adding a capability of size %"PRIu64" MB at %zx \n",
+                 size / 1048576, base);
+
+    errval_t err;
+
+    // Create the node.
+    struct mmnode *node = NULL;
+
+    // Finish the node and add it to the list.
+    err = mm_mmnode_add(mm, base, size, &node);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "mm_mmnode_add in mm_add");
+        return err;
+    }
+
+    assert(node != NULL);
+
+    // Create the capability.
+    node->cap.base = base;
+    node->cap.size = size;
+
+    // Store the initial head's base address.
+    mm->initial_base = base;
+
+    // Add the capability to the node.
+    err = mm_slot_alloc(mm, 1, &(node->cap.cap));
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "mm_slot_alloc in mm_add");
+        return err;
+    }
+
+    // Store reference to the capability.
+    mm->ram_cap = cap;
+    err = cap_retype(node->cap.cap, mm->ram_cap, 0, mm->objtype,
+                     (gensize_t) size, 1);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err,"cap_retype in mm_add");
+        return err;
+    }
+
+    return err;
+}
+
+/**
+ * Allocate aligned physical memory.
+ *
+ * \param       mm        The memory manager.
+ * \param       size      How much memory to allocate.
+ * \param       alignment The base address alignment requirement.
+ * \param[out]  retcap    Capability for the allocated region.
+ */
+errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
+                          struct capref *retcap)
+{
+    assert(retcap != NULL);
+
+    // TODO: some space is lost here (page tables)
+    // Adjust alignment to page size, making sure that the addresses are
+    // aligned and not just the size.
+    if (alignment % BASE_PAGE_SIZE != 0) {
+        alignment += (size_t) BASE_PAGE_SIZE - (alignment % BASE_PAGE_SIZE);
+    }
+
+    // Adjust size to alignment.
+    if (size % alignment != 0) {
+        size += (size_t) alignment - (size % alignment);
+    }
+
+    errval_t err;
+    struct mmnode *node = NULL;
+
+    // Check if we have enough slabs left first. If we fill the last slab,
+    // we cannot create new slabs because they need slabs themselves.
+    // We do this here to not disrupt the addition of the actual node
+    if(slab_freecount(&mm->slabs) < 4 && ! mm->refilling_slabs){
+        // Indicate that we are refilling the slabs.
+        mm->refilling_slabs = true;
+        err = mm->slabs.refill_func(&mm->slabs);
+        // Indicate that we are done.
+        mm->refilling_slabs = false;
+        if(err_is_fail(err)){
+            DEBUG_ERR(err, "refill_func in mm_alloc_aligned");
+            return err;
+        }
+    }
+
+    // Find a free node in the list.
+    err = mm_mmnode_find(mm, size, &node);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "mm_mmnode_find in mm_alloc_aligned");
+        return err;
+    }
+
+    assert(node != NULL);
+    assert(node->type == NodeType_Free);
+
+    // Split the node to the correct size.
+    struct mmnode *new_node = NULL;
+    if (node->size > (gensize_t)size){
+        // Store old size.
+        genpaddr_t orig_node_base = node->base;
+
+        // Set size of existing node.
+        node->size -= size;
+        node->base += (genpaddr_t) size;
+
+        // Create the new node.
+        err = mm_mmnode_add(mm, orig_node_base, size, &new_node);
+        if (err_is_fail(err)) {
+            node->size += size;
+            node->base -= size;
+            DEBUG_ERR(err, "mm_mmnode_add in mm_alloc_aligned");
+            return err;
+        }
+
+        // Add the capability to the node.
+        new_node->cap.base = orig_node_base;
+        new_node->cap.size = size;
+        node->cap.size -= size;
+        node->cap.base += size;
+
+        assert(new_node != NULL);
+    } else {
+        // Size of the node exactly as needed.
+        slab_free(&(mm->slabs), new_node);
+        new_node = node;
+    }
+
+    // TODO: cleanup
+
+    // Create the capability.
+    err = mm_slot_alloc(mm, 1, &(new_node->cap.cap));
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "mm_slot_alloc in mm_alloc_free");
+        return err;
+    }
+
+    err = cap_retype(new_node->cap.cap, mm->ram_cap,
+                     new_node->base - mm->initial_base, mm->objtype,
+                     (gensize_t) size, 1);
+    if (err_is_fail(err)) {
+        mm_print_manager(mm);
+        debug_printf("mm_alloc: could not retype cap err: %s "
+                     "size:%"PRIuGENSIZE" offset:%"PRIxGENPADDR" base: "
+                     "%"PRIxGENPADDR" when trying to input to node base: "
+                     "%"PRIxGENPADDR"  \n",
+                     err_getstring(err), (gensize_t) size,
+                     new_node->base - mm->initial_base,
+                     new_node->base, node->base);
+        DEBUG_ERR(err, "cap_retype in mm_alloc_aligned");
+        return err;
+    }
+
+    new_node->type = NodeType_Allocated;
+    *retcap = new_node->cap.cap;
+    return SYS_ERR_OK;
+}
+
+/**
+ * \brief Allocate physical memory.
+ *
+ * \param       mm        The memory manager.
+ * \param       size      How much memory to allocate.
+ * \param[out]  retcap    Capability for the allocated region.
+ * \returns               Error return code.
+ */
+errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
+{
+    return mm_alloc_aligned(mm, size, BASE_PAGE_SIZE, retcap);
+}
+
+/**
+ * \brief Free a certain region (for later re-use).
+ *
+ * \param       mm        The memory manager.
+ * \param       cap       The capability to free.
+ * \param       base      The physical base address of the region.
+ * \param       size      The size of the region.
+ * \returns               Error return code.
+ */
+errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
+                 gensize_t size)
+{
+    errval_t err;
+
+    // Iterate over the list to find the correct node to free.
+    struct mmnode *node = mm->head;
+    while (node != NULL) {
+        // Try matching based on base address and size.
+        if (node->base == base && node->size - size <= BASE_PAGE_SIZE) {
+            // Free the node.
+            node->type = NodeType_Free;
+
+            // Revoke children and delete the capability.
+            err = cap_revoke(node->cap.cap);
+            // destroy = delete + free slot.
+            err = cap_destroy(node->cap.cap);
+
+            // Try to merge with node before or after or both.
+            if (node->next != NULL && node->next->type == NodeType_Free) {
+                // Merge with next.
+                err = mm_mmnode_merge(mm,node,node->next);
+                if(err_is_fail(err)){
+                    DEBUG_ERR(err,"cap destroy in mm_free:");
+                    return err;
+                }
+            }
+            if (node->prev != NULL && node->prev->type == NodeType_Free) {
+                // Merge with prev.
+                err = mm_mmnode_merge(mm,node->prev,node);
+                if(err_is_fail(err)){
+                    DEBUG_ERR(err,"cap destroy in mm_free:");
+                    return err;
+                }
+            }
+            return SYS_ERR_OK;
+        }
+        node = node->next;
+    }
+
+    debug_printf("Failed to free, node not found\n");
+    return MM_ERR_MM_FREE;
 }

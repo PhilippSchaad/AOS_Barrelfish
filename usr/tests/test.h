@@ -14,9 +14,9 @@
 
 static void tests_run(void){
     debug_printf("\n");
-    debug_printf("\033[33m###################### \033[0m\n");
-    debug_printf("\033[33mRunning tests \033[0m\n");
-    debug_printf("\033[33m###################### \033[0m\n\n");
+    debug_printf("\033[33m ###################### \033[0m\n");
+    debug_printf("\033[33m Running tests \033[0m\n");
+    debug_printf("\033[33m ###################### \033[0m\n\n\n");
 
     // mm tests
     mm_tests_run();

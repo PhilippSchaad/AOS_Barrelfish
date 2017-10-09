@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 
     // run tests
     tests_run();
-    
+
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();

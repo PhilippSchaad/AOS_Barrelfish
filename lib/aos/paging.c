@@ -92,7 +92,8 @@ void paging_init_onthread(struct thread *t)
  * This function gets used in some of the code that is responsible
  * for allocating Frame (and other) capabilities.
  */
-errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, size_t size)
+errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
+                            size_t size)
 {
     void *base;
     errval_t err = paging_alloc(st, &base, size);
@@ -140,7 +141,8 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
  * for allocating Frame (and other) capabilities.
  * NOTE: Implementing this function is optional.
  */
-errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t bytes)
+errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
+                             size_t bytes)
 {
     // XXX: should free up some space in paging region, however need to track
     //      holes for non-trivial case
@@ -176,7 +178,8 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
 }
 
 errval_t
-slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size_t minbytes)
+slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
+                         size_t minbytes)
 {
     // Refill the two-level slot allocator without causing a page-fault
     return SYS_ERR_OK;
@@ -185,24 +188,24 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
 /**
  * \brief map a user provided frame at user provided VA.
  * TODO(M1): Map a frame assuming all mappings will fit into one L2 pt
- * TODO(M2): General case 
+ * TODO(M2): General case
  */
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
     errval_t err;
-    
+
     // according to the book, the L1 page table is at the following address
     struct capref l1_pagetable = {
         .cnode = cnode_page,
         .slot = 0,
     };
-    
+
     // create a L2 pagetable
     struct capref l2_pagetable;
     // get the index of the L2 table in the L1 table
     lvaddr_t l1_index = ARM_L1_OFFSET(vaddr);
-    
+
     // check if the table already exists
     if (st->l2_page_tables[l1_index].init) {
         // table exists
@@ -215,23 +218,23 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             debug_printf("Paging: unable to create L2 page table");
             return err;
         }
-        
+
         // write the L1 table entry
         struct capref l2_l1_mapping;
         st->slot_alloc->alloc(st->slot_alloc, &l2_l1_mapping);
         //TODO: which rights are suited here?
-        err = vnode_map(l1_pagetable, l2_pagetable, l1_index, VREGION_FLAGS_READ_WRITE, 0, 1,
-                        l2_l1_mapping);
+        err = vnode_map(l1_pagetable, l2_pagetable, l1_index,
+                        VREGION_FLAGS_READ_WRITE, 0, 1, l2_l1_mapping);
         if (err_is_fail(err)) {
             debug_printf("Paging: unable to create L1 L2 mapping");
             return err;
         }
-        
+
         // add cap to tracking array
         st->l2_page_tables[l1_index].cap = l2_pagetable;
         st->l2_page_tables[l1_index].init = true;
     }
-    
+
     // get the frame from the L2 table
     lvaddr_t l2_index = ARM_L2_OFFSET(vaddr);
     struct capref l2_frame;
@@ -242,7 +245,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         debug_printf("Paging: unable to create L2 frame mapping");
         return err;
     }
-    
+
     return SYS_ERR_OK;
 }
 
