@@ -75,6 +75,10 @@ errval_t paging_init(void)
     for (i = 0; i < ARM_L1_MAX_ENTRIES; ++i) {
         current.l2_page_tables[i].init = false;
     }
+    current.free_vspace.base_addr = current.next_addr; //todo: move to the new init, and fix.
+    debug_printf("at time of init our base addr is at: %p \n",current.free_vspace.base_addr);
+    current.free_vspace.region_size = 0xFFFFFFFF - current.next_addr;
+    current.free_vspace.next = NULL;
     return SYS_ERR_OK;
 }
 
@@ -155,11 +159,30 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
  *        accomodate a buffer of size `bytes`.
  */
 int COUNT=0;
-
+//TODO: consider wether guaranteeing page aligning is a good idea? In particular, if it is, find a way to impl this so that it doesn't lose memory through adjusting to page alignment
+//TODO: It probably should not do page aligning but our current paging_map_fixed_frame impl doesn't like it when it's not page aligned. So that one needs fixing first
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
-    *buf = (void*) (++COUNT * BASE_PAGE_SIZE);
-    return SYS_ERR_OK;
+//    *buf = (void*) (++COUNT * BASE_PAGE_SIZE);
+    struct paging_free_frame_node *node = &st->free_vspace;
+    while(node != NULL) {
+        if(node->region_size >= bytes) {
+            debug_printf("paging_alloc base: %p size: %u req: %u \n", node->base_addr, node->region_size, bytes);
+            *buf = (void*)node->base_addr;
+            node->base_addr += bytes;
+            lvaddr_t temp = ROUND_UP(node->base_addr, BASE_PAGE_SIZE); //this does the page aligning thing
+            node->region_size -= bytes + (temp-node->base_addr);
+            node->base_addr = temp;
+            if(node->region_size == 0) {
+                //todo: add removing, just move content of next node into this and delete next node
+                //this does mean we'll eventually trail a size 0 node at maxaddr, but that's still cheaper than doubly linked list. And less of a perf issue than going from start to remove properly from the list
+                //random sidenote: it might be worth having pools, if aquiring capabilities is so expensive, on the other hand that sounds like a great way to get security issues later down the line.
+            }
+            return SYS_ERR_OK;
+        }
+        node = node->next;
+    }
+    return LIB_ERR_OUT_OF_VIRTUAL_ADDR;
 }
 
 /**
@@ -171,6 +194,7 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
                                int flags, void *arg1, void *arg2)
 {
     errval_t err = paging_alloc(st, buf, bytes);
+    debug_printf("paging_map_frame_attr to addr: %p of size %i \n", *buf, bytes);
     if (err_is_fail(err)) {
         return err;
     }
@@ -245,6 +269,11 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         debug_printf("Paging: unable to create L2 frame mapping");
         return err;
     }
+
+    //todo: store l2_l1_mapping and l2_frame (also a mapping), further, store l2_pagetable
+    //that storing is really just needed for unmapping
+    //however we might want to levy it later for finding an empty frame range.
+    //if we do levy it for that, rewrite frame_alloc and remove the frame_alloc specific suff from st
 
     return SYS_ERR_OK;
 }

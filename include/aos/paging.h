@@ -44,12 +44,36 @@ typedef int paging_flags_t;
 #define VREGION_FLAGS_READ_WRITE_MPB \
     (VREGION_FLAGS_READ | VREGION_FLAGS_WRITE | VREGION_FLAGS_MPB)
 
+/* if necessary use tree
+struct paging_free_frames_tree {
+    union {
+        struct paging_region *leaf;
+        struct paging_free_frames_tree_node *node;
+    } elm;
+    bool leaf;
+};
+
+struct paging_free_frames_tree_node {
+    lvaddr_t split_addr; //todo: replace/rethinking. This is probably useless and should instead be depth or cut
+    struct paging_free_frames_tree left;
+    struct paging_free_frames_tree right;
+};
+*/
+//tree not necessary for simple impl, trusty linked list it is!
+struct paging_free_frame_node {
+    lvaddr_t base_addr;
+    size_t region_size;
+    struct paging_free_frame_node* next;
+};
+
+
 // struct to store the paging status of a process
 struct paging_state {
     struct slot_allocator* slot_alloc;
     // TODO: add struct members to keep track of the page tables etc
     // l2 page tables
     lvaddr_t next_addr;
+    struct paging_free_frame_node free_vspace;
     struct l2_page_table{
         struct capref cap;
         bool init;
@@ -65,6 +89,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
 errval_t paging_init(void);
 /// setup paging on new thread (used for user-level threads)
 void paging_init_onthread(struct thread *t);
+
 
 struct paging_region {
     lvaddr_t base_addr;
