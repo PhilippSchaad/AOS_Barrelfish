@@ -48,6 +48,27 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca)
 {
     debug_printf("paging_init_state\n");
+    
+    // slot allocator
+    st->slot_alloc = ca;
+
+    // set the l1 page table
+    st->l1_page_table = pdir;
+    
+    // TODO: I don't think this is really needed
+    // init the l2_page_tables
+    size_t i;
+    for (i = 0; i < ARM_L1_MAX_ENTRIES; ++i) {
+        st->l2_page_tables[i].init = false;
+    }
+    
+    //set the start of the free space
+    st->free_vspace.base_addr = start_vaddr;
+    debug_printf("at time of init our base addr is at: %p \n",st->free_vspace.base_addr);
+    st->free_vspace.region_size = 0xFFFFFFFF - start_vaddr;
+
+    st->free_vspace.next = NULL;
+    
     // TODO (M2): implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
@@ -69,16 +90,15 @@ errval_t paging_init(void)
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
     set_current_paging_state(&current);
-    current.slot_alloc = get_default_slot_allocator();
-    current.next_addr = 0x00001000;
-    size_t i;
-    for (i = 0; i < ARM_L1_MAX_ENTRIES; ++i) {
-        current.l2_page_tables[i].init = false;
-    }
-    current.free_vspace.base_addr = current.next_addr; //todo: move to the new init, and fix.
-    debug_printf("at time of init our base addr is at: %p \n",current.free_vspace.base_addr);
-    current.free_vspace.region_size = 0xFFFFFFFF - current.next_addr;
-    current.free_vspace.next = NULL;
+    
+    // according to the book, the L1 page table is at the following address
+    struct capref l1_pagetable = {
+        .cnode = cnode_page,
+        .slot = 0,
+    };
+    
+    paging_init_state(&current, /*TODO: Do you know what this offset is??*/ 0x0, l1_pagetable, get_default_slot_allocator());
+    
     return SYS_ERR_OK;
 }
 
@@ -158,7 +178,7 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
  * \brief Find a bit of free virtual address space that is large enough to
  *        accomodate a buffer of size `bytes`.
  */
-int COUNT=0;
+
 //TODO: consider wether guaranteeing page aligning is a good idea? In particular, if it is, find a way to impl this so that it doesn't lose memory through adjusting to page alignment
 //TODO: It probably should not do page aligning but our current paging_map_fixed_frame impl doesn't like it when it's not page aligned. So that one needs fixing first
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
@@ -219,12 +239,6 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 {
     errval_t err;
 
-    // according to the book, the L1 page table is at the following address
-    struct capref l1_pagetable = {
-        .cnode = cnode_page,
-        .slot = 0,
-    };
-
     // create a L2 pagetable
     struct capref l2_pagetable;
     // get the index of the L2 table in the L1 table
@@ -246,8 +260,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         // write the L1 table entry
         struct capref l2_l1_mapping;
         st->slot_alloc->alloc(st->slot_alloc, &l2_l1_mapping);
-        //TODO: which rights are suited here?
-        err = vnode_map(l1_pagetable, l2_pagetable, l1_index,
+
+        err = vnode_map(st->l1_page_table, l2_pagetable, l1_index,
                         VREGION_FLAGS_READ_WRITE, 0, 1, l2_l1_mapping);
         if (err_is_fail(err)) {
             debug_printf("Paging: unable to create L1 L2 mapping");
@@ -270,6 +284,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         return err;
     }
 
+    //todo: make sure that frames larger than a single l2 table is split
     //todo: store l2_l1_mapping and l2_frame (also a mapping), further, store l2_pagetable
     //that storing is really just needed for unmapping
     //however we might want to levy it later for finding an empty frame range.

@@ -72,8 +72,8 @@ struct paging_state {
     struct slot_allocator* slot_alloc;
     // TODO: add struct members to keep track of the page tables etc
     // l2 page tables
-    lvaddr_t next_addr;
     struct paging_free_frame_node free_vspace;
+    struct capref l1_page_table;
     struct l2_page_table{
         struct capref cap;
         bool init;
