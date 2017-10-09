@@ -23,9 +23,11 @@ struct spawninfo {
     // Information about the binary
     char * binary_name;     // Name of the binary
 
-    // TODO: Use this structure to keep track
-    // of information you need for building/starting
-    // your new process!
+    // Uspace base address
+    genvaddr_t u_base;
+
+    // Address pointing to the executable's entry point
+    genvaddr_t entry_addr;
 };
 
 // Start a child process by binary name. Fills in si
