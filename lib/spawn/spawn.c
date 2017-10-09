@@ -23,6 +23,20 @@ static errval_t init_vspace(struct spawninfo *si)
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
+/// Initialize the dispatcher for a given module.
+static errval_t init_dispatcher(struct spawninfo *si)
+{
+    // TODO: Implement
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+/// Initialize the environment for a given module.
+static errval_t init_env(struct spawninfo *si)
+{
+    // TODO: Implement
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
 /// Callback for elf_load.
 static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
                                     uint32_t flags, void **ret)
@@ -103,10 +117,18 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     si->u_base = global_offset_table->sh_addr;
 
     // VI: Initialize the dispatcher.
-    // TODO: Implement.
+    err = init_dispatcher(si);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "init_dispatcher in spawn_load_by_name");
+        return err;
+    }
     
     // VII: Initialize the environment.
-    // TODO: Implement.
+    err = init_env(si);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "init_env in spawn_load_by_name");
+        return err;
+    }
     
     // VIII: Make the dispatcher runnable.
     // TODO: Implement.
