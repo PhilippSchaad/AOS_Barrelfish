@@ -12,8 +12,71 @@ extern struct bootinfo *bi;
 /// Initialize the cspace for a given module.
 static errval_t init_cspace(struct spawninfo *si)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    errval_t err;
+
+    // Create an L1 CNode according to the process's spawn-info.
+    struct cnoderef l1_cnode;
+    err = cnode_create_l1(&si->l1_cnode, &l1_cnode);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "cnode_create_l1 in init_cspace");
+        return err;
+    }
+
+    // Go over all root-CNode slots and create L2 CNodes (foreign) in them.
+    for (int i = 0; i < ROOTCN_SLOTS_USER; i++) {
+        err = cnode_create_foreign_l2(si->l1_cnode, i, &si->l2_cnode_list[i]);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "cnode_create_foreign_l2 in init_cspace, in "
+                      "iteration %d", i);
+            return err;
+        }
+    }
+
+    // TASKCN contains information about the process. Set its SLOT_ROOTCN
+    // (which contains a capability for the process's root L1 CNode) to point
+    // to our L1 CNode.
+    struct capref taskcn_slot_rootcn = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
+        .slot = TASKCN_SLOT_ROOTCN
+    };
+    err = cap_copy(taskcn_slot_rootcn, si->l1_cnode);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "cap_copy in init_cspace");
+        return err;
+    }
+
+    // Give the SLOT_BASE_PAGE_CN some memory by iterating over all L2 slots.
+    struct capref rootcn_slot_base_page_cn = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_BASE_PAGE_CN]
+    };
+    for (rootcn_slot_base_page_cn.slot = 0;
+            rootcn_slot_base_page_cn.slot < L2_CNODE_SLOTS;
+            rootcn_slot_base_page_cn.slot++) {
+        struct capref memory;
+
+        // Allocate the memory.
+        err = ram_alloc(&memory, BASE_PAGE_SIZE);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "ram_alloc in init_cspace");
+            return err;
+        }
+
+        // Copy the memory capability into our SLOT_BASE_PAGE_CN slot.
+        err = cap_copy(rootcn_slot_base_page_cn, memory);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "cap_copy in init_cspace");
+            return err;
+        }
+
+        // Cleanup. Destroy the memory capability again.
+        err = cap_destroy(memory);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "cap_destroy in init_cspace");
+            return err;
+        }
+    }
+
+    return SYS_ERR_OK;
 }
 
 /// Initialize the vspace for a given module.

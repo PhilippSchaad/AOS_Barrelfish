@@ -18,19 +18,16 @@
 #include "aos/slot_alloc.h"
 #include "aos/paging.h"
 
+/// Information about the binary.
 struct spawninfo {
-
-    // Information about the binary
-    char * binary_name;     // Name of the binary
-
-    // Uspace base address
-    genvaddr_t u_base;
-
-    // Address pointing to the executable's entry point
-    genvaddr_t entry_addr;
+    char * binary_name;                                 ///< Name of the binary
+    struct capref l1_cnode;                             ///< Process's L1 CNode
+    struct cnoderef l2_cnode_list[ROOTCN_SLOTS_USER];   ///< Foreign L2 CNodes
+    genvaddr_t u_base;                                  ///< Uspace base
+    genvaddr_t entry_addr;                              ///< Program entry point
 };
 
-// Start a child process by binary name. Fills in si
+/// Start a child process by binary name. This fills in the spawninfo.
 errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si);
 
 #endif /* _INIT_SPAWN_H_ */
