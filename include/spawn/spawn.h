@@ -23,6 +23,7 @@ struct spawninfo {
     char * binary_name;                                 ///< Name of the binary
     struct capref l1_cnode;                             ///< Process's L1 CNode
     struct cnoderef l2_cnode_list[ROOTCN_SLOTS_USER];   ///< Foreign L2 CNodes
+    struct capref dispatcher;                           ///< The dispatcher cap
     genvaddr_t u_base;                                  ///< Uspace base
     genvaddr_t entry_addr;                              ///< Program entry point
 };

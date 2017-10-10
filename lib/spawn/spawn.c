@@ -89,7 +89,35 @@ static errval_t init_vspace(struct spawninfo *si)
 /// Initialize the dispatcher for a given module.
 static errval_t init_dispatcher(struct spawninfo *si)
 {
-    // TODO: Implement
+    errval_t err;
+
+    // Allocate a capability for the dispatcher.
+    err = slot_alloc(&si->dispatcher);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "slot_alloc for dispatcher in init_dispatcher");
+        return err;
+    }
+
+    // Create the dispatcher.
+    err = dispatcher_create(si->dispatcher);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "dispatcher_create in init_dispatcher");
+        return err;
+    }
+
+    // Set an endpoint for the dispatcher.
+    struct capref dispatcher_end;
+    err = slot_alloc(&dispatcher_end);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "slot_alloc for dispatcher end in init_dispatcher");
+        return err;
+    }
+    err = cap_retype(dispatcher_end, si->dispatcher, 0, ObjType_EndPoint, 0, 1);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "cap_retype for dispatcher end in init_dispatcher");
+        return err;
+    }
+
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
