@@ -130,6 +130,7 @@ static errval_t init_vspace(struct spawninfo *si)
 /// Initialize the dispatcher for a given module.
 static errval_t init_dispatcher(struct spawninfo *si)
 {
+    // XXX: Note, untested!
     errval_t err;
 
     // Allocate a capability for the dispatcher.
@@ -153,13 +154,116 @@ static errval_t init_dispatcher(struct spawninfo *si)
         DEBUG_ERR(err, "slot_alloc for dispatcher end in init_dispatcher");
         return err;
     }
-    err = cap_retype(dispatcher_end, si->dispatcher, 0, ObjType_EndPoint, 0, 1);
+    err = cap_retype(dispatcher_end, si->dispatcher, 0, ObjType_EndPoint,
+                     0, 1);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "cap_retype for dispatcher end in init_dispatcher");
         return err;
     }
 
-    return LIB_ERR_NOT_IMPLEMENTED;
+    // Create a memory frame for the dispatcher.
+    size_t retsize;
+    struct capref dispatcher_memframe;
+    err = frame_alloc(&dispatcher_memframe, DISPATCHER_SIZE, &retsize);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "frame_alloc for dispatcher in init_dispatcher");
+        return err;
+    }
+
+    // Copy the dispatcher into the spawned process's VSpace.
+    struct capref spawned_dispatcher = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
+        .slot = TASKCN_SLOT_DISPATCHER
+    };
+    err = cap_copy(spawned_dispatcher, si->dispatcher);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "cap_copy for dispatcher in init_dispatcher");
+        return err;
+    }
+
+    // Copy the endpoint into the spawned process's VSpace.
+    struct capref spawned_endpoint = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
+        .slot = TASKCN_SLOT_SELFEP
+    };
+    err = cap_copy(spawned_endpoint, dispatcher_end);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "cap_copy for endpoint in init_dispatcher");
+        return err;
+    }
+
+    // Copy the dispatcher's mem frame into the new process's VSpace.
+    struct capref spawned_disp_memframe = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
+        .slot = TASKCN_SLOT_DISPFRAME
+    };
+    err = cap_copy(spawned_disp_memframe, dispatcher_memframe);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "cap_copy for dispatcher memframe in init_dispatcher");
+        return err;
+    }
+
+    // Map the dispatcher's memory frame into the current VSpace.
+    lvaddr_t disp_current_vaddr;
+    err = paging_map_frame(get_current_paging_state(),
+                           (void *)&disp_current_vaddr,
+                           DISPATCHER_SIZE, dispatcher_memframe, NULL,
+                           NULL);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "paging_map_frame for curr. vspace in init_dispatcher");
+        return err;
+    }
+
+    // Map the dispatcher's memory frame into the spawned VSpace.
+    lvaddr_t disp_spawn_vaddr;
+    // TODO: Do we need to keep track of the spawned process's paging state and
+    // use that here instead of current_paging_state?
+    err = paging_map_frame(get_current_paging_state(),
+                           (void *)&disp_spawn_vaddr, DISPATCHER_SIZE,
+                           dispatcher_memframe, NULL, NULL);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "paging_map_frame for spawn vspace in init_dispatcher");
+        return err;
+    }
+
+    // Finalize the dispatcher: (ref. book 4.15)
+    // Get a reference to the dispatcher, name it, set it to disabled at first,
+    // set the dispatcher memframe address in the new VSpace (spawned process),
+    // and set it to trap on FPU instructions.
+    struct dispatcher_shared_generic *disp =
+        get_dispatcher_shared_generic((dispatcher_handle_t)disp_current_vaddr);
+    disp->udisp = disp_spawn_vaddr;
+    disp->disabled = 1;
+    disp->fpu_trap = 1;
+    strncpy(disp->name, si->binary_name, DISP_NAME_LEN);
+
+    // Set the core ID of the process and zero the frame(/size) and header.
+    struct dispatcher_generic *disp_gen =
+        get_dispatcher_generic((dispatcher_handle_t)disp_current_vaddr);
+    disp_gen->core_id = 0;
+    disp_gen->eh_frame = 0;
+    disp_gen->eh_frame_size = 0;
+    disp_gen->eh_frame_hdr = 0;
+    disp_gen->eh_frame_hdr_size = 0;
+
+    // Set the base address of the GOT in the new VSpace.
+    struct dispatcher_shared_arm *disp_arm =
+        get_dispatcher_shared_arm((dispatcher_handle_t)disp_current_vaddr);
+    disp_arm->got_base = si->u_got;
+
+    arch_registers_state_t *enabled_area =
+        dispatcher_get_enabled_save_area(
+                (dispatcher_handle_t)disp_current_vaddr);
+    arch_registers_state_t *disabled_area =
+        dispatcher_get_disabled_save_area(
+                (dispatcher_handle_t)disp_current_vaddr);
+    enabled_area->regs[REG_OFFSET(PIC_REGISTER)] = si->u_got;
+    disabled_area->regs[REG_OFFSET(PIC_REGISTER)] = si->u_got;
+    disabled_area->named.pc = si->entry_addr;
+    enabled_area->named.cpsr = CPSR_F_MASK | ARM_MODE_USR;
+    disabled_area->named.cpsr = CPSR_F_MASK | ARM_MODE_USR;
+
+    return SYS_ERR_OK;
 }
 
 /// Initialize the environment for a given module.
@@ -246,7 +350,7 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
         return SPAWN_ERR_LOAD;
     }
     // Store the uspace base.
-    si->u_base = global_offset_table->sh_addr;
+    si->u_got = global_offset_table->sh_addr;
 
     // VI: Initialize the dispatcher.
     err = init_dispatcher(si);
