@@ -22,6 +22,8 @@
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
+#include <spawn/spawn.h>
+
 
 #include "../tests/test.h"
 
@@ -56,6 +58,7 @@ int main(int argc, char *argv[])
 
     // run tests
     tests_run();
+    spawn_load_by_name("hello", (struct spawninfo*) malloc(sizeof(struct spawninfo)));
 
     debug_printf("Message handler loop\n");
     // Hang around
