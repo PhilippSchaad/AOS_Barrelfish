@@ -85,8 +85,6 @@ static errval_t init_vspace(struct spawninfo *si)
     errval_t err;
     
     // The following is not yet tested!
-    // TODO: what do we still need in the rest of the process?
-    // l1_pt_child?
     
     // create l1 page table in the current space
     // cap
@@ -103,17 +101,16 @@ static errval_t init_vspace(struct spawninfo *si)
         return err;
     }
    
-    // set up the childs capability
-    struct capref l1_pt_child = {
-        .cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN],
-        .slot = 0
-    };
+    // set up the new process' capability
+    si->process_l1_pt.cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN];
+    si->process_l1_pt.slot  = 0;
+    
     
     // TODO:
     // do we need to prefill the table?
     
-    // copy the page table to the child
-    err = cap_copy(l1_pt_child, l1_pt);
+    // copy the page table to the new process
+    err = cap_copy(si->process_l1_pt, l1_pt);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error while copying l1 to child\n");
         return err;
@@ -193,11 +190,11 @@ static errval_t init_dispatcher(struct spawninfo *si)
     }
 
     // Copy the dispatcher's mem frame into the new process's VSpace.
-    struct capref spawned_disp_memframe = {
-        .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
-        .slot = TASKCN_SLOT_DISPFRAME
-    };
-    err = cap_copy(spawned_disp_memframe, dispatcher_memframe);
+    
+    si->spawned_disp_memframe.cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN];
+    si->spawned_disp_memframe.slot = TASKCN_SLOT_DISPFRAME;
+    
+    err = cap_copy(si->spawned_disp_memframe, dispatcher_memframe);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "cap_copy for dispatcher memframe in init_dispatcher");
         return err;
@@ -368,6 +365,13 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     
     // VIII: Make the dispatcher runnable.
     // TODO: Implement.
+    struct capref domdispatcher;
+   
+    err = invoke_dispatcher(si->dispatcher, domdispatcher, si->l1_cnode, si->process_l1_pt, si->spawned_disp_memframe, true);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "invoke_dispatcher failed");
+        return err;
+    }
 
     return SYS_ERR_OK;
 }
