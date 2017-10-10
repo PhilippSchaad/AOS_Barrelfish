@@ -66,6 +66,39 @@ static void mm_alloc_and_map_10f(void){
     TEST_PRINT_SUCCESS();
 }
 
+static void mm_alloc_and_map_large_10f(void){
+    TEST_PRINT_INFO("Allocate 10 large frames of different sizes and map them.");
+
+    errval_t err;
+
+    struct capref frame[10];
+
+    for(int i = 0; i<10; ++i){
+        size_t frame_size=0;
+        size_t bytes = 30 + i*(1<<20) ;
+        err = frame_alloc(&frame[i], bytes, &frame_size);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+        void *buf;
+        err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes, frame[i],VREGION_FLAGS_READ_WRITE, NULL, NULL);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+    }
+
+    for(int i = 0; i<10; ++i){
+        size_t bytes = 30 + i*(1<<20) ;
+        err = aos_ram_free(frame[i], bytes);
+        cap_destroy(frame[i]);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+    }
+
+    TEST_PRINT_SUCCESS();
+}
+
 static void mm_alloc_free_20(void){
     TEST_PRINT_INFO("Allocate 20 chunks of ram (sizes 30 + 500*i). Repeated twice.");
     
@@ -192,6 +225,8 @@ static void mm_tests_run(void){
 
 
     mm_alloc_and_map_10f();
+
+    mm_alloc_and_map_large_10f();
 
 }
 
