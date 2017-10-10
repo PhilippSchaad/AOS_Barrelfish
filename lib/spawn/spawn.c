@@ -82,8 +82,49 @@ static errval_t init_cspace(struct spawninfo *si)
 /// Initialize the vspace for a given module.
 static errval_t init_vspace(struct spawninfo *si)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    errval_t err;
+    
+    // The following is not yet tested!
+    // TODO: what do we still need in the rest of the process?
+    // l1_pt_child?
+    
+    // create l1 page table in the current space
+    // cap
+    struct capref l1_pt;
+    err = slot_alloc(&l1_pt);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "init_vspace: unable to alloc slot\n");
+        return err;
+    }
+    // vnode
+    err = vnode_create(l1_pt,ObjType_VNode_ARM_l1);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "init_vspace: unable to create vnode for l1 page table\n");
+        return err;
+    }
+   
+    // set up the childs capability
+    struct capref l1_pt_child = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN],
+        .slot = 0
+    };
+    
+    // TODO:
+    // do we need to prefill the table?
+    
+    // copy the page table to the child
+    err = cap_copy(l1_pt_child, l1_pt);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error while copying l1 to child\n");
+        return err;
+    }
+    
+    // cleanup
+    cap_destroy(l1_pt);
+    
+    
+    return SYS_ERR_OK;
+    
 }
 
 /// Initialize the dispatcher for a given module.
