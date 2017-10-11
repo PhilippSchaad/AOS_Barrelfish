@@ -57,7 +57,11 @@ int main(int argc, char *argv[])
     }
 
     // run tests
-    tests_run();
+    struct tester t;
+    init_testing(&t);
+    register_memory_tests(&t);
+    tests_run(&t);
+
     spawn_load_by_name("hello", (struct spawninfo*) malloc(sizeof(struct spawninfo)));
 
     debug_printf("Message handler loop\n");
