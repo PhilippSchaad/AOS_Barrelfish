@@ -62,8 +62,6 @@ int main(int argc, char *argv[])
     register_memory_tests(&t);
     tests_run(&t);
 
-    spawn_load_by_name("hello", (struct spawninfo*) malloc(sizeof(struct spawninfo)));
-
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();

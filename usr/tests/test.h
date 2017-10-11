@@ -22,6 +22,7 @@
     return 1
 
 #include "mm_tests.h"
+#include "spawn_tests.h"
 
 struct tester {
     int (*tests[MAX_N_TESTS])(void);
@@ -63,12 +64,16 @@ static void tests_run(struct tester *t)
 
 static void register_memory_tests(struct tester *t)
 {
+    // mm tests
     register_test(t, mm_alloc_free_600);
     register_test(t, mm_alloc_100f);
     register_test(t, mm_alloc_free_20);
     register_test(t, mm_alloc_free_10);
     register_test(t, mm_alloc_and_map_10f);
     register_test(t, mm_alloc_and_map_large_10f);
+    
+    // spawn tests
+    register_test(t, spawn_hello5);
 }
 
 #endif /* _TESTS_TESTS_H_ */

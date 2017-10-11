@@ -2,6 +2,7 @@
 #include <mm/mm.h>
 #include <aos/paging.h>
 
+__attribute__((unused))
 static int mm_alloc_100f(void)
 {
     TEST_PRINT_INFO("Allocate 100 frames (sizes 30 + 100*i).\n"  \
@@ -34,6 +35,7 @@ static int mm_alloc_100f(void)
     TEST_PRINT_SUCCESS();
 }
 
+__attribute__((unused))
 static int mm_alloc_and_map_10f(void)
 {
     TEST_PRINT_INFO("Allocate 10 frames of different sizes and map them.");
@@ -70,6 +72,7 @@ static int mm_alloc_and_map_10f(void)
     TEST_PRINT_SUCCESS();
 }
 
+__attribute__((unused))
 static int mm_alloc_and_map_large_10f(void)
 {
     TEST_PRINT_INFO("Allocate 10 large frames of different sizes and map them.");
@@ -106,6 +109,7 @@ static int mm_alloc_and_map_large_10f(void)
     TEST_PRINT_SUCCESS();
 }
 
+__attribute__((unused))
 static int mm_alloc_free_20(void)
 {
     TEST_PRINT_INFO("Allocate 20 chunks of ram (sizes 30 + 500*i). Repeated twice.");
@@ -135,6 +139,7 @@ static int mm_alloc_free_20(void)
     TEST_PRINT_SUCCESS();
 }
 
+__attribute__((unused))
 static int mm_alloc_free_600(void)
 {
     TEST_PRINT_INFO("Allocate 400 chunks of ram (size 30) and free again. This also uses slot alloc.");
@@ -163,6 +168,7 @@ static int mm_alloc_free_600(void)
     TEST_PRINT_SUCCESS();
 }
 
+__attribute__((unused))
 static int mm_alloc_free_10(void)
 {
     TEST_PRINT_INFO("Allocate 10 chunks of ram (sizes 30 + 1000*i). Free every second.\n"   \
