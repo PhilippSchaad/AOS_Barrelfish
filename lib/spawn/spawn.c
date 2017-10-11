@@ -55,19 +55,17 @@ static errval_t init_cspace(struct spawninfo *si)
 /// Initialize the vspace for a given module.
 static errval_t init_vspace(struct spawninfo *si)
 {
-    // XXX: The following is not yet tested!
-    
     // create l1 page table in the current space
     // cap
     struct capref l1_pt;
     CHECK(slot_alloc(&l1_pt));
 
     // vnode
-    CHECK(vnode_create(l1_pt,ObjType_VNode_ARM_l1));
+    CHECK(vnode_create(l1_pt, ObjType_VNode_ARM_l1));
    
     // set up the new process' capability
     si->process_l1_pt.cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN];
-    si->process_l1_pt.slot  = 0;
+    si->process_l1_pt.slot  = PAGECN_SLOT_VROOT;
     
     
     // TODO:
@@ -75,10 +73,13 @@ static errval_t init_vspace(struct spawninfo *si)
     
     // copy the page table to the new process
     CHECK(cap_copy(si->process_l1_pt, l1_pt));
+
+    // Set the spawned process's paging state.
+    CHECK(paging_init_state(&si->paging_state, /*XXX: what do we need here??? */0,
+                            l1_pt, get_default_slot_allocator()));
     
     // cleanup
     cap_destroy(l1_pt);
-    
     
     return SYS_ERR_OK;
     
@@ -260,8 +261,28 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
 static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
                                     uint32_t flags, void **ret)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    size_t alignment_offset = BASE_PAGE_OFFSET(base);
+    // Align base address and size.
+    genvaddr_t base_aligned = base - alignment_offset;
+    size_t size_aligned = ROUND_UP(size + alignment_offset, BASE_PAGE_SIZE);
+
+    // Allocate memory frame for this ELF section.
+    struct capref frame;
+    size_t retsize;
+    CHECK(frame_alloc(&frame, size_aligned, &retsize));
+
+    // Map the frame into the spawned process's VSpace.
+    CHECK(paging_map_fixed_attr(&((struct spawninfo *)state)->paging_state,
+                                base_aligned, frame, size_aligned, flags));
+
+    // Map it into the current VSpace.
+    CHECK(paging_map_frame(get_current_paging_state(), ret, size_aligned,
+                           frame, NULL, NULL));
+
+    // Correct return to fit alignment.
+    *ret += alignment_offset;
+
+    return SYS_ERR_OK;
 }
 
 // TODO(M4): Build and pass a messaging channel to your child process

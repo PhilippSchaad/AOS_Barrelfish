@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define no_debug_printf
+//#define no_debug_printf
 #ifdef no_debug_printf
 #undef debug_printf
 #define debug_printf(...)
