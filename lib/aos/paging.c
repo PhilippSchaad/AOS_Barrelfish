@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 
-//#define no_debug_printf
+#define no_debug_printf
 #ifdef no_debug_printf
 #undef debug_printf
 #define debug_printf(...)
@@ -38,17 +38,8 @@ static struct paging_state current;
 __attribute__((unused))
 static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
 {
-    errval_t err;
-    err = st->slot_alloc->alloc(st->slot_alloc, ret);
-    if (err_is_fail(err)) {
-        debug_printf("slot_alloc failed: %s\n", err_getstring(err));
-        return err;
-    }
-    err = vnode_create(*ret, ObjType_VNode_ARM_l2);
-    if (err_is_fail(err)) {
-        debug_printf("vnode_create failed: %s\n", err_getstring(err));
-        return err;
-    }
+    CHECK(st->slot_alloc->alloc(st->slot_alloc, ret));
+    CHECK(vnode_create(*ret, ObjType_VNode_ARM_l2));
     return SYS_ERR_OK;
 }
 
@@ -105,7 +96,8 @@ errval_t paging_init(void)
         .slot = 0,
     };
     
-    paging_init_state(&current, /*TODO: Do you know what this offset is??*/ (1<<25), l1_pagetable, get_default_slot_allocator());
+    paging_init_state(&current, /*TODO: Do you know what this offset is??*/ (1<<25),
+                      l1_pagetable, get_default_slot_allocator());
     
     return SYS_ERR_OK;
 }
@@ -127,12 +119,8 @@ void paging_init_onthread(struct thread *t)
 errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
                             size_t size)
 {
-    void *base;
-    errval_t err = paging_alloc(st, &base, size);
-    if (err_is_fail(err)) {
-        debug_printf("paging_region_init: paging_alloc failed\n");
-        return err_push(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
-    }
+    void *base = NULL;
+    CHECK(paging_alloc(st, &base, size));
     pr->base_addr    = (lvaddr_t)base;
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
@@ -187,15 +175,20 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
  *        accomodate a buffer of size `bytes`.
  */
 
-//TODO: consider wether guaranteeing page aligning is a good idea? In particular, if it is, find a way to impl this so that it doesn't lose memory through adjusting to page alignment
-//TODO: It probably should not do page aligning but our current paging_map_fixed_frame impl doesn't like it when it's not page aligned. So that one needs fixing first
+// TODO: consider wether guaranteeing page aligning is a good idea?
+// In particular, if it is, find a way to impl this so that it doesn't lose
+// memory through adjusting to page alignment
+// TODO: It probably should not do page aligning but our current
+// paging_map_fixed_frame impl doesn't like it when it's not page aligned.
+// So that one needs fixing first
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
 //    *buf = (void*) (++COUNT * BASE_PAGE_SIZE);
     struct paging_free_frame_node *node = &st->free_vspace;
     while(node != NULL) {
         if(node->region_size >= bytes) {
-            debug_printf("paging_alloc base: %p size: %u req: %u \n", node->base_addr, node->region_size, bytes);
+            debug_printf("paging_alloc base: %p size: %u req: %u \n",
+                    node->base_addr, node->region_size, bytes);
             *buf = (void*)node->base_addr;
             node->base_addr += bytes;
 #ifndef no_page_align_in_frame_alloc
@@ -206,9 +199,15 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
             node->region_size -= bytes;
 #endif
             if(node->region_size == 0) {
-                //todo: add removing, just move content of next node into this and delete next node
-                //this does mean we'll eventually trail a size 0 node at maxaddr, but that's still cheaper than doubly linked list. And less of a perf issue than going from start to remove properly from the list
-                //random sidenote: it might be worth having pools, if aquiring capabilities is so expensive, on the other hand that sounds like a great way to get security issues later down the line.
+                // TODO: add removing, just move content of next node
+                // into this and delete next node 
+                // this does mean we'll eventually trail a size 0 node
+                // at maxaddr, but that's still cheaper than doubly linked
+                // list. And less of a perf issue than going from start to
+                // remove properly from the list
+                // random sidenote: it might be worth having pools, if aquiring
+                // capabilities is so expensive, on the other hand that sounds
+                // like a great way to get security issues later down the line.
             }
             return SYS_ERR_OK;
         }
@@ -225,11 +224,8 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
                                size_t bytes, struct capref frame,
                                int flags, void *arg1, void *arg2)
 {
-    errval_t err = paging_alloc(st, buf, bytes);
-    debug_printf("paging_map_frame_attr to addr: %p of size %i \n", *buf, bytes);
-    if (err_is_fail(err)) {
-        return err;
-    }
+    CHECK_MSG(paging_alloc(st, buf, bytes), "to addr %p of size %i\n",
+              *buf, bytes);
     return paging_map_fixed_attr(st, (lvaddr_t)(*buf), frame, bytes, flags);
 }
 
@@ -243,14 +239,11 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
 
 /**
  * \brief map a user provided frame at user provided VA.
- * TODO(M1): Map a frame assuming all mappings will fit into one L2 pt
  * TODO(M2): General case
  */
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
-    errval_t err;
-
     // create a L2 pagetable
     struct capref l2_pagetable;
     // get the index of the L2 table in the L1 table
@@ -297,23 +290,14 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             l2_pagetable = st->l2_page_tables[l1_index].cap;
         } else {
             // create a new table
-            err = arml2_alloc(st, &l2_pagetable);
-
-            if (err_is_fail(err)) {
-                debug_printf("Paging: unable to create L2 page table");
-                return err;
-            }
+            CHECK(arml2_alloc(st, &l2_pagetable));
 
             // write the L1 table entry
             struct capref l2_l1_mapping;
             st->slot_alloc->alloc(st->slot_alloc, &l2_l1_mapping);
 
-            err = vnode_map(st->l1_page_table, l2_pagetable, l1_index,
-                            VREGION_FLAGS_READ_WRITE, 0, 1, l2_l1_mapping);
-            if (err_is_fail(err)) {
-                debug_printf("Paging: unable to create L1 L2 mapping");
-                return err;
-            }
+            CHECK(vnode_map(st->l1_page_table, l2_pagetable, l1_index,
+                            VREGION_FLAGS_READ_WRITE, 0, 1, l2_l1_mapping));
 
             // add cap to tracking array
             st->l2_page_tables[l1_index].cap = l2_pagetable;
@@ -327,18 +311,14 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         uint64_t pte_count = (curbytes >> 12) + (curbytes % BASE_PAGE_SIZE != 0 ? 1 : 0);
         debug_printf("frame offset: %llu \n",(uint64_t)curvaddr % BASE_PAGE_SIZE);
         debug_printf("pte_count: %llu \n", pte_count);
-        err = vnode_map(l2_pagetable, frame, l2_index, flags, curvaddr % BASE_PAGE_SIZE,pte_count, l2_frame);
+        CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, curvaddr % BASE_PAGE_SIZE,pte_count, l2_frame));
 
-        if (err_is_fail(err)) {
-            debug_printf("Paging: unable to create L2 frame mapping");
-            return err;
-        }
-
-        //todo: make sure that frames larger than a single l2 table is split
-        //todo: store l2_l1_mapping and l2_frame (also a mapping), further, store l2_pagetable
-        //that storing is really just needed for unmapping
-        //however we might want to levy it later for finding an empty frame range.
-        //if we do levy it for that, rewrite frame_alloc and remove the frame_alloc specific suff from st
+        // TODO: make sure that frames larger than a single l2 table is split
+        // TODO: store l2_l1_mapping and l2_frame (also a mapping), further,
+        // store l2_pagetable that storing is really just needed for unmapping
+        // however we might want to levy it later for finding an empty frame
+        // range. if we do levy it for that, rewrite frame_alloc and remove the
+        // frame_alloc specific suff from st
         debug_printf("l1_index before incr: %p",l1_index);
         l1_index++;
         debug_printf("l1_index after incr: %p",l1_index);
