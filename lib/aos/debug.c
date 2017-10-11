@@ -548,6 +548,14 @@ void debug_err(const char *file, const char *func, int line, errval_t err,
     }
 }
 
+void check_err(errval_t err, const char *file, const char *fun, int line)
+{
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "Error raised in %s:%d (%s)", file, line, fun);
+        abort();
+    }
+}
+
 bool debug_notify_syscall = false;
 
 void debug_control_plane_forbidden(void);

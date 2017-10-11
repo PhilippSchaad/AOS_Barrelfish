@@ -12,24 +12,13 @@ extern struct bootinfo *bi;
 /// Initialize the cspace for a given module.
 static errval_t init_cspace(struct spawninfo *si)
 {
-    errval_t err;
-
     // Create an L1 CNode according to the process's spawn-info.
     struct cnoderef l1_cnode;
-    err = cnode_create_l1(&si->l1_cnode, &l1_cnode);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "cnode_create_l1 in init_cspace");
-        return err;
-    }
+    CHECK(cnode_create_l1(&si->l1_cnode, &l1_cnode));
 
     // Go over all root-CNode slots and create L2 CNodes (foreign) in them.
     for (int i = 0; i < ROOTCN_SLOTS_USER; i++) {
-        err = cnode_create_foreign_l2(si->l1_cnode, i, &si->l2_cnode_list[i]);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "cnode_create_foreign_l2 in init_cspace, in "
-                      "iteration %d", i);
-            return err;
-        }
+        CHECK(cnode_create_foreign_l2(si->l1_cnode, i, &si->l2_cnode_list[i]));
     }
 
     // TASKCN contains information about the process. Set its SLOT_ROOTCN
@@ -39,11 +28,7 @@ static errval_t init_cspace(struct spawninfo *si)
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_ROOTCN
     };
-    err = cap_copy(taskcn_slot_rootcn, si->l1_cnode);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "cap_copy in init_cspace");
-        return err;
-    }
+    CHECK(cap_copy(taskcn_slot_rootcn, si->l1_cnode));
 
     // Give the SLOT_BASE_PAGE_CN some memory by iterating over all L2 slots.
     struct capref rootcn_slot_base_page_cn = {
@@ -55,25 +40,13 @@ static errval_t init_cspace(struct spawninfo *si)
         struct capref memory;
 
         // Allocate the memory.
-        err = ram_alloc(&memory, BASE_PAGE_SIZE);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "ram_alloc in init_cspace");
-            return err;
-        }
+        CHECK(ram_alloc(&memory, BASE_PAGE_SIZE));
 
         // Copy the memory capability into our SLOT_BASE_PAGE_CN slot.
-        err = cap_copy(rootcn_slot_base_page_cn, memory);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "cap_copy in init_cspace");
-            return err;
-        }
+        CHECK(cap_copy(rootcn_slot_base_page_cn, memory));
 
         // Cleanup. Destroy the memory capability again.
-        err = cap_destroy(memory);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "cap_destroy in init_cspace");
-            return err;
-        }
+        CHECK(cap_destroy(memory));
     }
 
     return SYS_ERR_OK;
@@ -82,24 +55,15 @@ static errval_t init_cspace(struct spawninfo *si)
 /// Initialize the vspace for a given module.
 static errval_t init_vspace(struct spawninfo *si)
 {
-    errval_t err;
-    
-    // The following is not yet tested!
+    // XXX: The following is not yet tested!
     
     // create l1 page table in the current space
     // cap
     struct capref l1_pt;
-    err = slot_alloc(&l1_pt);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "init_vspace: unable to alloc slot\n");
-        return err;
-    }
+    CHECK(slot_alloc(&l1_pt));
+
     // vnode
-    err = vnode_create(l1_pt,ObjType_VNode_ARM_l1);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "init_vspace: unable to create vnode for l1 page table\n");
-        return err;
-    }
+    CHECK(vnode_create(l1_pt,ObjType_VNode_ARM_l1));
    
     // set up the new process' capability
     si->process_l1_pt.cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN];
@@ -110,11 +74,7 @@ static errval_t init_vspace(struct spawninfo *si)
     // do we need to prefill the table?
     
     // copy the page table to the new process
-    err = cap_copy(si->process_l1_pt, l1_pt);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "error while copying l1 to child\n");
-        return err;
-    }
+    CHECK(cap_copy(si->process_l1_pt, l1_pt));
     
     // cleanup
     cap_destroy(l1_pt);
@@ -128,100 +88,58 @@ static errval_t init_vspace(struct spawninfo *si)
 static errval_t init_dispatcher(struct spawninfo *si)
 {
     // XXX: Note, untested!
-    errval_t err;
 
     // Allocate a capability for the dispatcher.
-    err = slot_alloc(&si->dispatcher);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "slot_alloc for dispatcher in init_dispatcher");
-        return err;
-    }
+    CHECK(slot_alloc(&si->dispatcher));
 
     // Create the dispatcher.
-    err = dispatcher_create(si->dispatcher);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "dispatcher_create in init_dispatcher");
-        return err;
-    }
+    CHECK(dispatcher_create(si->dispatcher));
 
     // Set an endpoint for the dispatcher.
     struct capref dispatcher_end;
-    err = slot_alloc(&dispatcher_end);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "slot_alloc for dispatcher end in init_dispatcher");
-        return err;
-    }
-    err = cap_retype(dispatcher_end, si->dispatcher, 0, ObjType_EndPoint,
-                     0, 1);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "cap_retype for dispatcher end in init_dispatcher");
-        return err;
-    }
+    CHECK(slot_alloc(&dispatcher_end));
+    CHECK(cap_retype(dispatcher_end, si->dispatcher, 0, ObjType_EndPoint,
+                     0, 1));
 
     // Create a memory frame for the dispatcher.
     size_t retsize;
     struct capref dispatcher_memframe;
-    err = frame_alloc(&dispatcher_memframe, DISPATCHER_SIZE, &retsize);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "frame_alloc for dispatcher in init_dispatcher");
-        return err;
-    }
+    CHECK(frame_alloc(&dispatcher_memframe, DISPATCHER_SIZE, &retsize));
 
     // Copy the dispatcher into the spawned process's VSpace.
     struct capref spawned_dispatcher = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_DISPATCHER
     };
-    err = cap_copy(spawned_dispatcher, si->dispatcher);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "cap_copy for dispatcher in init_dispatcher");
-        return err;
-    }
+    CHECK(cap_copy(spawned_dispatcher, si->dispatcher));
 
     // Copy the endpoint into the spawned process's VSpace.
     struct capref spawned_endpoint = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_SELFEP
     };
-    err = cap_copy(spawned_endpoint, dispatcher_end);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "cap_copy for endpoint in init_dispatcher");
-        return err;
-    }
+    CHECK(cap_copy(spawned_endpoint, dispatcher_end));
 
     // Copy the dispatcher's mem frame into the new process's VSpace.
-    
     si->spawned_disp_memframe.cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN];
     si->spawned_disp_memframe.slot = TASKCN_SLOT_DISPFRAME;
     
-    err = cap_copy(si->spawned_disp_memframe, dispatcher_memframe);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "cap_copy for dispatcher memframe in init_dispatcher");
-        return err;
-    }
+    CHECK(cap_copy(si->spawned_disp_memframe, dispatcher_memframe));
 
     // Map the dispatcher's memory frame into the current VSpace.
     lvaddr_t disp_current_vaddr;
-    err = paging_map_frame(get_current_paging_state(),
+    CHECK(paging_map_frame(get_current_paging_state(),
                            (void *)&disp_current_vaddr,
                            DISPATCHER_SIZE, dispatcher_memframe, NULL,
-                           NULL);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "paging_map_frame for curr. vspace in init_dispatcher");
-        return err;
-    }
+                           NULL));
 
     // Map the dispatcher's memory frame into the spawned VSpace.
     lvaddr_t disp_spawn_vaddr;
     // TODO: Do we need to keep track of the spawned process's paging state and
     // use that here instead of current_paging_state?
-    err = paging_map_frame(get_current_paging_state(),
+    CHECK(paging_map_frame(get_current_paging_state(),
                            (void *)&disp_spawn_vaddr, DISPATCHER_SIZE,
-                           dispatcher_memframe, NULL, NULL);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "paging_map_frame for spawn vspace in init_dispatcher");
-        return err;
-    }
+                           dispatcher_memframe, NULL, NULL));
 
     // Finalize the dispatcher: (ref. book 4.15)
     // Get a reference to the dispatcher, name it, set it to disabled at first,
@@ -283,8 +201,6 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
 {
     printf("spawn start_child: starting: %s\n", binary_name);
 
-    errval_t err;
-
     // Init spawninfo.
     memset(si, 0, sizeof(*si));
     si->binary_name = binary_name;
@@ -303,41 +219,21 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     };
 
     struct frame_identity frame_id;
-    err = frame_identify(child_frame, &frame_id);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "frame_identify in spawn_load_by_name");
-        return err;
-    }
+    CHECK(frame_identify(child_frame, &frame_id));
 
     lvaddr_t elf_addr;
-    err = paging_map_frame(get_current_paging_state(), (void **)&elf_addr,
-                           frame_id.bytes, child_frame, NULL, NULL);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "paging_map_frame in spawn_load_by_name");
-        return err;
-    }
+    CHECK(paging_map_frame(get_current_paging_state(), (void **)&elf_addr,
+                           frame_id.bytes, child_frame, NULL, NULL));
 
     // III: Set up the child's cspace.
-    err = init_cspace(si);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "init_cspace in spawn_load_by_name");
-        return err;
-    }
+    CHECK(init_cspace(si));
 
     // IV: Set up the child's vspace.
-    err = init_vspace(si);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "init_vspace in spawn_load_by_name");
-        return err;
-    }
+    CHECK(init_vspace(si));
 
     // V: Load the ELF binary.
-    err = elf_load(EM_ARM, elf_alloc_sect_func, (void *)si, elf_addr,
-                   frame_id.bytes, &si->entry_addr);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "elf_load in spawn_load_by_name");
-        return err;
-    }
+    CHECK(elf_load(EM_ARM, elf_alloc_sect_func, (void *)si, elf_addr,
+                   frame_id.bytes, &si->entry_addr));
 
     struct Elf32_Shdr *global_offset_table =
         elf32_find_section_header_name(elf_addr, frame_id.bytes, ".got");
@@ -350,28 +246,18 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     si->u_got = global_offset_table->sh_addr;
 
     // VI: Initialize the dispatcher.
-    err = init_dispatcher(si);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "init_dispatcher in spawn_load_by_name");
-        return err;
-    }
+    CHECK(init_dispatcher(si));
     
     // VII: Initialize the environment.
-    err = init_env(si);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "init_env in spawn_load_by_name");
-        return err;
-    }
+    CHECK(init_env(si));
     
     // VIII: Make the dispatcher runnable.
     // TODO: Implement.
     struct capref domdispatcher;
    
-    err = invoke_dispatcher(si->dispatcher, domdispatcher, si->l1_cnode, si->process_l1_pt, si->spawned_disp_memframe, true);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "invoke_dispatcher failed");
-        return err;
-    }
+    CHECK(invoke_dispatcher(si->dispatcher, domdispatcher, si->l1_cnode,
+                            si->process_l1_pt, si->spawned_disp_memframe,
+                            true));
 
     return SYS_ERR_OK;
 }
