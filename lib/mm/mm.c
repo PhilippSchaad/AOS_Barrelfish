@@ -243,11 +243,15 @@ void mm_destroy(struct mm *mm)
     struct mmnode *node = mm->head;
     struct mmnode *next_node = mm->head;
     while (node != NULL) {
+        cap_revoke(node->cap.cap);
         cap_destroy(node->cap.cap);
         next_node = node->next;
         mm_mmnode_remove(mm, &node);
         node = next_node;
     }
+    // destroy our ram cap
+    cap_revoke(mm->ram_cap);
+    cap_destroy(mm->ram_cap);
 }
 
 /**
