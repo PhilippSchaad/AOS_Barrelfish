@@ -135,9 +135,7 @@ static errval_t init_dispatcher(struct spawninfo *si)
 
     // Map the dispatcher's memory frame into the spawned VSpace.
     lvaddr_t disp_spawn_vaddr;
-    // TODO: Do we need to keep track of the spawned process's paging state and
-    // use that here instead of current_paging_state?
-    CHECK(paging_map_frame(get_current_paging_state(),
+    CHECK(paging_map_frame(&si->paging_state,
                            (void *)&disp_spawn_vaddr, DISPATCHER_SIZE,
                            dispatcher_memframe, NULL, NULL));
 
@@ -178,14 +176,84 @@ static errval_t init_dispatcher(struct spawninfo *si)
     enabled_area->named.cpsr = CPSR_F_MASK | ARM_MODE_USR;
     disabled_area->named.cpsr = CPSR_F_MASK | ARM_MODE_USR;
 
+    // Store enabled area in spawn info, because we need it to init the env.
+    si->enabled_area = enabled_area;
+
     return SYS_ERR_OK;
 }
 
 /// Initialize the environment for a given module.
-static errval_t init_env(struct spawninfo *si)
+static errval_t init_env(struct spawninfo *si, struct mem_region *module)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    // Retrieve arguments from the module and allocate memory for them.
+    const char *args = multiboot_module_opts(module);
+    size_t region_size = ROUND_UP(sizeof(struct spawn_domain_params) +
+                                  strlen(args) + 1, BASE_PAGE_SIZE);
+    struct capref mem_frame;
+    size_t retsize;
+    CHECK(frame_alloc(&mem_frame, region_size, &retsize));
+
+    // Map the arguments into the current VSpace.
+    lvaddr_t args_addr;
+    CHECK(paging_map_frame(get_current_paging_state(), (void *)&args_addr,
+                           retsize, mem_frame, NULL, NULL));
+
+    // Map the arguments into the spawned process's CSpace.
+    struct capref spawn_args = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
+        .slot = TASKCN_SLOT_ARGSPAGE
+    };
+    CHECK(cap_copy(spawn_args, mem_frame));
+
+    // Map the arguments into the spawned process's VSpace.
+    lvaddr_t spawn_args_addr;
+    CHECK(paging_map_frame(&((struct spawninfo *)module)->paging_state,
+                           (void *)&spawn_args_addr, retsize, mem_frame,
+                           NULL, NULL));
+
+    // Complete spawn_domain_params.
+    struct spawn_domain_params *parameters =
+        (struct spawn_domain_params *)args_addr;
+    memset(&parameters->argv[0], 0, sizeof(parameters->argv));
+    memset(&parameters->envp[0], 0, sizeof(parameters->envp));
+
+    // Add the arguments into the spawned process's VSpace.
+    char *param_base =
+        (char *) parameters + sizeof(struct spawn_domain_params);
+    char *param_last = param_base;
+    lvaddr_t spawn_param_base =
+        spawn_args_addr + sizeof(struct spawn_domain_params);
+    strcpy(param_base, args);
+
+    // Set the arguments correctly.
+    char *current_param = param_base;
+    size_t n_args = 0;
+    while (*current_param != 0) {
+        if (*current_param == ' ') {
+            parameters->argv[n_args] =
+                (void *)spawn_param_base + (param_last - param_base);
+            *current_param = 0;
+            n_args += 1;
+            current_param += 1;
+            param_last = current_param;
+        }
+        current_param += 1;
+    }
+    parameters->argv[n_args] =
+        (void *)spawn_param_base + (param_last - param_base);
+    n_args += 1;
+    parameters->argc = n_args;
+    ((struct spawninfo *)module)->enabled_area->named.r0 = spawn_args_addr;
+
+    // Remaining arguments unset.
+    parameters->vspace_buf = NULL;
+    parameters->vspace_buf_len = 0;
+    parameters->tls_init_base = NULL;
+    parameters->tls_init_len = 0;
+    parameters->tls_total_len = 0;
+    parameters->pagesize = 0;
+
+    return SYS_ERR_OK;
 }
 
 /// Callback for elf_load.
@@ -249,12 +317,10 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     CHECK(init_dispatcher(si));
     
     // VII: Initialize the environment.
-    CHECK(init_env(si));
+    CHECK(init_env(si, module));
     
     // VIII: Make the dispatcher runnable.
-    // TODO: Implement.
     struct capref domdispatcher;
-   
     CHECK(invoke_dispatcher(si->dispatcher, domdispatcher, si->l1_cnode,
                             si->process_l1_pt, si->spawned_disp_memframe,
                             true));

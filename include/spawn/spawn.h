@@ -24,10 +24,12 @@ struct spawninfo {
     struct capref l1_cnode;             ///< Process's L1 CNode
     struct cnoderef l2_cnode_list[ROOTCN_SLOTS_USER];   ///< Foreign L2 CNodes
     struct capref dispatcher;           ///< The dispatcher
-    struct capref process_l1_pt;         ///< The page table of the new process
-    struct capref spawned_disp_memframe;
+    struct capref process_l1_pt;        ///< The page table of the new process
+    struct capref spawned_disp_memframe;///< Dispatcher memory in spawned proc
+    struct paging_state paging_state;   ///< New process's paging state
     genvaddr_t u_got;                   ///< Uspace address of the GOT
     genvaddr_t entry_addr;              ///< Program entry point
+    arch_registers_state_t *enabled_area;
 };
 
 /// Start a child process by binary name. This fills in the spawninfo.
