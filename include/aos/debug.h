@@ -46,7 +46,8 @@ void debug_dump_mem(lvaddr_t base, lvaddr_t limit, lvaddr_t point);
 
 void debug_err(const char *file, const char *func, int line,
                errval_t err, const char *msg, ...);
-void check_err(errval_t err, const char *file, const char *fun, int line);
+void check_err(errval_t err, const char *file, const char *fun, int line,
+               const char *msg, ...);
 void user_panic_fn(const char *file, const char *func, int line,
                    const char *msg, ...)
     __attribute__((noreturn));
@@ -55,13 +56,15 @@ void user_panic_fn(const char *file, const char *func, int line,
 # define DEBUG_ERR(err, msg...) ((void)0)
 # define HERE ((void)0)
 # define CHECK(fun) fun
+# define CHECK_MSG(fun, msg...) fun
 #else
 # define DEBUG_ERR(err, msg...) debug_err(__FILE__, __func__, __LINE__, err, msg)
 # include <aos/dispatch.h>
 # define HERE fprintf(stderr, "Disp %.*s.%u: %s, %s, %u\n", \
                         DISP_NAME_LEN, disp_name(), disp_get_core_id(), \
                       __FILE__, __func__, __LINE__)
-# define CHECK(fun) check_err(fun, __FILE__, __func__, __LINE__)
+# define CHECK(fun) check_err(fun, __FILE__, __func__, __LINE__, "")
+# define CHECK_MSG(fun, msg...) check_err(fun, __FILE__, __func__, __LINE__, msg)
 #endif
 
 /**

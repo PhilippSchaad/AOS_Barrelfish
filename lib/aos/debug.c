@@ -548,10 +548,17 @@ void debug_err(const char *file, const char *func, int line, errval_t err,
     }
 }
 
-void check_err(errval_t err, const char *file, const char *fun, int line)
+void check_err(errval_t err, const char *file, const char *fun, int line,
+               const char *msg, ...)
 {
+    va_list ap;
     if (err_is_fail(err)) {
-        DEBUG_ERR(err, "Error raised in %s:%d (%s)", file, line, fun);
+        char str[256 ];
+        va_start(ap, msg);
+        vsprintf(str, msg, ap);
+        va_end(ap);
+        DEBUG_ERR(err, str);
+        printf("Location: %s:%d (%s)\n", file, line, fun);
         abort();
     }
 }
