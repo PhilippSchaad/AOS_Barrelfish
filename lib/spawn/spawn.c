@@ -78,9 +78,6 @@ static errval_t init_vspace(struct spawninfo *si)
     CHECK(paging_init_state(&si->paging_state, /*XXX: what do we need here??? */0,
                             l1_pt, get_default_slot_allocator()));
     
-    // cleanup
-    cap_destroy(l1_pt);
-    
     return SYS_ERR_OK;
     
 }
