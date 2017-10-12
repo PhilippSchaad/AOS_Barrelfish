@@ -87,57 +87,57 @@ static errval_t init_dispatcher(struct spawninfo *si)
 {
     // XXX: Note, untested!
 
-    // Allocate a capability for the dispatcher.
+    debug_printf(" Allocate a capability for the dispatcher.\n");
     CHECK(slot_alloc(&si->dispatcher));
 
-    // Create the dispatcher.
+    debug_printf(" Create the dispatcher.\n");
     CHECK(dispatcher_create(si->dispatcher));
 
-    // Set an endpoint for the dispatcher.
+    debug_printf(" Set an endpoint for the dispatcher.\n");
     struct capref dispatcher_end;
     CHECK(slot_alloc(&dispatcher_end));
     CHECK(cap_retype(dispatcher_end, si->dispatcher, 0, ObjType_EndPoint,
                      0, 1));
 
-    // Create a memory frame for the dispatcher.
+    debug_printf(" Create a memory frame for the dispatcher.\n");
     size_t retsize;
     struct capref dispatcher_memframe;
     CHECK(frame_alloc(&dispatcher_memframe, DISPATCHER_SIZE, &retsize));
 
-    // Copy the dispatcher into the spawned process's VSpace.
+    debug_printf(" Copy the dispatcher into the spawned process's VSpace.\n");
     struct capref spawned_dispatcher = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_DISPATCHER
     };
     CHECK(cap_copy(spawned_dispatcher, si->dispatcher));
 
-    // Copy the endpoint into the spawned process's VSpace.
+    debug_printf(" Copy the endpoint into the spawned process's VSpace.\n");
     struct capref spawned_endpoint = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_SELFEP
     };
     CHECK(cap_copy(spawned_endpoint, dispatcher_end));
 
-    // Copy the dispatcher's mem frame into the new process's VSpace.
+    debug_printf(" Copy the dispatcher's mem frame into the new process's VSpace.\n");
     si->spawned_disp_memframe.cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN];
     si->spawned_disp_memframe.slot = TASKCN_SLOT_DISPFRAME;
     
     CHECK(cap_copy(si->spawned_disp_memframe, dispatcher_memframe));
 
-    // Map the dispatcher's memory frame into the current VSpace.
+    debug_printf(" Map the dispatcher's memory frame into the current VSpace.\n");
     lvaddr_t disp_current_vaddr;
     CHECK(paging_map_frame(get_current_paging_state(),
                            (void *)&disp_current_vaddr,
                            DISPATCHER_SIZE, dispatcher_memframe, NULL,
                            NULL));
 
-    // Map the dispatcher's memory frame into the spawned VSpace.
+    debug_printf(" Map the dispatcher's memory frame into the spawned VSpace.\n");
     lvaddr_t disp_spawn_vaddr;
     CHECK(paging_map_frame(&si->paging_state,
                            (void *)&disp_spawn_vaddr, DISPATCHER_SIZE,
                            dispatcher_memframe, NULL, NULL));
 
-    // Finalize the dispatcher: (ref. book 4.15)
+    debug_printf(" Finalize the dispatcher: (ref. book 4.15)\n");
     // Get a reference to the dispatcher, name it, set it to disabled at first,
     // set the dispatcher memframe address in the new VSpace (spawned process),
     // and set it to trap on FPU instructions.
@@ -148,7 +148,7 @@ static errval_t init_dispatcher(struct spawninfo *si)
     disp->fpu_trap = 1;
     strncpy(disp->name, si->binary_name, DISP_NAME_LEN);
 
-    // Set the core ID of the process and zero the frame(/size) and header.
+    debug_printf(" Set the core ID of the process and zero the frame(/size) and header.\n");
     struct dispatcher_generic *disp_gen =
         get_dispatcher_generic((dispatcher_handle_t)disp_current_vaddr);
     disp_gen->core_id = 0;
@@ -157,7 +157,7 @@ static errval_t init_dispatcher(struct spawninfo *si)
     disp_gen->eh_frame_hdr = 0;
     disp_gen->eh_frame_hdr_size = 0;
 
-    // Set the base address of the GOT in the new VSpace.
+    debug_printf(" Set the base address of the GOT in the new VSpace.\n");
     struct dispatcher_shared_arm *disp_arm =
         get_dispatcher_shared_arm((dispatcher_handle_t)disp_current_vaddr);
     disp_arm->got_base = si->u_got;
@@ -174,7 +174,7 @@ static errval_t init_dispatcher(struct spawninfo *si)
     enabled_area->named.cpsr = CPSR_F_MASK | ARM_MODE_USR;
     disabled_area->named.cpsr = CPSR_F_MASK | ARM_MODE_USR;
 
-    // Store enabled area in spawn info, because we need it to init the env.
+    debug_printf(" Store enabled area in spawn info, because we need it to init the env.\n");
     si->enabled_area = enabled_area;
 
     return SYS_ERR_OK;
@@ -183,7 +183,7 @@ static errval_t init_dispatcher(struct spawninfo *si)
 /// Initialize the environment for a given module.
 static errval_t init_env(struct spawninfo *si, struct mem_region *module)
 {
-    // Retrieve arguments from the module and allocate memory for them.
+    debug_printf(" Retrieve arguments from the module and allocate memory for them.\n");
     const char *args = multiboot_module_opts(module);
     size_t region_size = ROUND_UP(sizeof(struct spawn_domain_params) +
                                   strlen(args) + 1, BASE_PAGE_SIZE);
@@ -191,31 +191,31 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
     size_t retsize;
     CHECK(frame_alloc(&mem_frame, region_size, &retsize));
 
-    // Map the arguments into the current VSpace.
+    debug_printf(" Map the arguments into the current VSpace.\n");
     lvaddr_t args_addr;
     CHECK(paging_map_frame(get_current_paging_state(), (void *)&args_addr,
                            retsize, mem_frame, NULL, NULL));
 
-    // Map the arguments into the spawned process's CSpace.
+    debug_printf(" Map the arguments into the spawned process's CSpace.\n");
     struct capref spawn_args = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_ARGSPAGE
     };
     CHECK(cap_copy(spawn_args, mem_frame));
 
-    // Map the arguments into the spawned process's VSpace.
+    debug_printf(" Map the arguments into the spawned process's VSpace.\n");
     lvaddr_t spawn_args_addr;
-    CHECK(paging_map_frame(&((struct spawninfo *)module)->paging_state,
+    CHECK(paging_map_frame(&si->paging_state,
                            (void *)&spawn_args_addr, retsize, mem_frame,
                            NULL, NULL));
 
-    // Complete spawn_domain_params.
+    debug_printf(" Complete spawn_domain_params.\n");
     struct spawn_domain_params *parameters =
         (struct spawn_domain_params *)args_addr;
     memset(&parameters->argv[0], 0, sizeof(parameters->argv));
     memset(&parameters->envp[0], 0, sizeof(parameters->envp));
 
-    // Add the arguments into the spawned process's VSpace.
+    debug_printf(" Add the arguments into the spawned process's VSpace.\n");
     char *param_base =
         (char *) parameters + sizeof(struct spawn_domain_params);
     char *param_last = param_base;
@@ -223,7 +223,7 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
         spawn_args_addr + sizeof(struct spawn_domain_params);
     strcpy(param_base, args);
 
-    // Set the arguments correctly.
+    debug_printf(" Set the arguments correctly.\n");
     char *current_param = param_base;
     size_t n_args = 0;
     while (*current_param != 0) {
@@ -241,9 +241,9 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
         (void *)spawn_param_base + (param_last - param_base);
     n_args += 1;
     parameters->argc = n_args;
-    ((struct spawninfo *)module)->enabled_area->named.r0 = spawn_args_addr;
+    si->enabled_area->named.r0 = spawn_args_addr;
 
-    // Remaining arguments unset.
+    debug_printf(" Remaining arguments unset.\n");
     parameters->vspace_buf = NULL;
     parameters->vspace_buf_len = 0;
     parameters->tls_init_base = NULL;
@@ -291,14 +291,14 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     memset(si, 0, sizeof(*si));
     si->binary_name = binary_name;
 
-    // I: Getting the binary from the multiboot image.
+    debug_printf("I: Getting the binary from the multiboot image.\n");
     struct mem_region *module = multiboot_find_module(bi, binary_name);
     if (module == NULL) {
         debug_printf("multiboot: Could not find module %s\n", binary_name);
         return SPAWN_ERR_FIND_MODULE;
     }
 
-    // II: Mapping the multiboot module into our address space.
+    debug_printf("II: Mapping the multiboot module into our address space.\n");
     struct capref child_frame = {
         .cnode = cnode_module,
         .slot = module->mrmod_slot
@@ -311,13 +311,13 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     CHECK(paging_map_frame(get_current_paging_state(), (void **)&elf_addr,
                            frame_id.bytes, child_frame, NULL, NULL));
 
-    // III: Set up the child's cspace.
+    debug_printf("III: Set up the child's cspace.\n");
     CHECK(init_cspace(si));
 
-    // IV: Set up the child's vspace.
+    debug_printf("IV: Set up the child's vspace.\n");
     CHECK(init_vspace(si));
 
-    // V: Load the ELF binary.
+    debug_printf("V: Load the ELF binary.\n");
     CHECK(elf_load(EM_ARM, elf_alloc_sect_func, (void *)si, elf_addr,
                    frame_id.bytes, &si->entry_addr));
 
@@ -331,13 +331,13 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     // Store the uspace base.
     si->u_got = global_offset_table->sh_addr;
 
-    // VI: Initialize the dispatcher.
+    debug_printf("VI: Initialize the dispatcher.\n");
     CHECK(init_dispatcher(si));
-    
-    // VII: Initialize the environment.
+
+    debug_printf("VII: Initialize the environment.\n");
     CHECK(init_env(si, module));
-    
-    // VIII: Make the dispatcher runnable.
+
+    debug_printf("VIII: Make the dispatcher runnable.\n");
     struct capref domdispatcher;
     CHECK(invoke_dispatcher(si->dispatcher, domdispatcher, si->l1_cnode,
                             si->process_l1_pt, si->spawned_disp_memframe,
