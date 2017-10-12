@@ -3,26 +3,27 @@
 #include <aos/paging.h>
 
 __attribute__((unused))
-static int mm_alloc_100f(void)
+static int mm_alloc_300f(void)
 {
-    TEST_PRINT_INFO("Allocate 100 frames (sizes 30 + 100*i).\n"  \
+    TEST_PRINT_INFO("Allocate 300 frames (sizes 30 + 100*i).\n"  \
             "           "   \
             "This will also demonstrate slab refills.");
 
     errval_t err;
 
-    struct capref frame[100];
+    struct capref frame[300];
 
-    for(int i = 0; i<100; ++i){
+    for(int i = 0; i<300; ++i){
         size_t frame_size=0;
         size_t bytes = 30 + i*100 ;
+        debug_printf("round: %i \n", i);
         err = frame_alloc(&frame[i], bytes, &frame_size);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
     }
 
-    for(int i = 0; i<100; ++i){
+    for(int i = 0; i<300; ++i){
         size_t bytes = 30 + i*100;
 
         err = aos_ram_free(frame[i], bytes);
@@ -142,7 +143,7 @@ static int mm_alloc_free_20(void)
 __attribute__((unused))
 static int mm_alloc_free_600(void)
 {
-    TEST_PRINT_INFO("Allocate 400 chunks of ram (size 30) and free again. This also uses slot alloc.");
+    TEST_PRINT_INFO("Allocate 600 chunks of ram (size 30) and free again. This also uses slot alloc.");
 
     errval_t err;
 

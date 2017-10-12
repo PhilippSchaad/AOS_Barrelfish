@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 
-//#define no_debug_printf
+#define no_debug_printf
 #ifdef no_debug_printf
 #undef debug_printf
 #define debug_printf(...)
@@ -39,6 +39,7 @@ __attribute__((unused))
 static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
 {
     CHECK(st->slot_alloc->alloc(st->slot_alloc, ret));
+debug_printf("arml2_alloc middle reached");
     CHECK(vnode_create(*ret, ObjType_VNode_ARM_l2));
     return SYS_ERR_OK;
 }
@@ -287,15 +288,19 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         // check if the table already exists
         if (st->l2_page_tables[l1_index].init) {
             // table exists
+            debug_printf("found l2 page table \n");
             l2_pagetable = st->l2_page_tables[l1_index].cap;
         } else {
             // create a new table
+            debug_printf("making l2 page table \n");
             CHECK(arml2_alloc(st, &l2_pagetable));
 
+            debug_printf("creating l1 l2 mapping capability \n");
             // write the L1 table entry
             struct capref l2_l1_mapping;
-            st->slot_alloc->alloc(st->slot_alloc, &l2_l1_mapping);
+            CHECK(st->slot_alloc->alloc(st->slot_alloc, &l2_l1_mapping));
 
+            debug_printf("mapping l2 page table \n");
             CHECK(vnode_map(st->l1_page_table, l2_pagetable, l1_index,
                             VREGION_FLAGS_READ_WRITE, 0, 1, l2_l1_mapping));
 
@@ -303,11 +308,12 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             st->l2_page_tables[l1_index].cap = l2_pagetable;
             st->l2_page_tables[l1_index].init = true;
         }
+        debug_printf("now allocing slot for frame mapping \n");
 
         // get the frame from the L2 table
         lvaddr_t l2_index = ARM_L2_OFFSET(curvaddr);
         struct capref l2_frame;
-        st->slot_alloc->alloc(st->slot_alloc, &l2_frame);
+        CHECK(st->slot_alloc->alloc(st->slot_alloc, &l2_frame));
         uint64_t pte_count = (curbytes >> 12) + (curbytes % BASE_PAGE_SIZE != 0 ? 1 : 0);
         debug_printf("frame offset: %llu \n",(uint64_t)curvaddr % BASE_PAGE_SIZE);
         debug_printf("pte_count: %llu \n", pte_count);

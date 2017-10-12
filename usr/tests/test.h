@@ -65,8 +65,8 @@ static void tests_run(struct tester *t)
 static void register_memory_tests(struct tester *t)
 {
     // mm tests
+    register_test(t, mm_alloc_300f);
     register_test(t, mm_alloc_free_600);
-    register_test(t, mm_alloc_100f);
     register_test(t, mm_alloc_free_20);
     register_test(t, mm_alloc_free_10);
     register_test(t, mm_alloc_and_map_10f);
