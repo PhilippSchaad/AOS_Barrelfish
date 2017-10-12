@@ -21,13 +21,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#define no_debug_printf
+//#define no_debug_printf
 #ifdef no_debug_printf
 #undef debug_printf
 #define debug_printf(...)
 #endif
 
 //#define no_page_align_in_frame_alloc
+#define no_paging_map_fixed_attr_debug_printf
 
 static struct paging_state current;
 
@@ -44,11 +45,17 @@ debug_printf("arml2_alloc middle reached");
     return SYS_ERR_OK;
 }
 
+static size_t ps_index = 1;
+
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca)
 {
     debug_printf("paging_init_state\n");
-    
+
+    //for debug purposes to keep track how many we got
+    st->debug_paging_state_index = ps_index++;
+    debug_printf("setting up paging_state #%u",st->debug_paging_state_index);
+
     // slot allocator
     st->slot_alloc = ca;
 
@@ -187,17 +194,19 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     struct paging_free_frame_node *node = &st->free_vspace;
     while(node != NULL) {
         if(node->region_size >= bytes) {
-            debug_printf("paging_alloc base: %p size: %u req: %u \n",
+            debug_printf("ps %u paging_alloc base: %p size: %u req: %u \n", st->debug_paging_state_index,
                     node->base_addr, node->region_size, bytes);
             *buf = (void*)node->base_addr;
             node->base_addr += bytes;
 #ifndef no_page_align_in_frame_alloc
             lvaddr_t temp = ROUND_UP(node->base_addr, BASE_PAGE_SIZE); //this does the page aligning thing
+            debug_printf("ps %u alignment change does: %u \n",st->debug_paging_state_index,(size_t)(temp-node->base_addr));
             node->region_size -= bytes + (temp-node->base_addr);
             node->base_addr = temp;
 #else
             node->region_size -= bytes;
 #endif
+            debug_printf("ps %u paging_alloc new base: %p new size: %u\n",st->debug_paging_state_index,node->base_addr,node->region_size);
             if(node->region_size == 0) {
                 // TODO: add removing, just move content of next node
                 // into this and delete next node 
@@ -211,6 +220,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
             }
             return SYS_ERR_OK;
         }
+        debug_printf("ps %u we requested %u bytes but only had %u available anymore on region %p \n", st->debug_paging_state_index, bytes, node->region_size, node->base_addr);
         node = node->next;
     }
     return LIB_ERR_OUT_OF_VIRTUAL_ADDR;
@@ -247,6 +257,11 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
 
     return SYS_ERR_OK;
 }
+
+#ifdef no_paging_map_fixed_attr_debug_printf
+#undef debug_printf
+#define debug_printf(...)
+#endif
 
 /**
  * \brief map a user provided frame at user provided VA.
@@ -337,7 +352,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         // frame_alloc specific suff from st
         debug_printf("l1_index before incr: %p",l1_index);
         l1_index++;
-        debug_printf("l1_index after incr: %p",l1_index);
+        debug_printf("l1_index after incr: %p \n",l1_index);
     }
     return SYS_ERR_OK;
 }

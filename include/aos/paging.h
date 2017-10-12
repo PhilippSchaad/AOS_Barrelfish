@@ -69,6 +69,7 @@ struct paging_free_frame_node {
 
 // struct to store the paging status of a process
 struct paging_state {
+    size_t debug_paging_state_index;
     struct slot_allocator* slot_alloc;
     // TODO: add struct members to keep track of the page tables etc
     // l2 page tables
