@@ -225,3 +225,18 @@ static int mm_alloc_free_10(void)
 
     TEST_PRINT_SUCCESS();
 }
+
+static int mm_paging_map_fixed_attr_cursize_test(void) {
+    TEST_PRINT_INFO("Regression test for issue #21");
+    struct capref frame;
+    errval_t err;
+    size_t frame_size2=0;
+    err = frame_alloc(&frame, (size_t)278528, &frame_size2);
+    if (err_is_fail(err)) {
+        TEST_PRINT_FAIL();
+    }
+    paging_map_fixed_attr(get_current_paging_state(),0x55c2000,frame,frame_size2,VREGION_FLAGS_READ_WRITE);
+    err = aos_ram_free(frame, frame_size2);
+    cap_destroy(frame);
+    TEST_PRINT_SUCCESS();
+}

@@ -260,13 +260,14 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         size_t curbytes;
         lvaddr_t curvaddr;
         debug_printf("first: %d \n",first);
+#define l2_page_byte_storage_size (1 << 20)
         if(l1_index < end_l1_index) {
             if(first) {
-                curbytes = (1 << 20) - (vaddr & 0xFFFFF);
+                curbytes = l2_page_byte_storage_size - (vaddr % l2_page_byte_storage_size);
                 curvaddr = vaddr;
                 first = false;
             } else {
-                curbytes = (1 << 20);
+                curbytes = l2_page_byte_storage_size;
                 curvaddr = l1_index << 20;
             }
         }else {
@@ -274,7 +275,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                 curbytes = bytes;
                 curvaddr = vaddr;
             }else {
-                curbytes = (bytes & 0xFFFFF) + (vaddr & 0xFFFFF);
+                curbytes = (bytes - (l2_page_byte_storage_size - (vaddr % l2_page_byte_storage_size))) % l2_page_byte_storage_size;
                 curvaddr = l1_index << 20;
             }
         }
@@ -283,7 +284,6 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         debug_alloced_bytes += curbytes;
         debug_printf("allocated so far: %u and still need to alloc: %u\n",debug_alloced_bytes, bytes - debug_alloced_bytes);
 #endif
-
         // check if the table already exists
         if (st->l2_page_tables[l1_index].init) {
             // table exists

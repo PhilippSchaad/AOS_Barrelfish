@@ -71,8 +71,11 @@ static void register_memory_tests(struct tester *t)
     register_test(t, mm_alloc_free_10);
     register_test(t, mm_alloc_and_map_10f);
     register_test(t, mm_alloc_and_map_large_10f);
-    
-    // spawn tests
+    register_test(t, mm_paging_map_fixed_attr_cursize_test);
+}
+
+static void register_spawn_tests(struct tester *)
+{
     register_test(t, spawn_hello5);
 }
 
