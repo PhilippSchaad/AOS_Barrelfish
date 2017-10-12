@@ -16,7 +16,7 @@ static int mm_alloc_300f(void)
     for(int i = 0; i<300; ++i){
         size_t frame_size=0;
         size_t bytes = 30 + i*100 ;
-        debug_printf("round: %i \n", i);
+//        debug_printf("round: %i \n", i);
         err = frame_alloc(&frame[i], bytes, &frame_size);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();

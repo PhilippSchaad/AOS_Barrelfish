@@ -61,7 +61,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     for (i = 0; i < ARM_L1_MAX_ENTRIES; ++i) {
         st->l2_page_tables[i].init = false;
     }
-    
     //set the start of the free space
     st->free_vspace.base_addr = start_vaddr;
     debug_printf("at time of init our base addr is at: %p \n",st->free_vspace.base_addr);
@@ -235,6 +234,17 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
                          size_t minbytes)
 {
     // Refill the two-level slot allocator without causing a page-fault
+    void *buf;
+    struct paging_state* st = get_current_paging_state();
+    buf = NULL;
+    size_t frame_size;
+    debug_printf("allocing at least: %u\n", minbytes);
+    CHECK(frame_alloc(&frame, minbytes, &frame_size));
+    debug_printf("allocing in reality: %u\n", frame_size);
+    CHECK(paging_map_frame_attr(st, &buf, frame_size, frame,
+                                VREGION_FLAGS_READ_WRITE, NULL, NULL));
+    slab_grow(slabs, buf, frame_size);
+
     return SYS_ERR_OK;
 }
 
