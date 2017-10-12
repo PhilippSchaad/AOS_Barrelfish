@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
     struct tester t;
     init_testing(&t);
     register_memory_tests(&t);
+    register_spawn_tests(&t);
     tests_run(&t);
 
     debug_printf("Message handler loop\n");
