@@ -338,8 +338,7 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     CHECK(init_env(si, module));
 
     debug_printf("VIII: Make the dispatcher runnable.\n");
-    struct capref domdispatcher;
-    CHECK(invoke_dispatcher(si->dispatcher, domdispatcher, si->l1_cnode,
+    CHECK(invoke_dispatcher(si->dispatcher, cap_dispatcher, si->l1_cnode,
                             si->process_l1_pt, si->spawned_disp_memframe,
                             true));
 
