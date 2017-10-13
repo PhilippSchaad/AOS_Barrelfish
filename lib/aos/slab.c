@@ -188,23 +188,17 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     // allocate a new frame
     struct capref frame;
 
-    errval_t err;
     // NOTE: after the next line, bytes contains the size of the created frame
-    err = frame_alloc(&frame, bytes, &frame_size);
-    if (err_is_fail(err)) {
-        return err;
-    }
+    CHECK(frame_alloc(&frame, bytes, &frame_size));
+
+    assert(bytes == frame_size);
 
     // map the frame
     void *buf;
     struct paging_state* st = get_current_paging_state();
     buf = NULL;
-    err = paging_map_frame_attr(st, &buf, bytes, frame,
-                                VREGION_FLAGS_READ_WRITE, NULL, NULL);
-    if (err_is_fail(err)) {
-        debug_printf("error while refilling slab %s", err_getstring(err));
-        return err;
-    }
+    CHECK(paging_map_frame_attr(st, &buf, bytes, frame,
+                                VREGION_FLAGS_READ_WRITE, NULL, NULL));
 
     // grow the slabs
     slab_grow(slabs, buf, bytes);
