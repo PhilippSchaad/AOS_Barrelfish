@@ -30,6 +30,7 @@ static errval_t init_cspace(struct spawninfo *si)
     };
     CHECK(cap_copy(taskcn_slot_rootcn, si->l1_cnode));
 
+
     // Give the SLOT_BASE_PAGE_CN some memory by iterating over all L2 slots.
     struct capref rootcn_slot_base_page_cn = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_BASE_PAGE_CN]
@@ -67,7 +68,7 @@ static errval_t init_vspace(struct spawninfo *si)
     si->process_l1_pt.cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN];
     si->process_l1_pt.slot  = PAGECN_SLOT_VROOT;
     
-    
+
     // TODO:
     // do we need to prefill the table?
     
@@ -311,6 +312,8 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     CHECK(paging_map_frame(get_current_paging_state(), (void **)&elf_addr,
                            frame_id.bytes, child_frame, NULL, NULL));
 
+    debug_printf("Magic Number of elf: %i %c%c%c\n",*(char*)elf_addr,*(((char*)elf_addr)+1),*(((char*)elf_addr)+2),*(((char*)elf_addr)+3));
+
     debug_printf("III: Set up the child's cspace.\n");
     CHECK(init_cspace(si));
 
@@ -330,6 +333,8 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     }
     // Store the uspace base.
     si->u_got = global_offset_table->sh_addr;
+
+    debug_printf("Magic Number of elf again: %i %c%c%c\n",*(char*)elf_addr,*(((char*)elf_addr)+1),*(((char*)elf_addr)+2),*(((char*)elf_addr)+3));
 
     debug_printf("VI: Initialize the dispatcher.\n");
     CHECK(init_dispatcher(si));
