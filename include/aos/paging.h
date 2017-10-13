@@ -66,7 +66,6 @@ struct paging_free_frame_node {
     struct paging_free_frame_node* next;
 };
 
-
 // struct to store the paging status of a process
 struct paging_state {
     size_t debug_paging_state_index;
@@ -79,6 +78,7 @@ struct paging_state {
         struct capref cap;
         bool init;
     } l2_page_tables[ARM_L1_MAX_ENTRIES];
+    void* spawninfo;
 };
 
 

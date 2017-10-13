@@ -18,6 +18,8 @@
 #include <aos/slab.h>
 #include "threads_priv.h"
 
+#include <spawn/spawn.h>
+
 #include <stdio.h>
 #include <string.h>
 
@@ -74,7 +76,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->free_vspace.region_size = 0xFFFFFFFF - start_vaddr;
 
     st->free_vspace.next = NULL;
-    
+    st->spawninfo = NULL;
     // TODO (M2): implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
@@ -332,6 +334,12 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             // add cap to tracking array
             st->l2_page_tables[l1_index].cap = l2_pagetable;
             st->l2_page_tables[l1_index].init = true;
+
+            // add to child process if necessary
+            if(st->spawninfo != NULL){
+                printf("I should add the new slot to the child\n");
+                ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_pagetable);
+            }
         }
         debug_printf("now allocing slot for frame mapping \n");
 
@@ -343,6 +351,13 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         debug_printf("frame offset: %llu \n",(uint64_t)curvaddr % BASE_PAGE_SIZE);
         debug_printf("pte_count: %llu \n", pte_count);
         CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, curvaddr % BASE_PAGE_SIZE,pte_count, l2_frame));
+
+
+            printf("I maybe add the new slot to the child\n");
+        if(st->spawninfo != NULL){
+            printf("I should add the new slot to the child\n");
+            ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_frame);
+        }
 
         // TODO: make sure that frames larger than a single l2 table is split
         // TODO: store l2_l1_mapping and l2_frame (also a mapping), further,
