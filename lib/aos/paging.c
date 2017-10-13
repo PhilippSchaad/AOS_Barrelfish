@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 
-//#define no_debug_printf
+#define no_debug_printf
 #ifdef no_debug_printf
 #undef debug_printf
 #define debug_printf(...)
@@ -342,7 +342,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         uint64_t pte_count = (curbytes >> 12) + (curbytes % BASE_PAGE_SIZE != 0 ? 1 : 0);
         debug_printf("frame offset: %llu \n",(uint64_t)curvaddr % BASE_PAGE_SIZE);
         debug_printf("pte_count: %llu \n", pte_count);
-        CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, curvaddr % BASE_PAGE_SIZE,pte_count, l2_frame));
+        CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, 0,pte_count, l2_frame));
 
         // TODO: make sure that frames larger than a single l2 table is split
         // TODO: store l2_l1_mapping and l2_frame (also a mapping), further,
