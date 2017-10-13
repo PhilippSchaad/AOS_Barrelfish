@@ -53,6 +53,16 @@ static errval_t init_cspace(struct spawninfo *si)
     return SYS_ERR_OK;
 }
 
+errval_t slot_callback(struct spawninfo* si, struct capref cap);
+errval_t slot_callback(struct spawninfo* si, struct capref cap){
+    debug_printf("Copy slot to child\n");
+    struct capref child = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN],
+        .slot = si->next_slot++
+    };
+    return cap_copy(child, cap);
+}
+
 /// Initialize the vspace for a given module.
 static errval_t init_vspace(struct spawninfo *si)
 {
@@ -67,7 +77,7 @@ static errval_t init_vspace(struct spawninfo *si)
     // set up the new process' capability
     si->process_l1_pt.cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN];
     si->process_l1_pt.slot  = PAGECN_SLOT_VROOT;
-    
+
 
     // TODO:
     // do we need to prefill the table?
@@ -78,7 +88,11 @@ static errval_t init_vspace(struct spawninfo *si)
     // Set the spawned process's paging state.
     CHECK(paging_init_state(&si->paging_state, /*XXX: what do we need here??? */0,
                             l1_pt, get_default_slot_allocator()));
-    
+
+    // add the callback function
+    si->slot_callback=slot_callback;
+    si->paging_state.spawninfo = si;
+
     return SYS_ERR_OK;
     
 }
@@ -104,6 +118,8 @@ static errval_t init_dispatcher(struct spawninfo *si)
     size_t retsize;
     struct capref dispatcher_memframe;
     CHECK(frame_alloc(&dispatcher_memframe, DISPATCHER_SIZE, &retsize));
+    
+    assert(retsize == DISPATCHER_SIZE);
 
     debug_printf(" Copy the dispatcher into the spawned process's VSpace.\n");
     struct capref spawned_dispatcher = {
@@ -192,6 +208,8 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
     size_t retsize;
     CHECK(frame_alloc(&mem_frame, region_size, &retsize));
 
+    assert(retsize == region_size);
+
     debug_printf(" Map the arguments into the current VSpace.\n");
     lvaddr_t args_addr;
     CHECK(paging_map_frame(get_current_paging_state(), (void *)&args_addr,
@@ -259,6 +277,7 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
 static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
                                     uint32_t flags, void **ret)
 {
+    debug_printf("start elf_alloc_sect_func");
     size_t alignment_offset = BASE_PAGE_OFFSET(base);
     // Align base address and size.
     genvaddr_t base_aligned = base - alignment_offset;
@@ -268,6 +287,8 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
     struct capref frame;
     size_t retsize;
     CHECK(frame_alloc(&frame, size_aligned, &retsize));
+
+    assert(retsize == size_aligned);
 
     // Map the frame into the spawned process's VSpace.
     CHECK(paging_map_fixed_attr(&((struct spawninfo *)state)->paging_state,
@@ -279,7 +300,7 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
 
     // Correct return to fit alignment.
     *ret += alignment_offset;
-
+    debug_printf("end elf_alloc_sect_func");
     return SYS_ERR_OK;
 }
 
