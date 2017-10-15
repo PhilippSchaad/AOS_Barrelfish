@@ -123,7 +123,7 @@ static errval_t mm_mmnode_merge(struct mm *mm, struct mmnode *first,
 }
 
 /// Find a free node with at least [size] in the mm structure.
-static errval_t mm_mmnode_find(struct mm *mm, size_t size,
+static errval_t mm_mmnode_find(struct mm *mm, size_t size, size_t alignment,
                                struct mmnode **retnode)
 {
     assert(retnode != NULL);
@@ -132,8 +132,9 @@ static errval_t mm_mmnode_find(struct mm *mm, size_t size,
     struct mmnode *node = mm->head;
 
     while (node != NULL) {
+        size_t dif = node->base % alignment;
         if (node->type == NodeType_Free &&
-                ((gensize_t) size <= node->size)) {
+                ((gensize_t) (size+dif) <= node->size)) {
             // Free node found where size fits.
             *retnode = node;
             return SYS_ERR_OK;
@@ -314,9 +315,9 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
         alignment += (size_t) BASE_PAGE_SIZE - (alignment % BASE_PAGE_SIZE);
     }
 
-    // Adjust size to alignment.
-    if (size % alignment != 0) {
-        size += (size_t) alignment - (size % alignment);
+    // Adjust size to base alignment.
+    if (size % BASE_PAGE_SIZE != 0) {
+        size += (size_t) BASE_PAGE_SIZE - (size % BASE_PAGE_SIZE);
     }
 
     struct mmnode *node = NULL;
@@ -333,14 +334,20 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     }
 
     // Find a free node in the list.
-    CHECK(mm_mmnode_find(mm, size, &node));
+    CHECK(mm_mmnode_find(mm, size, alignment, &node));
 
     assert(node != NULL);
     assert(node->type == NodeType_Free);
+    size_t dif = node->base % alignment;
 
     // Split the node to the correct size.
     struct mmnode *new_node = NULL;
-    if (node->size > (gensize_t)size){
+    if (node->size > (gensize_t)(size+dif)){
+        //todo: fix this ugly ugly hack properly. This hack currently has us lose space to fullfill alignment restrictions
+        //      ideally we'd just allocate a new node and store the remaining space in there
+        node->base += dif;
+        node->size -= dif;
+
         // Store old size.
         genpaddr_t orig_node_base = node->base;
 
@@ -359,6 +366,10 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
 
         assert(new_node != NULL);
     } else {
+        //todo: fix this ugly ugly hack properly. This hack currently has us lose space to fullfill alignment restrictions
+        //      ideally we'd just allocate a new node and store the remaining space in there
+        node->base += dif;
+        node->size -= dif;
         // Size of the node exactly as needed.
         slab_free(&(mm->slabs), new_node);
         new_node = node;

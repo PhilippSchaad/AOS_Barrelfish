@@ -30,6 +30,8 @@ struct spawninfo {
     genvaddr_t u_got;                   ///< Uspace address of the GOT
     genvaddr_t entry_addr;              ///< Program entry point
     arch_registers_state_t *enabled_area;
+    int next_slot;
+    errval_t (*slot_callback)(struct spawninfo* si, struct capref cap);
 };
 
 /// Start a child process by binary name. This fills in the spawninfo.

@@ -53,9 +53,21 @@ static int mm_alloc_and_map_10f(void)
             TEST_PRINT_FAIL();
         }
         void *buf;
-        err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes,
+        err = paging_map_frame_attr(get_current_paging_state(), &buf, frame_size,
                                     frame[i],VREGION_FLAGS_READ_WRITE, NULL,
                                     NULL);
+        char* access = (char*)buf;
+        for(int j = 0; j < frame_size; j++) {
+            access[j] = 'i';
+        }
+        for(int j = 0; j < frame_size; j++) {
+            if(access[j] != 'i') {
+                debug_printf("access[%i]=='i' failed", j);
+                TEST_PRINT_FAIL();
+            }
+        }
+
+
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
@@ -93,6 +105,18 @@ static int mm_alloc_and_map_large_10f(void)
         err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes,
                                     frame[i],VREGION_FLAGS_READ_WRITE, NULL,
                                     NULL);
+
+        char* access = (char*)buf;
+        for(int j = 0; j < frame_size; j++) {
+            access[j] = 'i';
+        }
+        for(int j = 0; j < frame_size; j++) {
+            if(access[j] != 'i') {
+                debug_printf("access[%i]=='i' failed", j);
+                TEST_PRINT_FAIL();
+            }
+        }
+
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
