@@ -133,6 +133,8 @@ static errval_t mm_mmnode_find(struct mm *mm, size_t size, size_t alignment,
 
     while (node != NULL) {
         size_t dif = node->base % alignment;
+        if(dif > 0)
+            dif = alignment - dif;
         if (node->type == NodeType_Free &&
                 ((gensize_t) (size+dif) <= node->size)) {
             // Free node found where size fits.
@@ -339,6 +341,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     assert(node != NULL);
     assert(node->type == NodeType_Free);
     size_t dif = node->base % alignment;
+    if(dif > 0)
+        dif = alignment - dif;
 
     // Split the node to the correct size.
     struct mmnode *new_node = NULL;

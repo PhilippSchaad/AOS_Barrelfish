@@ -296,8 +296,9 @@ static int mm_paging_alloc_aligned_allignment_test(void) {
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
-        if (ret.base % (BASE_PAGE_SIZE * 4))
-        TEST_PRINT_FAIL();
+        if ((ret.base % (BASE_PAGE_SIZE * 4)) != 0) {
+            TEST_PRINT_FAIL();
+        }
     }
 
     for(int i = 0; i<3; ++i){
