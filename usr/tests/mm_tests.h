@@ -265,3 +265,47 @@ static int mm_paging_map_fixed_attr_cursize_test(void) {
     cap_destroy(frame);
     TEST_PRINT_SUCCESS();
 }
+
+static int mm_paging_alloc_aligned_allignment_test(void) {
+    TEST_PRINT_INFO("Regression test for alignment issue");
+    errval_t err;
+    struct capref frame[3];
+    size_t sizes[3];
+    sizes[0] = 4096 + 1024;
+    sizes[1] = 4096 * 3 + 1024;
+    sizes[2] = 4096 * 3 + 1024;
+    //we get it out of alignment
+    err = aos_ram_alloc_aligned(&frame[0], sizes[0], BASE_PAGE_SIZE);
+    if (err_is_fail(err)) {
+        TEST_PRINT_FAIL();
+    }
+    //we alloc our first test thing
+    err = aos_ram_alloc_aligned(&frame[1], sizes[1], BASE_PAGE_SIZE * 4);
+    if (err_is_fail(err)) {
+        TEST_PRINT_FAIL();
+    }
+    //we alloc our second test thing, in case the very first alloc got us into alignment by random chance
+    err = aos_ram_alloc_aligned(&frame[2], sizes[2], BASE_PAGE_SIZE * 4);
+    if (err_is_fail(err)) {
+        TEST_PRINT_FAIL();
+    }
+
+    for (int i = 1; i < 3; i++) {
+        struct frame_identity ret;
+        err = frame_identify(frame[i], &ret);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+        if (ret.base % (BASE_PAGE_SIZE * 4))
+        TEST_PRINT_FAIL();
+    }
+
+    for(int i = 0; i<3; ++i){
+        err = aos_ram_free(frame[i], sizes[i]);
+        if (err_is_fail(err)) {
+            TEST_PRINT_FAIL();
+        }
+    }
+
+    TEST_PRINT_SUCCESS();
+}
