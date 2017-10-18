@@ -23,14 +23,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#define no_debug_printf
+//#define no_debug_printf
 #ifdef no_debug_printf
 #undef debug_printf
 #define debug_printf(...)
 #endif
 
 //#define no_page_align_in_frame_alloc
-#define no_paging_map_fixed_attr_debug_printf
+//#define no_paging_map_fixed_attr_debug_printf
 
 static struct paging_state current;
 
@@ -272,52 +272,23 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
-    // create a L2 pagetable
-    struct capref l2_pagetable;
-    // get the index of the L2 table in the L1 table
-    lvaddr_t l1_index = ARM_L1_OFFSET(vaddr);
-    lvaddr_t end_vaddr = vaddr+bytes;
-    lvaddr_t end_l1_index = ARM_L1_OFFSET(end_vaddr);
-#ifndef no_debug_printf
-    size_t debug_alloced_bytes = 0;
-#endif
-    bool first = true;
     debug_printf("fixed alloc: vaddr: %p, bytes: %u \n", vaddr, bytes);
-    debug_printf("l1_index_start: %p, l1_index_end: %p", l1_index, end_l1_index);
-    while(l1_index <= end_l1_index) {
-        size_t curbytes;
-        lvaddr_t curvaddr;
-        debug_printf("first: %d \n",first);
-#define l2_page_byte_storage_size (1 << 20)
-        if(l1_index < end_l1_index) {
-            if(first) {
-                curbytes = l2_page_byte_storage_size - (vaddr % l2_page_byte_storage_size);
-                curvaddr = vaddr;
-                first = false;
-            } else {
-                curbytes = l2_page_byte_storage_size;
-                curvaddr = l1_index << 20;
-            }
-        }else {
-            if(first) {
-                curbytes = bytes;
-                curvaddr = vaddr;
-            }else {
-                curbytes = (bytes - (l2_page_byte_storage_size - (vaddr % l2_page_byte_storage_size))) % l2_page_byte_storage_size;
-                curvaddr = l1_index << 20;
-            }
-        }
-        debug_printf("curvaddr: %p, curbytes: %u \n",curvaddr,curbytes);
-#ifndef no_debug_printf
-        debug_alloced_bytes += curbytes;
-        debug_printf("allocated so far: %u and still need to alloc: %u\n",debug_alloced_bytes, bytes - debug_alloced_bytes);
-#endif
+
+    // iterate over the L2 page tables and map the memory
+    size_t mapped_bytes = 0;
+    while(bytes > 0) {
+        // get the index of the L2 table in the L1 table
+        lvaddr_t l1_index = ARM_L1_OFFSET(vaddr);
+
         // check if the table already exists
+        struct capref l2_pagetable;
         if (st->l2_page_tables[l1_index].init) {
             // table exists
             debug_printf("found l2 page table \n");
             l2_pagetable = st->l2_page_tables[l1_index].cap;
         } else {
+            // create a L2 pagetable
+
             // create a new table
             debug_printf("making l2 page table \n");
             CHECK(arml2_alloc(st, &l2_pagetable));
@@ -339,36 +310,40 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             if(st->spawninfo != NULL){
                 printf("I should add the new slot to the child\n");
                 ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_pagetable);
+                ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_l1_mapping);
             }
         }
         debug_printf("now allocing slot for frame mapping \n");
 
         // get the frame from the L2 table
-        lvaddr_t l2_index = ARM_L2_OFFSET(curvaddr);
+        lvaddr_t l2_index = ARM_L2_OFFSET(vaddr);
+
+        // how many bytes should we map in that frame?
+        size_t mapping_size = MIN(bytes,(ARM_L2_MAX_ENTRIES - l2_index)*BASE_PAGE_SIZE);
+
+        // finally, do the mapping
         struct capref l2_frame;
         CHECK(st->slot_alloc->alloc(st->slot_alloc, &l2_frame));
-        uint64_t pte_count = (curbytes >> 12) + (curbytes % BASE_PAGE_SIZE != 0 ? 1 : 0);
-        debug_printf("frame offset: %llu \n",(uint64_t)curvaddr % BASE_PAGE_SIZE);
-        debug_printf("pte_count: %llu \n", pte_count);
-        CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, 0,pte_count, l2_frame));
-
-
-            printf("I maybe add the new slot to the child\n");
+        CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, mapped_bytes, mapping_size/BASE_PAGE_SIZE, l2_frame));
         if(st->spawninfo != NULL){
-            printf("I should add the new slot to the child\n");
             ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_frame);
         }
 
-        // TODO: make sure that frames larger than a single l2 table is split
         // TODO: store l2_l1_mapping and l2_frame (also a mapping), further,
         // store l2_pagetable that storing is really just needed for unmapping
         // however we might want to levy it later for finding an empty frame
         // range. if we do levy it for that, rewrite frame_alloc and remove the
         // frame_alloc specific suff from st
-        debug_printf("l1_index before incr: %p",l1_index);
+        
+        // to some house keeping for the next round:
+        mapped_bytes += mapping_size;
+        bytes -= mapping_size;
+        vaddr += mapping_size;
         l1_index++;
-        debug_printf("l1_index after incr: %p \n",l1_index);
+        debug_printf("Still need to map: %"PRIuGENSIZE" bytes starting from 0x%p\n" , (gensize_t) bytes, vaddr);
     }
+    assert(bytes == 0);
+    debug_printf("mapped %"PRIuGENSIZE" bytes\n", (gensize_t) mapped_bytes);
     return SYS_ERR_OK;
 }
 
