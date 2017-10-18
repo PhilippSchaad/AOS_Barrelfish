@@ -102,7 +102,7 @@ static int mm_alloc_and_map_large_10f(void)
             TEST_PRINT_FAIL();
         }
         void *buf;
-        err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes,
+        err = paging_map_frame_attr(get_current_paging_state(), &buf, frame_size,
                                     frame[i],VREGION_FLAGS_READ_WRITE, NULL,
                                     NULL);
 

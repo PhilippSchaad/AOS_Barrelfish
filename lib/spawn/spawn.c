@@ -16,11 +16,12 @@ static errval_t init_cspace(struct spawninfo *si)
     struct cnoderef l1_cnode;
     CHECK(cnode_create_l1(&si->l1_cnode, &l1_cnode));
 
-    // Go over all root-CNode slots and create L2 CNodes (foreign) in them.
-    for (int i = 0; i < ROOTCN_SLOTS_USER; i++) {
+    // Go over all root-CNode slots and create L2 CNodes (foreign) in them (using L1 created before.)
+    for (int i = 0; i <= ROOTCN_SLOTS_USER; i++) {
         CHECK(cnode_create_foreign_l2(si->l1_cnode, i, &si->l2_cnode_list[i]));
     }
 
+    debug_printf("1. Map TASKCN");
     // TASKCN contains information about the process. Set its SLOT_ROOTCN
     // (which contains a capability for the process's root L1 CNode) to point
     // to our L1 CNode.
@@ -30,7 +31,7 @@ static errval_t init_cspace(struct spawninfo *si)
     };
     CHECK(cap_copy(taskcn_slot_rootcn, si->l1_cnode));
 
-
+    debug_printf("2. Create RAM caps for SLOT_BASE_PAGE_CN");
     // Give the SLOT_BASE_PAGE_CN some memory by iterating over all L2 slots.
     struct capref rootcn_slot_base_page_cn = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_BASE_PAGE_CN]
@@ -78,20 +79,18 @@ static errval_t init_vspace(struct spawninfo *si)
     si->process_l1_pt.cnode = si->l2_cnode_list[ROOTCN_SLOT_PAGECN];
     si->process_l1_pt.slot  = PAGECN_SLOT_VROOT;
 
-
-    // TODO:
-    // do we need to prefill the table?
-    
     // copy the page table to the new process
     CHECK(cap_copy(si->process_l1_pt, l1_pt));
 
     // Set the spawned process's paging state.
-    CHECK(paging_init_state(&si->paging_state, /*XXX: what do we need here??? */0,
+    CHECK(paging_init_state(&si->paging_state, /*XXX: what do we need here??? */0x00001000,
                             l1_pt, get_default_slot_allocator()));
 
     // add the callback function
     si->slot_callback=slot_callback;
     si->paging_state.spawninfo = si;
+    si->next_slot = PAGECN_SLOT_VROOT+1;
+
 
     return SYS_ERR_OK;
     
@@ -142,16 +141,16 @@ static errval_t init_dispatcher(struct spawninfo *si)
     CHECK(cap_copy(si->spawned_disp_memframe, dispatcher_memframe));
 
     debug_printf(" Map the dispatcher's memory frame into the current VSpace.\n");
-    lvaddr_t disp_current_vaddr;
+    void* disp_current_vaddr;
     CHECK(paging_map_frame(get_current_paging_state(),
-                           (void *)&disp_current_vaddr,
+                           &disp_current_vaddr,
                            DISPATCHER_SIZE, dispatcher_memframe, NULL,
                            NULL));
 
     debug_printf(" Map the dispatcher's memory frame into the spawned VSpace.\n");
-    lvaddr_t disp_spawn_vaddr;
+    void* disp_spawn_vaddr;
     CHECK(paging_map_frame(&si->paging_state,
-                           (void *)&disp_spawn_vaddr, DISPATCHER_SIZE,
+                           &disp_spawn_vaddr, DISPATCHER_SIZE,
                            dispatcher_memframe, NULL, NULL));
 
     debug_printf(" Finalize the dispatcher: (ref. book 4.15)\n");
@@ -160,7 +159,7 @@ static errval_t init_dispatcher(struct spawninfo *si)
     // and set it to trap on FPU instructions.
     struct dispatcher_shared_generic *disp =
         get_dispatcher_shared_generic((dispatcher_handle_t)disp_current_vaddr);
-    disp->udisp = disp_spawn_vaddr;
+    disp->udisp = (lvaddr_t) disp_spawn_vaddr;
     disp->disabled = 1;
     disp->fpu_trap = 1;
     strncpy(disp->name, si->binary_name, DISP_NAME_LEN);
@@ -211,8 +210,8 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
     assert(retsize == region_size);
 
     debug_printf(" Map the arguments into the current VSpace.\n");
-    lvaddr_t args_addr;
-    CHECK(paging_map_frame(get_current_paging_state(), (void *)&args_addr,
+    void* args_addr;
+    CHECK(paging_map_frame(get_current_paging_state(), &args_addr,
                            retsize, mem_frame, NULL, NULL));
 
     debug_printf(" Map the arguments into the spawned process's CSpace.\n");
@@ -223,9 +222,9 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
     CHECK(cap_copy(spawn_args, mem_frame));
 
     debug_printf(" Map the arguments into the spawned process's VSpace.\n");
-    lvaddr_t spawn_args_addr;
+    void* spawn_args_addr;
     CHECK(paging_map_frame(&si->paging_state,
-                           (void *)&spawn_args_addr, retsize, mem_frame,
+                           &spawn_args_addr, retsize, mem_frame,
                            NULL, NULL));
 
     debug_printf(" Complete spawn_domain_params.\n");
@@ -239,7 +238,7 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
         (char *) parameters + sizeof(struct spawn_domain_params);
     char *param_last = param_base;
     lvaddr_t spawn_param_base =
-        spawn_args_addr + sizeof(struct spawn_domain_params);
+        (lvaddr_t) spawn_args_addr + sizeof(struct spawn_domain_params);
     strcpy(param_base, args);
 
     debug_printf(" Set the arguments correctly.\n");
@@ -260,7 +259,7 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
         (void *)spawn_param_base + (param_last - param_base);
     n_args += 1;
     parameters->argc = n_args;
-    si->enabled_area->named.r0 = spawn_args_addr;
+    si->enabled_area->named.r0 = (uint32_t) spawn_args_addr;
 
     debug_printf(" Remaining arguments unset.\n");
     parameters->vspace_buf = NULL;
@@ -277,7 +276,7 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
 static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
                                     uint32_t flags, void **ret)
 {
-    debug_printf("start elf_alloc_sect_func");
+    debug_printf("start elf_alloc_sect_funci at %"PRIxGENPADDR"\n", base);
     size_t alignment_offset = BASE_PAGE_OFFSET(base);
     // Align base address and size.
     genvaddr_t base_aligned = base - alignment_offset;
@@ -288,19 +287,19 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
     size_t retsize;
     CHECK(frame_alloc(&frame, size_aligned, &retsize));
 
-    assert(retsize == size_aligned);
+    //assert(retsize == size_aligned);
 
     // Map the frame into the spawned process's VSpace.
     CHECK(paging_map_fixed_attr(&((struct spawninfo *)state)->paging_state,
-                                base_aligned, frame, size_aligned, flags));
+                                base_aligned, frame, retsize, flags));
 
     // Map it into the current VSpace.
-    CHECK(paging_map_frame(get_current_paging_state(), ret, size_aligned,
+    CHECK(paging_map_frame(get_current_paging_state(), ret, retsize,
                            frame, NULL, NULL));
 
     // Correct return to fit alignment.
     *ret += alignment_offset;
-    debug_printf("end elf_alloc_sect_func");
+    debug_printf("end elf_alloc_sect_func. I will return buffer at address 0x%"PRIxPTR"\n", *ret);
     return SYS_ERR_OK;
 }
 
@@ -362,6 +361,10 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
 
     debug_printf("VII: Initialize the environment.\n");
     CHECK(init_env(si, module));
+
+    // check the registers...
+    debug_printf("dump stuff...\n");
+    debug_printf("Entry Address: 0x%"PRIxGENPADDR"\n", si->entry_addr);
 
     debug_printf("VIII: Make the dispatcher runnable.\n");
     CHECK(invoke_dispatcher(si->dispatcher, cap_dispatcher, si->l1_cnode,
