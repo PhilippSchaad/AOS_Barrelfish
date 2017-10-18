@@ -165,6 +165,7 @@ static errval_t mm_slot_alloc(struct mm *mm, uint64_t slots,
     if (sa->meta[0].free < (uint64_t) 4 && sa->meta[1].free < (uint64_t) 4 &&
             !sa->is_refilling) {
         // No free slots left, try to create new ones.
+        printf("refilling slots!");
         sa->is_refilling = true;
         CHECK(mm->slot_refill(mm->slot_alloc_inst));
         sa->is_refilling = false;
@@ -344,20 +345,21 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     size_t dif = node->base % alignment;
     if(dif > 0)
         dif = alignment - dif;
+    assert(node->size >= size+dif);
+    if (dif != 0){
+        // create new node. Due to our design, we just have to create it in the list. No caps needed.
+        struct mmnode *align_node = NULL;
+        //debug_printf("before alignment insert base: %"PRIxGENPADDR" size: %"PRIxGENSIZE" dif is 0x%"PRIxGENSIZE" / %"PRIuGENSIZE"KB\n", node->base, node->size, (gensize_t)  dif, ((gensize_t) dif)/1024);
+        node->size -= dif;
+        node->base += (genpaddr_t) dif;
+        CHECK(mm_mmnode_add(mm, node->base-(genpaddr_t)dif, (gensize_t) dif, &align_node));
+        //debug_printf("after alignment insert base: %"PRIxGENPADDR" size: %"PRIxGENSIZE"\n", node->base, node->size);
+    }
 
     // Split the node to the correct size.
     struct mmnode *new_node = NULL;
-    if (node->size > (gensize_t)(size+dif)){
+    if (node->size > (gensize_t)(size)){
         // create node at the beginning (if needed because of alignment)
-        if (dif != 0){
-            // create new node. Due to our design, we just have to create it in the list. No caps needed.
-            struct mmnode *align_node = NULL;
-            //debug_printf("before alignment insert base: %"PRIxGENPADDR" size: %"PRIxGENSIZE" dif is 0x%"PRIxGENSIZE" / %"PRIuGENSIZE"KB\n", node->base, node->size, (gensize_t)  dif, ((gensize_t) dif)/1024);
-            node->size -= dif;
-            node->base += (genpaddr_t) dif;
-            CHECK(mm_mmnode_add(mm, node->base-(genpaddr_t)dif, (gensize_t) dif, &align_node));
-            //debug_printf("after alignment insert base: %"PRIxGENPADDR" size: %"PRIxGENSIZE"\n", node->base, node->size);
-        }
 
         // Store old size.
         genpaddr_t orig_node_base = node->base;
@@ -379,8 +381,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     } else {
         //todo: fix this ugly ugly hack properly. This hack currently has us lose space to fullfill alignment restrictions
         //      ideally we'd just allocate a new node and store the remaining space in there
-        node->base += dif;
-        node->size -= dif;
         // Size of the node exactly as needed.
         slab_free(&(mm->slabs), new_node);
         new_node = node;
