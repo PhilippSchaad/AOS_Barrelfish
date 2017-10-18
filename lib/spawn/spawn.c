@@ -86,7 +86,7 @@ static errval_t init_vspace(struct spawninfo *si)
     CHECK(cap_copy(si->process_l1_pt, l1_pt));
 
     // Set the spawned process's paging state.
-    CHECK(paging_init_state(&si->paging_state, /*XXX: what do we need here??? */0,
+    CHECK(paging_init_state(&si->paging_state, /*XXX: what do we need here??? */(1 << 25),
                             l1_pt, get_default_slot_allocator()));
 
     // add the callback function
@@ -277,30 +277,30 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
 static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
                                     uint32_t flags, void **ret)
 {
-    debug_printf("start elf_alloc_sect_func");
-    size_t alignment_offset = BASE_PAGE_OFFSET(base);
+    debug_printf("start elf_alloc_sect_funci at %"PRIxGENPADDR"\n", base);
+    //size_t alignment_offset = BASE_PAGE_OFFSET(base);
     // Align base address and size.
-    genvaddr_t base_aligned = base - alignment_offset;
-    size_t size_aligned = ROUND_UP(size + alignment_offset, BASE_PAGE_SIZE);
+    //genvaddr_t base_aligned = base - alignment_offset;
+    //size_t size_aligned = ROUND_UP(size + alignment_offset, BASE_PAGE_SIZE);
 
     // Allocate memory frame for this ELF section.
     struct capref frame;
     size_t retsize;
-    CHECK(frame_alloc(&frame, size_aligned, &retsize));
+    CHECK(frame_alloc(&frame, size, &retsize));
 
-    assert(retsize == size_aligned);
+    //assert(retsize == size_aligned);
 
     // Map the frame into the spawned process's VSpace.
     CHECK(paging_map_fixed_attr(&((struct spawninfo *)state)->paging_state,
-                                base_aligned, frame, size_aligned, flags));
+                                base, frame, retsize, flags));
 
     // Map it into the current VSpace.
-    CHECK(paging_map_frame(get_current_paging_state(), ret, size_aligned,
+    CHECK(paging_map_frame(get_current_paging_state(), ret, retsize,
                            frame, NULL, NULL));
 
     // Correct return to fit alignment.
-    *ret += alignment_offset;
-    debug_printf("end elf_alloc_sect_func");
+    //*ret += alignment_offset;
+    debug_printf("end elf_alloc_sect_func. I will return buffer at address 0x%"PRIxPTR"\n", *ret);
     return SYS_ERR_OK;
 }
 
