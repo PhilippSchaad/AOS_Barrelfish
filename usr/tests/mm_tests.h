@@ -251,6 +251,7 @@ static int mm_alloc_free_10(void)
     TEST_PRINT_SUCCESS();
 }
 
+__attribute__((unused))
 static int mm_paging_map_fixed_attr_cursize_test(void) {
     TEST_PRINT_INFO("Regression test for issue #21");
     struct capref frame;
@@ -262,10 +263,11 @@ static int mm_paging_map_fixed_attr_cursize_test(void) {
     }
     paging_map_fixed_attr(get_current_paging_state(),0x55c2000,frame,frame_size2,VREGION_FLAGS_READ_WRITE);
     err = aos_ram_free(frame, frame_size2);
-    cap_destroy(frame);
+    //cap_destroy(frame);
     TEST_PRINT_SUCCESS();
 }
 
+__attribute__((unused))
 static int mm_paging_alloc_aligned_allignment_test(void) {
     TEST_PRINT_INFO("Regression test for alignment issue");
     errval_t err;
