@@ -19,5 +19,10 @@
 int main(int argc, char *argv[])
 {
     printf("Hello, world! from userspace\n");
+    if (argc > 0){
+        for (int i=0; i<argc; ++i){
+            printf("Found command line argument %d: %s \n", i, argv[i]);
+        }
+    }
     return 0;
 }

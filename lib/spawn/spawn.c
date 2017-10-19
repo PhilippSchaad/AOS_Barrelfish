@@ -201,6 +201,7 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
 {
     debug_printf(" Retrieve arguments from the module and allocate memory for them.\n");
     const char *args = multiboot_module_opts(module);
+    debug_printf(" Found the following command line arguments: %s\n", args);
     size_t region_size = ROUND_UP(sizeof(struct spawn_domain_params) +
                                   strlen(args) + 1, BASE_PAGE_SIZE);
     struct capref mem_frame;
