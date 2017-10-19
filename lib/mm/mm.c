@@ -145,7 +145,7 @@ static errval_t mm_mmnode_find(struct mm *mm, size_t size, size_t alignment,
         // No match, continue iterating.
         node = node->next;
     }
-
+    debug_printf("No node found!");
     // No matching node found.
     return MM_ERR_NOT_FOUND;
 }
@@ -165,7 +165,7 @@ static errval_t mm_slot_alloc(struct mm *mm, uint64_t slots,
     if (sa->meta[0].free < (uint64_t) 4 && sa->meta[1].free < (uint64_t) 4 &&
             !sa->is_refilling) {
         // No free slots left, try to create new ones.
-        printf("refilling slots!");
+        printf("refilling slots! free: %llu and %llu\n", sa->meta[0].free, sa->meta[1].free);
         sa->is_refilling = true;
         CHECK(mm->slot_refill(mm->slot_alloc_inst));
         sa->is_refilling = false;
@@ -331,6 +331,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     // We do this here to not disrupt the addition of the actual node
     if(slab_freecount(&mm->slabs) < 4 && ! mm->refilling_slabs){
         // Indicate that we are refilling the slabs.
+        debug_printf("refilling slabs!\n");
         mm->refilling_slabs = true;
         CHECK(mm->slabs.refill_func(&mm->slabs));
         // Indicate that we are done.
@@ -391,6 +392,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     // Create the capability.
     CHECK(mm_slot_alloc(mm, 1, &(new_node->cap.cap)));
 
+    debug_printf("Mapping: at base %llx a total of %x (hex)\n", new_node->base, size);
+
     CHECK(cap_retype(new_node->cap.cap, mm->ram_cap,
                      new_node->base - mm->initial_base, mm->objtype,
                      (gensize_t) size, 1));
@@ -432,6 +435,10 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
         if (node->base == base && node->size - size <= BASE_PAGE_SIZE) {
             // Free the node.
             node->type = NodeType_Free;
+
+            //let's also destroy the cap we are handed
+            cap_revoke(cap);
+            cap_destroy(cap);
 
             // XXX: What's happening here exactly, why are both calls
             // throwing errors and why are we ok with it?..
