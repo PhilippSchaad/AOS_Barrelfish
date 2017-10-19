@@ -22,6 +22,7 @@ static struct mmnode* mm_create_node(struct mm *mm, enum nodetype type,
 static errval_t mm_mmnode_add(struct mm *mm, genpaddr_t base, gensize_t size,
                               struct mmnode **retnode)
 {
+    //debug_printf("try to insert node at base 0x%"PRIxGENPADDR" with size %"PRIuGENSIZE"\n", base, size/1024);
     // Check that the memory is still free by iterating over the mm list.
     struct mmnode* current_node = mm->head;
     struct mmnode* prev_node = NULL;
@@ -144,7 +145,7 @@ static errval_t mm_mmnode_find(struct mm *mm, size_t size, size_t alignment,
         // No match, continue iterating.
         node = node->next;
     }
-    debug_printf("No node found!");
+
     // No matching node found.
     return MM_ERR_NOT_FOUND;
 }
@@ -351,6 +352,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
         // Create new node. Due to our design, we just have to create it in
         // the list. No caps needed.
         struct mmnode *align_node = NULL;
+        //debug_printf("before alignment insert base: %"PRIxGENPADDR" size: %"PRIxGENSIZE" dif is 0x%"PRIxGENSIZE" / %"PRIuGENSIZE"KB\n", node->base, node->size, (gensize_t)  dif, ((gensize_t) dif)/1024);
         node->size -= dif;
         node->base += (genpaddr_t) dif;
         CHECK(mm_mmnode_add(mm, node->base-(genpaddr_t)dif,
@@ -380,7 +382,10 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
 
         assert(new_node != NULL);
     } else {
+        //todo: fix this ugly ugly hack properly. This hack currently has us lose space to fullfill alignment restrictions
+        //      ideally we'd just allocate a new node and store the remaining space in there
         // Size of the node exactly as needed.
+        printf("Memory reuse\n");
         slab_free(&(mm->slabs), new_node);
         new_node = node;
     }
@@ -390,11 +395,23 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     // Create the capability.
     CHECK(mm_slot_alloc(mm, 1, &(new_node->cap.cap)));
 
-    debug_printf("Mapping: at base %llx a total of %x (hex)\n", new_node->base, size);
-
-    CHECK(cap_retype(new_node->cap.cap, mm->ram_cap,
+    errval_t err = cap_retype(new_node->cap.cap, mm->ram_cap,
                      new_node->base - mm->initial_base, mm->objtype,
-                     (gensize_t) size, 1));
+                     (gensize_t) size, 1);
+    if (err_is_fail(err)){
+        printf("unable to retype memory cap\n");
+        printf("new node: base: 0x%"PRIxGENPADDR"\n", (genpaddr_t) new_node->base);
+        printf("initial base: 0x%"PRIxGENPADDR"\n", (genpaddr_t) mm->initial_base);
+        printf("arguments were: base: 0x%"PRIxGENPADDR" size: %"PRIuGENSIZE"KB\n", (genpaddr_t) new_node->base - mm->initial_base, (gensize_t) size/1024);
+        if (err == SYS_ERR_REVOKE_FIRST){
+            //XXX fix this hack
+            //I know this is ugly, but currently we are not able to really revoke capabilities. so just give up this page and get another one...
+            new_node->type = NodeType_Allocated;
+            return mm_alloc_aligned(mm, size, alignment, retcap);
+        } else {
+            DEBUG_ERR(err, "failed to retype cap");
+        }
+    }
 
     new_node->type = NodeType_Allocated;
     *retcap = new_node->cap.cap;
