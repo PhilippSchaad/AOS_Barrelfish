@@ -217,5 +217,6 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
  */
 errval_t slab_default_refill(struct slab_allocator *slabs)
 {
-    return slab_refill_pages(slabs, BASE_PAGE_SIZE);
+    //XXX find out why we need 2*Pagesize...
+    return slab_refill_pages(slabs, 2*BASE_PAGE_SIZE);
 }

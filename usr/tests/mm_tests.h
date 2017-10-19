@@ -184,6 +184,7 @@ static int mm_alloc_free_600(void)
     for(int i = 0; i<600; ++i){
         size_t bytes = 30 ;
         err = aos_ram_free(frame[i], bytes);
+        cap_destroy(frame[i]);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
@@ -216,6 +217,7 @@ static int mm_alloc_free_10(void)
         //free 5 (every second)
         for(int i = 0; i<10; i+=2){
             err = aos_ram_free(frame[i], sizes[i]);
+            cap_destroy(frame[i]);
             if (err_is_fail(err)) {
                 TEST_PRINT_FAIL();
             }
@@ -242,6 +244,7 @@ static int mm_alloc_free_10(void)
         // free 15
         for(int i = 0; i<15; ++i){
             err = aos_ram_free(frame[i], sizes[i]);
+            cap_destroy(frame[i]);
             if (err_is_fail(err)) {
                 TEST_PRINT_FAIL();
             }
@@ -263,6 +266,7 @@ static int mm_paging_map_fixed_attr_cursize_test(void) {
     }
     paging_map_fixed_attr(get_current_paging_state(),0x55c2000,frame,frame_size2,VREGION_FLAGS_READ_WRITE);
     err = aos_ram_free(frame, frame_size2);
+    cap_destroy(frame);
     //cap_destroy(frame);
     TEST_PRINT_SUCCESS();
 }
@@ -305,6 +309,7 @@ static int mm_paging_alloc_aligned_allignment_test(void) {
 
     for(int i = 0; i<3; ++i){
         err = aos_ram_free(frame[i], sizes[i]);
+        cap_destroy(frame[i]);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
