@@ -162,7 +162,6 @@ static errval_t init_dispatcher(struct spawninfo *si)
     disp->disabled = 1;
     disp->fpu_trap = 1;
     strncpy(disp->name, si->binary_name, DISP_NAME_LEN);
-
     DBG(DETAILED, " Set the core ID of the process and zero the frame(/size) "
         "and header.\n");
     struct dispatcher_generic *disp_gen =
@@ -306,6 +305,24 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
         "address 0x%"PRIxPTR"\n", *ret);
     return SYS_ERR_OK;
 }
+errval_t map_paging_state_to_child(struct paging_state *st);
+errval_t map_paging_state_to_child(struct paging_state *st) {
+    struct capref frame;
+    size_t ret;
+    debug_printf("1\n");
+    CHECK(frame_alloc(&frame,sizeof(struct paging_state),&ret));
+    debug_printf("2\n");
+    paging_map_fixed(st,0x1000,frame,ret);
+    debug_printf("3\n");
+    void *our_side;
+    paging_map_frame(get_current_paging_state(),&our_side,ret,frame,NULL,NULL);
+    debug_printf("4\n");
+    struct paging_state *mapped_st = (struct paging_state*)our_side;
+    *mapped_st = *st;
+    debug_printf("5\n");
+    //todo: adjust all pointers
+    return SYS_ERR_OK;
+}
 
 // TODO(M4): Build and pass a messaging channel to your child process
 errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
@@ -374,10 +391,10 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     DBG(DETAILED, "VII: Initialize the environment.\n");
     CHECK(init_env(si, module));
 
+    map_paging_state_to_child(&si->paging_state);
     // Check the registers...
     DBG(DETAILED, "dump stuff...\n");
     DBG(DETAILED, "Entry Address: 0x%"PRIxGENPADDR"\n", si->entry_addr);
-
     DBG(DETAILED, "VIII: Make the dispatcher runnable.\n");
     CHECK(invoke_dispatcher(si->dispatcher, cap_dispatcher, si->l1_cnode,
                             si->process_l1_pt, si->spawned_disp_memframe,
