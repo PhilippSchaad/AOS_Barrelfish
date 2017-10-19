@@ -878,9 +878,9 @@ static struct sysret dispatcher_dump_ptables(
 
     printf("kernel_dump_ptables\n");
 
-    struct dcb *dispatcher = to->u.dispatcher.dcb;
+//    struct dcb *dispatcher = to->u.dispatcher.dcb;
 
-    paging_dump_tables(dispatcher);
+//    paging_dump_tables(dispatcher);
 
     return SYSRET(SYS_ERR_OK);
 }
