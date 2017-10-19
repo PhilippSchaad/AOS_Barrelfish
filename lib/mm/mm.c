@@ -382,6 +382,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
         //todo: fix this ugly ugly hack properly. This hack currently has us lose space to fullfill alignment restrictions
         //      ideally we'd just allocate a new node and store the remaining space in there
         // Size of the node exactly as needed.
+        printf("Memory reuse\n");
         slab_free(&(mm->slabs), new_node);
         new_node = node;
     }
@@ -391,9 +392,23 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     // Create the capability.
     CHECK(mm_slot_alloc(mm, 1, &(new_node->cap.cap)));
 
-    CHECK(cap_retype(new_node->cap.cap, mm->ram_cap,
+    errval_t err = cap_retype(new_node->cap.cap, mm->ram_cap,
                      new_node->base - mm->initial_base, mm->objtype,
-                     (gensize_t) size, 1));
+                     (gensize_t) size, 1);
+    if (err_is_fail(err)){
+        printf("unable to retype memory cap\n");
+        printf("new node: base: 0x%"PRIxGENPADDR"\n", (genpaddr_t) new_node->base);
+        printf("initial base: 0x%"PRIxGENPADDR"\n", (genpaddr_t) mm->initial_base);
+        printf("arguments were: base: 0x%"PRIxGENPADDR" size: %"PRIuGENSIZE"KB\n", (genpaddr_t) new_node->base - mm->initial_base, (gensize_t) size/1024);
+        if (err == SYS_ERR_REVOKE_FIRST){
+            //XXX fix this hack
+            //I know this is ugly, but currently we are not able to really revoke capabilities. so just give up this page and get another one...
+            new_node->type = NodeType_Allocated;
+            return mm_alloc_aligned(mm, size, alignment, retcap);
+        } else {
+            DEBUG_ERR(err, "failed to retype cap");
+        }
+    }
 
     new_node->type = NodeType_Allocated;
     *retcap = new_node->cap.cap;
