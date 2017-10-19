@@ -165,7 +165,7 @@ static errval_t mm_slot_alloc(struct mm *mm, uint64_t slots,
     if (sa->meta[0].free < (uint64_t) 4 && sa->meta[1].free < (uint64_t) 4 &&
             !sa->is_refilling) {
         // No free slots left, try to create new ones.
-        printf("refilling slots!");
+        printf("refilling slots! free: %llu and %llu\n", sa->meta[0].free, sa->meta[1].free);
         sa->is_refilling = true;
         CHECK(mm->slot_refill(mm->slot_alloc_inst));
         sa->is_refilling = false;
@@ -177,6 +177,7 @@ static errval_t mm_slot_alloc(struct mm *mm, uint64_t slots,
 /// Debug printer for the mm structure.
 __attribute__((unused))
 static void mm_print_manager(struct mm *mm){
+    if (DEBUG_LEVEL == RELEASE) return;
     debug_printf("Dumping Memory Manager nodes:\n");
     struct mmnode* node = mm->head;
     int i = 0;
@@ -215,7 +216,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
                  slot_refill_t slot_refill_func,
                  void *slot_alloc_inst)
 {
-    debug_printf("libmm: Initializing...\n");
+    DBG(VERBOSE, "libmm: Initializing...\n");
     assert(mm != NULL);
 
     mm->slot_alloc = slot_alloc_func;
@@ -233,7 +234,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     // Create the first slab to hold exactly one mmnode.
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
 
-    debug_printf("libmm: Initialized\n");
+    DBG(VERBOSE, "libmm: Initialized\n");
     return SYS_ERR_OK;
 }
 
@@ -270,8 +271,8 @@ void mm_destroy(struct mm *mm)
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base,
                 gensize_t size)
 {
-    debug_printf("libmm: Adding a capability of size %"PRIu64" MB at %zx \n",
-                 size / 1048576, base);
+    DBG(VERBOSE, "libmm: Adding a capability of size %"PRIu64" MB at %zx \n",
+        size / 1048576, base);
 
     // Create the node.
     struct mmnode *node = NULL;
@@ -331,6 +332,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
     // We do this here to not disrupt the addition of the actual node
     if(slab_freecount(&mm->slabs) < 4 && ! mm->refilling_slabs){
         // Indicate that we are refilling the slabs.
+        debug_printf("refilling slabs!\n");
         mm->refilling_slabs = true;
         CHECK(mm->slabs.refill_func(&mm->slabs));
         // Indicate that we are done.
@@ -347,19 +349,20 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
         dif = alignment - dif;
     assert(node->size >= size+dif);
     if (dif != 0){
-        // create new node. Due to our design, we just have to create it in the list. No caps needed.
+        // Create new node. Due to our design, we just have to create it in
+        // the list. No caps needed.
         struct mmnode *align_node = NULL;
         //debug_printf("before alignment insert base: %"PRIxGENPADDR" size: %"PRIxGENSIZE" dif is 0x%"PRIxGENSIZE" / %"PRIuGENSIZE"KB\n", node->base, node->size, (gensize_t)  dif, ((gensize_t) dif)/1024);
         node->size -= dif;
         node->base += (genpaddr_t) dif;
-        CHECK(mm_mmnode_add(mm, node->base-(genpaddr_t)dif, (gensize_t) dif, &align_node));
-        //debug_printf("after alignment insert base: %"PRIxGENPADDR" size: %"PRIxGENSIZE"\n", node->base, node->size);
+        CHECK(mm_mmnode_add(mm, node->base-(genpaddr_t)dif,
+                            (gensize_t) dif, &align_node));
     }
 
     // Split the node to the correct size.
     struct mmnode *new_node = NULL;
     if (node->size > (gensize_t)(size)){
-        // create node at the beginning (if needed because of alignment)
+        // Create node at the beginning (if needed because of alignment).
 
         // Store old size.
         genpaddr_t orig_node_base = node->base;
@@ -448,6 +451,10 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
             // Free the node.
             node->type = NodeType_Free;
 
+            //let's also destroy the cap we are handed
+            cap_revoke(cap);
+            cap_destroy(cap);
+
             // XXX: What's happening here exactly, why are both calls
             // throwing errors and why are we ok with it?..
 
@@ -472,6 +479,6 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
         node = node->next;
     }
 
-    debug_printf("Failed to free, node not found\n");
+    DBG(ERR, "Failed to free, node not found\n");
     return MM_ERR_MM_FREE;
 }
