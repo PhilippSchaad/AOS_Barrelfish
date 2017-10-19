@@ -60,10 +60,23 @@ struct paging_free_frames_tree_node {
 };
 */
 //tree not necessary for simple impl, trusty linked list it is!
-struct paging_free_frame_node {
+struct paging_frame_node {
     lvaddr_t base_addr;
     size_t region_size;
-    struct paging_free_frame_node* next;
+    struct paging_frame_node* next;
+};
+
+struct paging_map_node {
+    struct capref table;
+    struct capref mapping;
+    struct paging_map_node* next;
+};
+
+struct paging_used_node {
+    lvaddr_t start_addr;
+    size_t size;
+    struct paging_used_node* next;
+    struct paging_map_node* map_list;
 };
 
 // struct to store the paging status of a process
@@ -71,8 +84,10 @@ struct paging_state {
     size_t debug_paging_state_index;
     struct slot_allocator* slot_alloc;
     // TODO: add struct members to keep track of the page tables etc
+    struct slab_allocator slab_alloc;
     // l2 page tables
-    struct paging_free_frame_node free_vspace;
+    struct paging_frame_node free_vspace;
+    struct paging_used_node *mappings;
     struct capref l1_page_table;
     struct l2_page_table{
         struct capref cap;
@@ -96,7 +111,9 @@ struct paging_region {
     lvaddr_t base_addr;
     lvaddr_t current_addr;
     size_t region_size;
+    struct slab_allocator *slab_alloc;
     // TODO: if needed add struct members for tracking state
+    struct paging_frame_node* holes;
 };
 
 errval_t paging_region_init(struct paging_state *st,

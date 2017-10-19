@@ -311,12 +311,12 @@ errval_t map_paging_state_to_child(struct paging_state *st) {
     size_t ret;
     debug_printf("1\n");
     size_t nodes = 0;
-    struct paging_free_frame_node *x = &st->free_vspace;
+    struct paging_frame_node *x = &st->free_vspace;
     while(x->next != NULL) {
         nodes++;
         x = x->next;
     }
-    CHECK(frame_alloc(&frame,sizeof(struct paging_state)+nodes*sizeof(struct paging_free_frame_node),&ret));
+    CHECK(frame_alloc(&frame,sizeof(struct paging_state)+nodes*sizeof(struct paging_frame_node),&ret));
     debug_printf("2\n");
     paging_map_fixed(st,0x1000,frame,ret);
     debug_printf("3\n");
@@ -326,7 +326,7 @@ errval_t map_paging_state_to_child(struct paging_state *st) {
     struct paging_state *mapped_st = (struct paging_state*)our_side;
     *mapped_st = *st;
     //we move past the paging_state in the memblock now and then map our nodes
-    struct paging_free_frame_node *mem = (struct paging_free_frame_node*)&(mapped_st[1]);
+    struct paging_frame_node *mem = (struct paging_frame_node*)&(mapped_st[1]);
     x = &st->free_vspace;
     while(x->next != NULL) {
         *mem = *x;
