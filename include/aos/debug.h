@@ -22,6 +22,15 @@
 #include <stddef.h>
 #include <barrelfish_kpi/registers_arch.h>
 
+#define DEBUG_LEVEL WARN
+#define RELEASE  0x0
+#define ERR      0x1
+#define WARN     0x2
+#define VERBOSE  0x3
+#define DETAILED 0x4
+
+#define DBG(level, msg...) if(level <= DEBUG_LEVEL){debug_printf(msg);}
+
 __BEGIN_DECLS
 
 struct capability;
