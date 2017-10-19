@@ -23,14 +23,9 @@
 #include <stdio.h>
 #include <string.h>
 
-//#define no_debug_printf
-#ifdef no_debug_printf
-#undef debug_printf
-#define debug_printf(...)
-#endif
-
 //#define no_page_align_in_frame_alloc
-//#define no_paging_map_fixed_attr_debug_printf
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL VERBOSE
 
 static struct paging_state current;
 
@@ -42,44 +37,46 @@ __attribute__((unused))
 static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
 {
     CHECK(st->slot_alloc->alloc(st->slot_alloc, ret));
-debug_printf("arml2_alloc middle reached");
     CHECK(vnode_create(*ret, ObjType_VNode_ARM_l2));
     return SYS_ERR_OK;
 }
 
+// For debugging only. Keeps track of number of created paging states.
 static size_t ps_index = 1;
 
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca)
 {
-    debug_printf("paging_init_state\n");
+    DBG(VERBOSE, "paging_init_state\n");
 
-    //for debug purposes to keep track how many we got
+    // For debugging only. Keeps track of number of created paging states.
     st->debug_paging_state_index = ps_index++;
-    debug_printf("setting up paging_state #%u",st->debug_paging_state_index);
+    DBG(DETAILED, "Setting up paging_state #%u", st->debug_paging_state_index);
 
-    // slot allocator
+    // Slot allocator.
     st->slot_alloc = ca;
 
-    // set the l1 page table
+    // Set the l1 page table.
     st->l1_page_table = pdir;
-    
+
     // TODO: I don't think this is really needed
-    // init the l2_page_tables
+    // Initialize the L2 pagetables.
     size_t i;
     for (i = 0; i < ARM_L1_MAX_ENTRIES; ++i) {
         st->l2_page_tables[i].init = false;
     }
-    //set the start of the free space
+    // Set the start of the free space.
     st->free_vspace.base_addr = start_vaddr;
-    debug_printf("at time of init our base addr is at: %p \n",st->free_vspace.base_addr);
+    DBG(DETAILED, "At time of init our base addr is at: %p \n",
+        st->free_vspace.base_addr);
     st->free_vspace.region_size = 0xFFFFFFFF - start_vaddr;
 
     st->free_vspace.next = NULL;
     st->spawninfo = NULL;
-    // TODO (M2): implement state struct initialization
-    // TODO (M4): Implement page fault handler that installs frames when a page fault
-    // occurs and keeps track of the virtual address space.
+
+    // TODO (M4): Implement page fault handler that installs frames when a page
+    // fault occurs and keeps track of the virtual address space.
+
     return SYS_ERR_OK;
 }
 
@@ -89,28 +86,28 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
  */
 errval_t paging_init(void)
 {
-    debug_printf("paging_init\n");
-    // TODO (M2): Call paging_init_state for &current
+    DBG(VERBOSE, "paging_init\n");
+
     // TODO (M4): initialize self-paging handler
     // TIP: use thread_set_exception_handler() to setup a page fault handler
     // TIP: Think about the fact that later on, you'll have to make sure that
     // you can handle page faults in any thread of a domain.
-    // TIP: it might be a good idea to call paging_init_state() from here to
-    // avoid code duplication.
+
     set_current_paging_state(&current);
-    
-    // according to the book, the L1 page table is at the following address
+
+    // According to the book, the L1 page table is at the following address.
     struct capref l1_pagetable = {
         .cnode = cnode_page,
         .slot = 0,
     };
-    
-    paging_init_state(&current, /*TODO: Do you know what this offset is??*/ (1<<25),
-                      l1_pagetable, get_default_slot_allocator());
-    
+
+    // XXX: (1<<25) is the same magic constant that appears in the spawn code.
+    // Dito! (plus maybe define it in header?)
+    paging_init_state(&current, (1<<25), l1_pagetable,
+                      get_default_slot_allocator());
+
     return SYS_ERR_OK;
 }
-
 
 /**
  * \brief Initialize per-thread paging state
@@ -156,8 +153,8 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
         *retbuf = (void*)pr->current_addr;
         *ret_size = rem;
         pr->current_addr += rem;
-        debug_printf("exhausted paging region, "
-                "expect badness on next allocation\n");
+        DBG(WARN, "exhausted paging region, "
+            "expect badness on next allocation\n");
     } else {
         return LIB_ERR_VSPACE_MMU_AWARE_NO_SPACE;
     }
@@ -192,23 +189,30 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
 // So that one needs fixing first
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
-//    *buf = (void*) (++COUNT * BASE_PAGE_SIZE);
     struct paging_free_frame_node *node = &st->free_vspace;
     while(node != NULL) {
         if(node->region_size >= bytes) {
-            debug_printf("ps %u paging_alloc base: %p size: %u req: %u \n", st->debug_paging_state_index,
-                    node->base_addr, node->region_size, bytes);
+            DBG(DETAILED, "ps %u paging_alloc base: %p size: %u req: %u \n",
+                st->debug_paging_state_index, node->base_addr,
+                node->region_size, bytes);
             *buf = (void*)node->base_addr;
             node->base_addr += bytes;
+
 #ifndef no_page_align_in_frame_alloc
-            lvaddr_t temp = ROUND_UP(node->base_addr, BASE_PAGE_SIZE); //this does the page aligning thing
-            debug_printf("ps %u alignment change does: %u \n",st->debug_paging_state_index,(size_t)(temp-node->base_addr));
+            lvaddr_t temp = ROUND_UP(node->base_addr, BASE_PAGE_SIZE);
+            DBG(DETAILED, "ps %u alignment change does: %u \n",
+                st->debug_paging_state_index,
+                (size_t)(temp-node->base_addr));
             node->region_size -= bytes + (temp-node->base_addr);
             node->base_addr = temp;
 #else
             node->region_size -= bytes;
 #endif
-            debug_printf("ps %u paging_alloc new base: %p new size: %u\n",st->debug_paging_state_index,node->base_addr,node->region_size);
+
+            DBG(DETAILED, "ps %u paging_alloc new base: %p new size: %u\n",
+                st->debug_paging_state_index, node->base_addr,
+                node->region_size);
+
             if(node->region_size == 0) {
                 // TODO: add removing, just move content of next node
                 // into this and delete next node 
@@ -222,7 +226,11 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
             }
             return SYS_ERR_OK;
         }
-        debug_printf("ps %u we requested %u bytes but only had %u available anymore on region %p \n", st->debug_paging_state_index, bytes, node->region_size, node->base_addr);
+
+        DBG(DETAILED, "ps %u we requested %u bytes but only had %u available "
+            "anymore on region %p \n",
+            st->debug_paging_state_index, bytes, node->region_size,
+            node->base_addr);
         node = node->next;
     }
     return LIB_ERR_OUT_OF_VIRTUAL_ADDR;
@@ -250,9 +258,9 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
     struct paging_state* st = get_current_paging_state();
     buf = NULL;
     size_t frame_size;
-    debug_printf("allocing at least: %u\n", minbytes);
+    DBG(DETAILED, "allocing at least: %u\n", minbytes);
     CHECK(frame_alloc(&frame, minbytes, &frame_size));
-    debug_printf("allocing in reality: %u\n", frame_size);
+    DBG(DETAILED, "allocing in reality: %u\n", frame_size);
     CHECK(paging_map_frame_attr(st, &buf, frame_size, frame,
                                 VREGION_FLAGS_READ_WRITE, NULL, NULL));
     slab_grow(slabs, buf, frame_size);
@@ -260,73 +268,72 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
     return SYS_ERR_OK;
 }
 
-#ifdef no_paging_map_fixed_attr_debug_printf
-#undef debug_printf
-#define debug_printf(...)
-#endif
-
 /**
  * \brief map a user provided frame at user provided VA.
- * TODO(M2): General case
  */
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
-    debug_printf("fixed alloc: vaddr: %p, bytes: %u \n", vaddr, bytes);
+    DBG(DETAILED, "fixed alloc: vaddr: %p, bytes: %u \n", vaddr, bytes);
 
-    // iterate over the L2 page tables and map the memory
+    // Iterate over the L2 page tables and map the memory.
     size_t mapped_bytes = 0;
     while(bytes > 0) {
-        // get the index of the L2 table in the L1 table
+        // Get the index of the L2 table in the L1 table.
         lvaddr_t l1_index = ARM_L1_OFFSET(vaddr);
 
-        // check if the table already exists
+        // Check if the table already exists.
         struct capref l2_pagetable;
         if (st->l2_page_tables[l1_index].init) {
-            // table exists
-            debug_printf("found l2 page table \n");
+            // Table exists.
+            DBG(DETAILED, "found l2 page table \n");
             l2_pagetable = st->l2_page_tables[l1_index].cap;
         } else {
-            // create a L2 pagetable
+            // Create a L2 pagetable.
 
-            // create a new table
-            debug_printf("making l2 page table \n");
+            // Create a new table.
+            DBG(DETAILED, "making l2 page table \n");
             CHECK(arml2_alloc(st, &l2_pagetable));
 
-            debug_printf("creating l1 l2 mapping capability \n");
-            // write the L1 table entry
+            DBG(DETAILED, "creating l1 l2 mapping capability \n");
+            // Write the L1 table entry.
             struct capref l2_l1_mapping;
             CHECK(st->slot_alloc->alloc(st->slot_alloc, &l2_l1_mapping));
 
-            debug_printf("mapping l2 page table \n");
+            DBG(DETAILED, "mapping l2 page table \n");
             CHECK(vnode_map(st->l1_page_table, l2_pagetable, l1_index,
                             VREGION_FLAGS_READ_WRITE, 0, 1, l2_l1_mapping));
 
-            // add cap to tracking array
+            // Add cap to tracking array.
             st->l2_page_tables[l1_index].cap = l2_pagetable;
             st->l2_page_tables[l1_index].init = true;
 
-            // add to child process if necessary
+            // Add to child process if necessary.
             if(st->spawninfo != NULL){
-                printf("I should add the new slot to the child\n");
-                ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_pagetable);
-                ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_l1_mapping);
+                DBG(DETAILED, "I should add the new slot to the child\n");
+                ((struct spawninfo *)st->spawninfo)->slot_callback(
+                    ((struct spawninfo *)st->spawninfo), l2_pagetable);
+                ((struct spawninfo *)st->spawninfo)->slot_callback(
+                    ((struct spawninfo *)st->spawninfo), l2_l1_mapping);
             }
         }
-        debug_printf("now allocing slot for frame mapping \n");
+        DBG(DETAILED, "now allocing slot for frame mapping \n");
 
-        // get the frame from the L2 table
+        // Get the frame from the L2 table.
         lvaddr_t l2_index = ARM_L2_OFFSET(vaddr);
 
-        // how many bytes should we map in that frame?
-        size_t mapping_size = MIN(bytes,(ARM_L2_MAX_ENTRIES - l2_index)*BASE_PAGE_SIZE);
+        // How many bytes should we map in that frame?
+        size_t mapping_size = MIN(
+                bytes, (ARM_L2_MAX_ENTRIES - l2_index) * BASE_PAGE_SIZE);
 
-        // finally, do the mapping
+        // Finally, do the mapping.
         struct capref l2_frame;
         CHECK(st->slot_alloc->alloc(st->slot_alloc, &l2_frame));
-        CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, mapped_bytes, mapping_size/BASE_PAGE_SIZE, l2_frame));
+        CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, mapped_bytes,
+                        mapping_size/BASE_PAGE_SIZE, l2_frame));
         if(st->spawninfo != NULL){
-            ((struct spawninfo *)st->spawninfo)->slot_callback(((struct spawninfo *)st->spawninfo), l2_frame);
+            ((struct spawninfo *)st->spawninfo)->slot_callback(
+                ((struct spawninfo *)st->spawninfo), l2_frame);
         }
 
         // TODO: store l2_l1_mapping and l2_frame (also a mapping), further,
@@ -335,15 +342,16 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         // range. if we do levy it for that, rewrite frame_alloc and remove the
         // frame_alloc specific suff from st
         
-        // to some house keeping for the next round:
+        // To some house keeping for the next round:
         mapped_bytes += mapping_size;
         bytes -= mapping_size;
         vaddr += mapping_size;
         l1_index++;
-        debug_printf("Still need to map: %"PRIuGENSIZE" bytes starting from 0x%p\n" , (gensize_t) bytes, vaddr);
+        DBG(DETAILED, "Still need to map: %"PRIuGENSIZE" bytes starting "
+            "from 0x%p\n" , (gensize_t)bytes, vaddr);
     }
     assert(bytes == 0);
-    debug_printf("mapped %"PRIuGENSIZE" bytes\n", (gensize_t) mapped_bytes);
+    DBG(DETAILED, "mapped %"PRIuGENSIZE" bytes\n", (gensize_t)mapped_bytes);
     return SYS_ERR_OK;
 }
 
