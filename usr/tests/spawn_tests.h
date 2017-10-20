@@ -5,7 +5,7 @@
 __attribute__((unused))
 static int spawn_hello5(void)
 {
-    TEST_PRINT_INFO("Start the hello process 5 times");
+    TEST_PRINT_INFO("Start the hello process 10 times");
 
     errval_t err;
 
