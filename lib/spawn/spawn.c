@@ -130,6 +130,13 @@ static errval_t init_dispatcher(struct spawninfo *si)
     };
     CHECK(cap_copy(spawned_endpoint, dispatcher_end));
 
+    DBG(DETAILED, " Create the endpoint to the init process in the spawned process' CSpace\n");
+    struct capref init_endpoint = {
+        .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
+        .slot = TASKCN_SLOT_INITEP
+    };
+    CHECK(cap_copy(init_endpoint, cap_selfep));
+
     DBG(DETAILED, " Copy the dispatcher's mem frame into the new "
         "process's VSpace.\n");
     si->spawned_disp_memframe.cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN];
