@@ -56,6 +56,9 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
+    // create the init ep
+    CHECK(cap_retype(cap_selfep, cap_dispatcher,0, ObjType_EndPoint, 0, 1));
+
     // run tests
     struct tester t;
     init_testing(&t);
