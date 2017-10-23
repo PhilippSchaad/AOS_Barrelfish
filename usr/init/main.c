@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
 
     // create the init ep
     CHECK(cap_retype(cap_selfep, cap_dispatcher,0, ObjType_EndPoint, 0, 1));
+    CHECK(cap_retype(cap_initep, cap_dispatcher,0, ObjType_EndPoint, 0, 1));
 
     // run tests
     struct tester t;
