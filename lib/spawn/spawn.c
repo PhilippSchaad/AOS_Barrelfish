@@ -135,7 +135,7 @@ static errval_t init_dispatcher(struct spawninfo *si)
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_INITEP
     };
-    CHECK(cap_copy(init_endpoint, cap_selfep));
+    CHECK(cap_copy(init_endpoint, cap_initep));
 
     DBG(DETAILED, " Copy the dispatcher's mem frame into the new "
         "process's VSpace.\n");
