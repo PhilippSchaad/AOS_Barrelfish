@@ -29,6 +29,44 @@
 
 coreid_t my_core_id;
 struct bootinfo *bi;
+errval_t init_recv_handler(void *arg);
+errval_t init_send_handler(void *arg);
+
+
+errval_t init_send_handler(void *arg){
+    printf("init sends ACK\n");
+    struct lmp_chan* chan =(struct lmp_chan*) arg;
+    CHECK(lmp_chan_send0(chan, LMP_FLAG_SYNC, NULL_CAP));
+    return SYS_ERR_OK;
+}
+
+errval_t init_recv_handler(void *arg){
+    printf("init received cap\n");
+
+    struct lmp_chan* chan =(struct lmp_chan*) arg;
+    // get the message from the child
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    struct capref child_cap;
+    errval_t err = lmp_chan_recv(chan, &msg, &child_cap);
+    // regegister if failed
+    if (err_is_fail(err) && lmp_err_is_transient(err)) {
+        lmp_chan_register_recv(chan, get_default_waitset(),MKCLOSURE((void *)init_recv_handler, chan));
+        // TODO: do we have to create a new slot here?
+        return err;
+    }
+    printf("successfully received cap\n");
+    // set the remote cap we just got from the child
+    chan->remote_cap = child_cap;
+
+    // prepare for the next child
+    CHECK(lmp_chan_alloc_recv_slot(chan));
+    lmp_chan_register_recv(chan, get_default_waitset(),MKCLOSURE((void *)init_recv_handler, chan));
+
+    // send ACK to the child
+    CHECK(lmp_chan_register_send(chan, get_default_waitset(), MKCLOSURE((void *)init_send_handler, chan)));
+
+    return SYS_ERR_OK;
+}
 
 int main(int argc, char *argv[])
 {
@@ -58,7 +96,13 @@ int main(int argc, char *argv[])
 
     // create the init ep
     CHECK(cap_retype(cap_selfep, cap_dispatcher,0, ObjType_EndPoint, 0, 1));
-    CHECK(cap_retype(cap_initep, cap_dispatcher,0, ObjType_EndPoint, 0, 1));
+
+    // create channel to receive child eps
+    struct lmp_chan chan;
+    CHECK(lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
+    CHECK(lmp_chan_alloc_recv_slot(&chan));
+    CHECK(cap_copy(cap_initep, chan.local_cap));
+    CHECK(lmp_chan_register_recv(&chan, get_default_waitset(), MKCLOSURE((void *)init_recv_handler, &chan)));
 
     // run tests
     struct tester t;

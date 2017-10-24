@@ -106,6 +106,39 @@ void barrelfish_libc_glue_init(void)
     setvbuf(stderr, ebuf, _IOLBF, sizeof(buf));
 }
 
+errval_t lmp_init_recv_handler(void* args);
+errval_t lmp_init_recv_handler(void* args){
+    printf("lmp_init_recv_handler\n");
+    struct lmp_chan* chan =(struct lmp_chan*) args;
+    // get the message from the child
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    struct capref child_cap;
+    errval_t err = lmp_chan_recv(chan, &msg, &child_cap);
+    // regegister if failed
+    if (err_is_fail(err) && lmp_err_is_transient(err)) {
+        lmp_chan_register_recv(chan, get_default_waitset(),MKCLOSURE((void *)lmp_init_recv_handler, chan));
+        // TODO: do we have to create a new slot here?
+        return err;
+    }
+    printf("ACK received :) \n");
+
+    // get ready for future messages
+    CHECK(lmp_chan_register_recv(chan, get_default_waitset(), MKCLOSURE((void *)lmp_init_recv_handler, chan)));
+    printf("finished  \n");
+    return SYS_ERR_OK;
+}
+
+errval_t lmp_init_send_handler(void* args);
+errval_t lmp_init_send_handler(void* args){
+    printf("lmp_init_send_handler\n");
+    struct lmp_chan* chan =(struct lmp_chan*) args;
+
+    errval_t err;
+    err = lmp_chan_send0(chan, LMP_FLAG_SYNC, chan->local_cap);
+    
+    return err;
+}
+
 /** \brief Initialise libbarrelfish.
  *
  * This runs on a thread in every domain, after the dispatcher is setup but
@@ -157,13 +190,24 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     // TODO MILESTONE 3: register ourselves with init
     /* allocate lmp channel structure */
+    struct lmp_chan chan;
+    lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, cap_initep);
     /* create local endpoint */
+    //chan.local_cap = cap_selfep;
     /* set remote endpoint to init's endpoint */
+    //chan.remote_cap = cap_initep;
     /* set receive handler */
-    /* send local ep to init */
-    /* wait for init to acknowledge receiving the endpoint */
+    CHECK(lmp_chan_register_recv(&chan, get_default_waitset(), MKCLOSURE((void*) lmp_init_recv_handler, &chan)));
+    /* send local ep to init and wait for init to acknowledge receiving the endpoint */
+    // /* set send handler */
+    CHECK(lmp_chan_register_send(&chan, get_default_waitset(), MKCLOSURE((void *)lmp_init_send_handler, &chan)));
+
+    CHECK(event_dispatch(default_ws));
+
     /* initialize init RPC client with lmp channel */
     /* set init RPC client in our program state */
+
+    // TODO store or destroy channel lmp_chan_destroy
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
