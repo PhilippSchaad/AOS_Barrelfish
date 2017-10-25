@@ -38,7 +38,7 @@ static errval_t handshake_send_handler(void *args)
 {
     DBG(DETAILED, "init sends ACK\n");
     struct lmp_chan* chan =(struct lmp_chan*) args;
-    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, RPC_TYPE_ACK));
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
     return SYS_ERR_OK;
 }
 
@@ -110,19 +110,19 @@ static errval_t general_recv_handler(void *args)
 
     // Check the message type and handle it accordingly.
     switch (msg.words[0]) {
-        case RPC_TYPE_NUMBER:
+        case RPC_MESSAGE(RPC_TYPE_NUMBER):
             CHECK(number_recv_handler(args, &msg, &cap));
             break;
-        case RPC_TYPE_STRING:
+        case RPC_MESSAGE(RPC_TYPE_STRING):
             CHECK(string_recv_handler(args, &msg, &cap));
             break;
-        case RPC_TYPE_RAM:
+        case RPC_MESSAGE(RPC_TYPE_RAM):
             CHECK(ram_recv_handler(args, &msg, &cap));
             break;
-        case RPC_TYPE_PUTCHAR:
+        case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
             CHECK(putchar_recv_handler(args, &msg, &cap));
             break;
-        case RPC_TYPE_HANDSHAKE:
+        case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
             CHECK(handshake_recv_handler(args, &cap));
             break;
         default:
