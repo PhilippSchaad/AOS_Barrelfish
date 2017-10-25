@@ -106,6 +106,8 @@ void barrelfish_libc_glue_init(void)
     setvbuf(stderr, ebuf, _IOLBF, sizeof(buf));
 }
 
+//TODO we should be able to solve this more cleanly somehow
+bool waiting_for_ack=true;
 errval_t lmp_init_recv_handler(void* args);
 errval_t lmp_init_recv_handler(void* args){
     printf("lmp_init_recv_handler\n");
@@ -121,7 +123,7 @@ errval_t lmp_init_recv_handler(void* args){
         return err;
     }
     printf("ACK received :) \n");
-
+    waiting_for_ack=false;
     // get ready for future messages
     CHECK(lmp_chan_register_recv(chan, get_default_waitset(), MKCLOSURE((void *)lmp_init_recv_handler, chan)));
     printf("finished  \n");
@@ -135,7 +137,6 @@ errval_t lmp_init_send_handler(void* args){
 
     errval_t err;
     err = lmp_chan_send0(chan, LMP_FLAG_SYNC, chan->local_cap);
-    
     return err;
 }
 
@@ -190,19 +191,20 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     // TODO MILESTONE 3: register ourselves with init
     /* allocate lmp channel structure */
+    /* create local endpoint */
+    /* set remote endpoint to init's endpoint */
     struct lmp_chan chan;
     lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, cap_initep);
-    /* create local endpoint */
-    //chan.local_cap = cap_selfep;
-    /* set remote endpoint to init's endpoint */
-    //chan.remote_cap = cap_initep;
     /* set receive handler */
     CHECK(lmp_chan_register_recv(&chan, get_default_waitset(), MKCLOSURE((void*) lmp_init_recv_handler, &chan)));
     /* send local ep to init and wait for init to acknowledge receiving the endpoint */
-    // /* set send handler */
+    /* set send handler */
     CHECK(lmp_chan_register_send(&chan, get_default_waitset(), MKCLOSURE((void *)lmp_init_send_handler, &chan)));
 
-    CHECK(event_dispatch(default_ws));
+    /* wait for ACK */
+    while (waiting_for_ack){
+        CHECK(event_dispatch(default_ws));
+    }
 
     /* initialize init RPC client with lmp channel */
     /* set init RPC client in our program state */
