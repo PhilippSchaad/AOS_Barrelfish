@@ -17,8 +17,23 @@
 
 #include <aos/aos.h>
 
+// the message type is structured as follows:
+// Bits 31-2    Message type
+// Bit  1       Error if set
+// Bit  0       ACK if set
+
+#define RPC_MESSAGE(message_type) (message_type << 2)
+#define RPC_ACK_MESSAGE(message_type) ((message_type << 2 ) + 0x1)
+#define RPC_FAIL_MESSAGE(message_type) ((message_type << 2 ) + 0x10)
+#define RPC_TYPE_NUMBER             0x2
+#define RPC_TYPE_STRING             0x3
+#define RPC_TYPE_RAM                0x4
+#define RPC_TYPE_PUTCHAR            0x5
+#define RPC_TYPE_HANDSHAKE          0x7
+
 struct aos_rpc {
-    // TODO: add state for your implementation
+    struct lmp_chan chan;
+    bool init;
 };
 
 /**

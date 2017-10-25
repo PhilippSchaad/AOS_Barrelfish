@@ -16,6 +16,7 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
+#include <aos/aos_rpc.h>
 #include <aos/waitset.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
@@ -27,8 +28,110 @@
 
 #include "../tests/test.h"
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 coreid_t my_core_id;
 struct bootinfo *bi;
+
+static errval_t handshake_send_handler(void *args)
+{
+    DBG(DETAILED, "init sends ACK\n");
+    struct lmp_chan* chan =(struct lmp_chan*) args;
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
+    return SYS_ERR_OK;
+}
+
+static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                    struct capref *cap)
+{
+    // TODO: Implement.
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                    struct capref *cap)
+{
+    // TODO: Implement.
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                 struct capref *cap)
+{
+    // TODO: Implement.
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                     struct capref *cap)
+{
+    DBG(DETAILED, "putchar request received\n");
+
+    // Print the character.
+    printf("%c", (char) msg->words[1]);
+
+    return SYS_ERR_OK;
+}
+
+static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
+{
+    DBG(DETAILED, "init received cap\n");
+
+    struct lmp_chan* chan =(struct lmp_chan*) args;
+
+    // set the remote cap we just got from the child
+    chan->remote_cap = *child_cap;
+
+    // Send ACK to the child
+    CHECK(lmp_chan_register_send(chan, get_default_waitset(),
+                                 MKCLOSURE((void *)handshake_send_handler,
+                                           chan)));
+
+    DBG(DETAILED, "successfully received cap\n");
+    return SYS_ERR_OK;
+}
+
+static errval_t general_recv_handler(void *args)
+{
+    DBG(VERBOSE, "Handling RPC-receipt\n");
+
+    struct lmp_chan *chan = (struct lmp_chan *) args;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    struct capref cap;
+
+    CHECK(lmp_chan_recv(chan, &msg, &cap));
+    CHECK(lmp_chan_alloc_recv_slot(chan));
+    CHECK(lmp_chan_register_recv(chan, get_default_waitset(),
+                                 MKCLOSURE((void *) general_recv_handler,
+                                           args)));
+
+    assert(msg.buf.msglen > 0);
+
+    // Check the message type and handle it accordingly.
+    switch (msg.words[0]) {
+        case RPC_MESSAGE(RPC_TYPE_NUMBER):
+            CHECK(number_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_STRING):
+            CHECK(string_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_RAM):
+            CHECK(ram_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
+            CHECK(putchar_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
+            CHECK(handshake_recv_handler(args, &cap));
+            break;
+        default:
+            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
+            // TODO: Maybe return an error instead of continuing?
+    }
+
+    return SYS_ERR_OK;
+}
 
 int main(int argc, char *argv[])
 {
@@ -58,6 +161,15 @@ int main(int argc, char *argv[])
 
     // create the init ep
     CHECK(cap_retype(cap_selfep, cap_dispatcher,0, ObjType_EndPoint, 0, 1));
+
+    // create channel to receive child eps
+    struct lmp_chan chan;
+    CHECK(lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
+    CHECK(lmp_chan_alloc_recv_slot(&chan));
+    CHECK(cap_copy(cap_initep, chan.local_cap));
+    CHECK(lmp_chan_register_recv(&chan, get_default_waitset(),
+                                 MKCLOSURE((void *)general_recv_handler,
+                                           &chan)));
 
     // run tests
     struct tester t;

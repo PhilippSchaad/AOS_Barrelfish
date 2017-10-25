@@ -3,9 +3,11 @@
 #include <aos/paging.h>
 
 __attribute__((unused))
-static int spawn_hello5(void)
+static int spawn_hello10(void)
 {
-    TEST_PRINT_INFO("Start the hello process 10 times");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Start the hello process 10 times");
 
     errval_t err;
 
@@ -17,12 +19,16 @@ static int spawn_hello5(void)
             TEST_PRINT_FAIL();
         }
     }
+
     TEST_PRINT_SUCCESS();
 }
+
 __attribute__((unused))
 static int spawn_hello1(void)
 {
-    TEST_PRINT_INFO("Start the hello process");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Start the hello process");
 
     errval_t err;
 
@@ -32,5 +38,6 @@ static int spawn_hello1(void)
     if (err_is_fail(err)) {
         TEST_PRINT_FAIL();
     }
+
     TEST_PRINT_SUCCESS();
 }

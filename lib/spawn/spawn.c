@@ -130,12 +130,13 @@ static errval_t init_dispatcher(struct spawninfo *si)
     };
     CHECK(cap_copy(spawned_endpoint, dispatcher_end));
 
-    DBG(DETAILED, " Create the endpoint to the init process in the spawned process' CSpace\n");
+    DBG(DETAILED, " Create the endpoint to the init process in the spawned "
+        "process' CSpace\n");
     struct capref init_endpoint = {
         .cnode = si->l2_cnode_list[ROOTCN_SLOT_TASKCN],
         .slot = TASKCN_SLOT_INITEP
     };
-    CHECK(cap_copy(init_endpoint, cap_selfep));
+    CHECK(cap_copy(init_endpoint, cap_initep));
 
     DBG(DETAILED, " Copy the dispatcher's mem frame into the new "
         "process's VSpace.\n");
@@ -312,27 +313,29 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
         "address 0x%"PRIxPTR"\n", *ret);
     return SYS_ERR_OK;
 }
-errval_t map_paging_state_to_child(struct paging_state *st);
-errval_t map_paging_state_to_child(struct paging_state *st) {
+
+/// Helper function to pass the paging state to the spawned process.
+static errval_t map_paging_state_to_child(struct paging_state *st) {
     struct capref frame;
     size_t ret;
-    debug_printf("1\n");
     size_t nodes = 0;
     struct paging_frame_node *x = &st->free_vspace;
+
     while(x->next != NULL) {
         nodes++;
         x = x->next;
     }
-    CHECK(frame_alloc(&frame,sizeof(struct paging_state)+nodes*sizeof(struct paging_frame_node),&ret));
-    debug_printf("2\n");
+
+    CHECK(frame_alloc(&frame, sizeof(struct paging_state) +
+                      nodes * sizeof(struct paging_frame_node), &ret));
     paging_map_fixed(st,0x1000,frame,ret);
-    debug_printf("3\n");
+
     void *our_side;
     paging_map_frame(get_current_paging_state(),&our_side,ret,frame,NULL,NULL);
-    debug_printf("4\n");
     struct paging_state *mapped_st = (struct paging_state*)our_side;
     *mapped_st = *st;
-    //we move past the paging_state in the memblock now and then map our nodes
+
+    // We move past the paging_state in the memblock now and then map our nodes
     struct paging_frame_node *mem = (struct paging_frame_node*)&(mapped_st[1]);
     x = &st->free_vspace;
     while(x->next != NULL) {
@@ -340,12 +343,17 @@ errval_t map_paging_state_to_child(struct paging_state *st) {
         x = x->next;
         mem->next = &mem[1];
     }
-    debug_printf("5\n");
     return SYS_ERR_OK;
 }
 
 // TODO(M4): Build and pass a messaging channel to your child process
-errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
+/**
+ * \brief Spawn a process loaded by its binary name.
+ *
+ * \param binary_name   Binary name of the process to spawn.
+ * \param si            Struct holding information about the process to spawn.
+ */
+errval_t spawn_load_by_name(void *binary_name, struct spawninfo *si)
 {
     DBG(VERBOSE, "spawn start_child: starting: %s\n", binary_name);
 
@@ -412,6 +420,7 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si)
     CHECK(init_env(si, module));
 
     map_paging_state_to_child(&si->paging_state);
+
     // Check the registers...
     DBG(DETAILED, "dump stuff...\n");
     DBG(DETAILED, "Entry Address: 0x%"PRIxGENPADDR"\n", si->entry_addr);

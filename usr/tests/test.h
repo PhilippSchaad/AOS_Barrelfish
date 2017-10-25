@@ -64,7 +64,6 @@ static void tests_run(struct tester *t)
 
 static void register_memory_tests(struct tester *t)
 {
-    // mm tests
     register_test(t, mm_alloc_300f);
     register_test(t, mm_alloc_free_600);
     register_test(t, mm_alloc_free_20);
@@ -78,7 +77,7 @@ static void register_memory_tests(struct tester *t)
 static void register_spawn_tests(struct tester *t)
 {
     register_test(t, spawn_hello1);
-    register_test(t, spawn_hello5);
+    //register_test(t, spawn_hello10);
 }
 
 #endif /* _TESTS_TESTS_H_ */
