@@ -66,8 +66,12 @@ static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
 static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
                                      struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(DETAILED, "putchar request received\n");
+
+    // Print the character.
+    printf("%c", (char) msg->words[1]);
+
+    return SYS_ERR_OK;
 }
 
 static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
