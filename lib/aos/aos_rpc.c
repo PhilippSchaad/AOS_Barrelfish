@@ -14,6 +14,9 @@
 
 #include <aos/aos_rpc.h>
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
     // TODO: implement functionality to send a number ofer the channel
@@ -83,38 +86,39 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
 
 static errval_t handshake_recv_handler(void* args)
 {
-    printf("handshake_recv_handler\n");
+    DBG(DETAILED, "handshake_recv_handler\n");
+
     struct aos_rpc *rpc = (struct aos_rpc *) args;
-    // get the message from the child
+    // Get the message from the child.
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref child_cap;
     errval_t err = lmp_chan_recv(&rpc->chan, &msg, &child_cap);
-    // regegister if failed
+    // Regegister if failed.
     if (err_is_fail(err) && lmp_err_is_transient(err)) {
         CHECK(lmp_chan_register_recv(args, get_default_waitset(),
                                      MKCLOSURE((void *) handshake_recv_handler,
                                                args)));
         return err;
     }
-    if (msg.words[0] != RPC_TYPE_ACK){
-        printf("Not an ack!\n");
-        return 1;
-    }
-    printf("ACK received :) \n");
-    rpc->init=true;
+
+    assert(msg.words[0] == RPC_TYPE_ACK);
+
+    DBG(DETAILED, "ACK Received\n");
+
+    rpc->init = true;
     return SYS_ERR_OK;
 }
 
 static errval_t handshake_send_handler(void* args)
 {
-    printf("handshake_send_handler\n");
+    DBG(DETAILED, "handshake_send_handler\n");
     struct aos_rpc *rpc = (struct aos_rpc *) args;
 
     errval_t err;
     err = lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
                          RPC_TYPE_HANDSHAKE);
     if (err_is_fail(err)){
-        //reregister if failed
+        // Reregister if failed.
         CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
                                      MKCLOSURE((void *) handshake_send_handler,
                                                args)));
