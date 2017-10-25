@@ -162,6 +162,29 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
+    // Testing some RPCs:
+    CHECK(aos_rpc_serial_putchar(&rpc, 'I'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 't'));
+    CHECK(aos_rpc_serial_putchar(&rpc, ' '));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 's'));
+    CHECK(aos_rpc_serial_putchar(&rpc, ' '));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'w'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'o'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'r'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'k'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'g'));
+    CHECK(aos_rpc_serial_putchar(&rpc, '!'));
+    CHECK(aos_rpc_serial_putchar(&rpc, '\n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'w'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'l'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here

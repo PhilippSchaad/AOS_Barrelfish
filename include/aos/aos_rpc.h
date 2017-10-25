@@ -28,6 +28,7 @@
 struct aos_rpc {
     struct lmp_chan chan;
     bool init;
+    bool char_put;
 };
 
 /**

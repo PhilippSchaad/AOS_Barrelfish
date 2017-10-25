@@ -46,11 +46,76 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
     return SYS_ERR_OK;
 }
 
+static errval_t putchar_recv_handler(void *args)
+{
+    DBG(DETAILED, "putchar_recv_handler\n");
+
+    struct aos_rpc *rpc = (struct aos_rpc *) args;
+    // Get the message from the child.
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    struct capref child_cap;
+    errval_t err = lmp_chan_recv(&rpc->chan, &msg, &child_cap);
+    // Regegister if failed.
+    if (err_is_fail(err) && lmp_err_is_transient(err)) {
+        CHECK(lmp_chan_register_recv(args, get_default_waitset(),
+                                     MKCLOSURE((void *) putchar_recv_handler,
+                                               args)));
+    }
+
+    assert(msg.words[0] == RPC_TYPE_ACK);
+
+    DBG(DETAILED, "ACK Received\n");
+
+    rpc->char_put = true;
+
+    return SYS_ERR_OK;
+}
+
+static errval_t putchar_send_handler(uintptr_t *args)
+{
+    assert((char *) args[1] != NULL);
+    DBG(DETAILED, "putchar_send_handler\n");
+
+    struct aos_rpc *rpc = (struct aos_rpc *) args;
+    printf("The arg is: %c\n", *(char *)args[1]);
+
+    errval_t err;
+    printf("hi\n");
+    // XXX: Can't get past here!
+    err = lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
+                         RPC_TYPE_PUTCHAR, *((char *)args[1]));
+    printf("hi\n");
+    if (err_is_fail(err)){
+        // Reregister if failed.
+        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
+                                     MKCLOSURE((void *) putchar_send_handler,
+                                               args)));
+    }
+
+    return SYS_ERR_OK;
+}
 
 errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 {
-    // TODO implement functionality to send a character to the
-    // serial port.
+    assert(chan != NULL);
+    chan->char_put = false;
+
+    struct waitset *ws = get_default_waitset();
+
+    CHECK(lmp_chan_register_recv(&chan->chan, ws,
+                                 MKCLOSURE((void*) putchar_recv_handler,
+                                           chan)));
+    uintptr_t sendargs[2];
+    sendargs[0] = (uintptr_t) &chan;
+    sendargs[1] = (uintptr_t) &c;
+    CHECK(lmp_chan_register_send(&chan->chan, ws,
+                                 MKCLOSURE((void *) putchar_send_handler,
+                                           sendargs)));
+
+    while (!chan->char_put) {
+        CHECK(event_dispatch(ws));
+    }
+
     return SYS_ERR_OK;
 }
 
@@ -98,7 +163,6 @@ static errval_t handshake_recv_handler(void* args)
         CHECK(lmp_chan_register_recv(args, get_default_waitset(),
                                      MKCLOSURE((void *) handshake_recv_handler,
                                                args)));
-        return err;
     }
 
     assert(msg.words[0] == RPC_TYPE_ACK);
@@ -123,13 +187,13 @@ static errval_t handshake_send_handler(void* args)
                                      MKCLOSURE((void *) handshake_send_handler,
                                                args)));
     }
-    return err;
+    return SYS_ERR_OK;
 }
 
 static errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest)
 {
     assert(rpc != NULL);
-    rpc->init=false;
+    rpc->init = false;
     struct waitset *ws = get_default_waitset();
 
     /* allocate lmp channel structure */
@@ -137,10 +201,14 @@ static errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest)
     /* set remote endpoint to dest's endpoint */
     CHECK(lmp_chan_accept(&rpc->chan, DEFAULT_LMP_BUF_WORDS, cap_initep));
     /* set receive handler */
-    CHECK(lmp_chan_register_recv(&rpc->chan, ws, MKCLOSURE((void*) handshake_recv_handler, rpc)));
+    CHECK(lmp_chan_register_recv(&rpc->chan, ws,
+                                 MKCLOSURE((void*) handshake_recv_handler,
+                                           rpc)));
     /* send local ep to init and wait for init to acknowledge receiving the endpoint */
     /* set send handler */
-    CHECK(lmp_chan_register_send(&rpc->chan, ws, MKCLOSURE((void *)handshake_send_handler, rpc)));
+    CHECK(lmp_chan_register_send(&rpc->chan, ws,
+                                 MKCLOSURE((void *)handshake_send_handler,
+                                           rpc)));
 
     /* wait for ACK */
     while (!rpc->init){
