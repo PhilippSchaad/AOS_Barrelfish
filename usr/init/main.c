@@ -29,7 +29,7 @@
 #include "../tests/test.h"
 
 #undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
+#define DEBUG_LEVEL WARN
 
 coreid_t my_core_id;
 struct bootinfo *bi;
@@ -59,8 +59,22 @@ static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
 static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
                                  struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    assert(msg->buf.msglen >= 3);
+    DBG(DETAILED, "ram request received\n");
+
+    size_t size = (size_t) msg->words[1];
+    size_t align = (size_t) msg->words[2];
+
+    struct capref ram_cap;
+    CHECK(aos_ram_alloc_aligned(&ram_cap, size, align));
+
+    struct lmp_chan *chan = (struct lmp_chan *) args;
+
+    // Send the response:
+    CHECK(lmp_chan_send2(chan, LMP_FLAG_SYNC, ram_cap,
+                         RPC_ACK_MESSAGE(RPC_TYPE_RAM), size));
+
+    return SYS_ERR_OK;
 }
 
 static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
@@ -69,7 +83,7 @@ static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
     DBG(DETAILED, "putchar request received\n");
 
     // Print the character.
-    printf("%c", (char) msg->words[1]);
+    sys_print((char *) &msg->words[1], 1);
 
     return SYS_ERR_OK;
 }

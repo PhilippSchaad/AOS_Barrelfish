@@ -185,6 +185,17 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
     CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
     CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
+    CHECK(aos_rpc_serial_putchar(&rpc, '\n'));
+
+    DBG(VERBOSE, "Testing RAM RPC\n");
+    size_t reqsize = 100;
+    size_t retsize;
+    struct capref frame;
+    CHECK(aos_rpc_get_ram_cap(&rpc, reqsize, BASE_PAGE_SIZE, &frame, &retsize));
+    DBG(VERBOSE, "We asked for %u and got %u memory\n", reqsize, retsize);
+    void *buf;
+    CHECK(paging_map_frame_attr(get_current_paging_state(), &buf, retsize,
+                                frame, VREGION_FLAGS_READ_WRITE, NULL, NULL));
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here

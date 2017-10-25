@@ -17,7 +17,8 @@
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL DETAILED
 
-static errval_t rpc_receive_handler(void *args){
+static errval_t rpc_receive_handler(void *args)
+{
     DBG(DETAILED, "rpc_receive_handler\n");
 
     struct aos_rpc *rpc = (struct aos_rpc *) args;
@@ -43,6 +44,13 @@ static errval_t rpc_receive_handler(void *args){
         case RPC_ACK_MESSAGE(RPC_TYPE_PUTCHAR):
             DBG(DETAILED, "ACK Received (putchar) \n");
             break;
+        case RPC_ACK_MESSAGE(RPC_TYPE_RAM):
+            DBG(DETAILED, "ACK Received (ram)\n");
+            assert(msg.buf.msglen >= 2);
+            // args[4] holds ret_size.
+            uintptr_t *uarg = (uintptr_t *) args;
+            *((size_t *) uarg[4]) = msg.words[1];
+            break;
         default:
             assert(!"NOT IMPLEMENTED");
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
@@ -66,11 +74,52 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
     return SYS_ERR_OK;
 }
 
+static errval_t ram_send_handler(uintptr_t *args)
+{
+    DBG(DETAILED, "rpc_ram_send_handler\n");
+
+    struct aos_rpc *rpc = (struct aos_rpc *) args[0];
+    size_t size = *((size_t *) args[1]);
+    size_t align = *((size_t *) args[2]);
+
+    errval_t err;
+    do {
+        // check if sender is currently busy
+        // TODO: could we implement some kind of buffer for this?
+        err = lmp_chan_send3(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
+                             RPC_MESSAGE(RPC_TYPE_RAM), size, align);
+    } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
                              struct capref *retcap, size_t *ret_size)
 {
-    // TODO: implement functionality to request a RAM capability over the
-    // given channel and wait until it is delivered.
+    DBG(DETAILED, "rpc_get_ram_cap\n");
+
+    struct waitset *ws = get_default_waitset();
+
+    uintptr_t sendargs[5];
+
+    sendargs[0] = (uintptr_t) chan;
+    sendargs[1] = (uintptr_t) &size;
+    sendargs[2] = (uintptr_t) &align;
+    sendargs[3] = (uintptr_t) retcap;
+    sendargs[4] = (uintptr_t) ret_size;
+
+    CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
+
+    errval_t err;
+    do {
+        // check if sender is currently busy
+        // TODO: could we implement some kind of buffer for this?
+        err = lmp_chan_register_send(&chan->chan, ws,
+                                 MKCLOSURE((void *) ram_send_handler,
+                                           sendargs));
+        CHECK(event_dispatch(ws));
+    } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+
     return SYS_ERR_OK;
 }
 
