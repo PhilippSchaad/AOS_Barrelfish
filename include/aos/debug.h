@@ -29,7 +29,17 @@
 #define VERBOSE  0x3
 #define DETAILED 0x4
 
-#define DBG(level, msg...) if(level <= DEBUG_LEVEL){debug_printf(msg);}
+#define DBG(level, msg...) if(level <= DEBUG_LEVEL){                          \
+                               char buff[500];                                \
+                               sprintf(buff, msg);                            \
+                               if(level == ERR){                              \
+                                   debug_printf("\033[31m%s\033[0m", buff);   \
+                               }else if(level == WARN){                       \
+                                   debug_printf("\033[33m%s\033[0m", buff);   \
+                               }else{                                         \
+                                   debug_printf(buff);                        \
+                               }                                              \
+                           }
 
 __BEGIN_DECLS
 
