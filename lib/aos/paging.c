@@ -24,8 +24,6 @@
 #include <string.h>
 
 //#define no_page_align_in_frame_alloc
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL 0
 
 static struct paging_state current;
 
@@ -74,10 +72,16 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->free_vspace.next = NULL;
     st->spawninfo = NULL;
 
-    //TODO: This is an ugly hack so we don't need individual slab allocs. Probably improve at some point
-    size_t minbytes = sizeof(struct paging_frame_node) > sizeof(struct paging_map_node) ? sizeof(struct paging_frame_node) : sizeof(struct paging_map_node);
-    if(sizeof(struct paging_used_node) > minbytes)
+    // TODO: This is an ugly hack so we don't need individual slab allocs.
+    //       Probably improve at some point
+    size_t minbytes =
+        sizeof(struct paging_frame_node) > sizeof(struct paging_map_node) ?
+            sizeof(struct paging_frame_node) :
+            sizeof(struct paging_map_node);
+
+    if (sizeof(struct paging_used_node) > minbytes)
         minbytes = sizeof(struct paging_used_node);
+
     slab_init(&st->slab_alloc,minbytes,slab_default_refill);
     // TODO (M4): Implement page fault handler that installs frames when a page
     // fault occurs and keeps track of the virtual address space.
@@ -188,7 +192,8 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
     }else{
         //TODO: catch node overlaps via asserts
         if(pr->holes == NULL) {
-            struct paging_frame_node *new_node = (struct paging_frame_node *) slab_alloc(pr->slab_alloc);
+            struct paging_frame_node *new_node =
+                (struct paging_frame_node *) slab_alloc(pr->slab_alloc);
             new_node->base_addr = base;
             new_node->region_size = bytes;
             new_node->next = NULL;
@@ -206,7 +211,9 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
                         node = node->next;
                     }
                 }else{
-                    struct paging_frame_node* new_node = (struct paging_frame_node*) slab_alloc(pr->slab_alloc);
+                    struct paging_frame_node* new_node =
+                        (struct paging_frame_node*) slab_alloc(pr->slab_alloc);
+
                     new_node->base_addr = node->base_addr;
                     new_node->region_size = node->region_size;
                     new_node->next = node->next;
@@ -218,7 +225,8 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
                 }
             }
             if(!done) {
-                struct paging_frame_node* new_node = (struct paging_frame_node*) slab_alloc(pr->slab_alloc);
+                struct paging_frame_node* new_node =
+                    (struct paging_frame_node*) slab_alloc(pr->slab_alloc);
                 new_node->base_addr = base;
                 new_node->region_size = bytes;
                 new_node->next = NULL;
@@ -226,7 +234,8 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
             }
         }
     }
-    //coalesce holes
+
+    // Coalesce holes.
     if(pr->holes) {
         struct paging_frame_node* node = pr->holes;
         struct paging_frame_node* prev = NULL;
@@ -255,7 +264,6 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
 }
 
 /**
- * TODO(M2): Implement this function
  * \brief Find a bit of free virtual address space that is large enough to
  *        accomodate a buffer of size `bytes`.
  */
@@ -287,12 +295,6 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 #else
             node->region_size -= bytes;
 #endif
-
-/*            struct paging_frame_node *new_node = (struct paging_frame_node *) slab_alloc(&st->slab_alloc);
-            new_node->base_addr = (lvaddr_t)*buf;
-            new_node->region_size = node->base_addr - new_node->base_addr;
-            new_node->next = st->used_vspace;
-            st->used_vspace = new_node;*/
 
             DBG(DETAILED, "ps %u paging_alloc new base: %p new size: %u\n",
                 st->debug_paging_state_index, node->base_addr,
@@ -334,11 +336,11 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
     return paging_map_fixed_attr(st, (lvaddr_t)(*buf), frame, bytes, flags);
 }
 
-errval_t
-slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
-                         size_t minbytes)
+errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
+                                  struct capref frame, size_t minbytes)
 {
     DBG(DETAILED,"slab_refill_no_pagefault wants to alloc bytes: %u\n",minbytes);
+
     // Refill the two-level slot allocator without causing a page-fault
     void *buf;
     struct paging_state* st = get_current_paging_state();
@@ -347,8 +349,7 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
     DBG(DETAILED, "allocing at least: %u\n", minbytes);
     CHECK(frame_alloc(&frame, minbytes, &frame_size));
     DBG(DETAILED, "allocing in reality: %u\n", frame_size);
-//    CHECK(paging_map_frame_attr(st, &buf, frame_size, frame,
-//                                VREGION_FLAGS_READ_WRITE, NULL, NULL));
+
     size_t mapped_bytes = 0;
     size_t bytes = frame_size;
     int flags = VREGION_FLAGS_READ_WRITE;
@@ -422,9 +423,9 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
         DBG(DETAILED, "Still need to map: %"PRIuGENSIZE" bytes starting "
                 "from 0x%p\n" , (gensize_t)bytes, vaddr);
     }
+
     assert(bytes == 0);
     DBG(DETAILED, "mapped %"PRIuGENSIZE" bytes\n", (gensize_t)mapped_bytes);
-
 
     slab_grow(slabs, buf, frame_size);
 
@@ -449,7 +450,9 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         slab_refill_no_pagefault(&st->slab_alloc,slabframe,BASE_PAGE_SIZE);
         DBG(DETAILED, "second hurdle made\n");
     }
-    struct paging_used_node *mappings = (struct paging_used_node *)slab_alloc(&st->slab_alloc);
+
+    struct paging_used_node *mappings =
+        (struct paging_used_node *) slab_alloc(&st->slab_alloc);
     DBG(DETAILED, "we got past the slab_alloc bit");
     mappings->start_addr = vaddr;
     mappings->size = bytes;
@@ -501,8 +504,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         lvaddr_t l2_index = ARM_L2_OFFSET(vaddr);
 
         // How many bytes should we map in that frame?
-        size_t mapping_size = MIN(
-                bytes, (ARM_L2_MAX_ENTRIES - l2_index) * BASE_PAGE_SIZE);
+        size_t mapping_size =
+            MIN(bytes, (ARM_L2_MAX_ENTRIES - l2_index) * BASE_PAGE_SIZE);
 
         // Finally, do the mapping.
         struct capref l2_frame;
@@ -520,7 +523,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         // range. if we do levy it for that, rewrite frame_alloc and remove the
         // frame_alloc specific suff from st
         DBG(DETAILED, "now doing the storing thing \n");
-        struct paging_map_node *mapentry = (struct paging_map_node*)slab_alloc(&st->slab_alloc);
+        struct paging_map_node *mapentry =
+            (struct paging_map_node*)slab_alloc(&st->slab_alloc);
         mapentry->table = l2_pagetable;
         mapentry->mapping = l2_frame;
         mapentry->next = mappings->map_list;
@@ -539,11 +543,13 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     return SYS_ERR_OK;
 }
 
-void paging_add_space(struct paging_state *st, lvaddr_t base, size_t size);
-void paging_add_space(struct paging_state *st, lvaddr_t base, size_t size) {
-    //todo: coalesce nodes
-    //todo: sort space
-    struct paging_frame_node *node = (struct paging_frame_node*)slab_alloc(&st->slab_alloc);
+static void paging_add_space(struct paging_state *st, lvaddr_t base,
+                             size_t size)
+{
+    // TODO: Coalesce nodes
+    // TODO: Sort space
+    struct paging_frame_node *node =
+        (struct paging_frame_node*) slab_alloc(&st->slab_alloc);
     node->base_addr = base;
     node->region_size = size;
     node->next = st->free_vspace.next;
@@ -557,20 +563,24 @@ void paging_add_space(struct paging_state *st, lvaddr_t base, size_t size) {
 errval_t paging_unmap(struct paging_state *st, const void *region)
 {
     DBG(DETAILED,"unmapping %p", region);
+
     struct paging_used_node *node = st->mappings;
     struct paging_used_node *prev = NULL;
+
     while(true) {
-        assert(node != NULL); //Todo: make nicer
+        assert(node != NULL); // TODO: make nicer
         if(node->start_addr == (lvaddr_t)region) {
             break;
         }
         prev = node;
         node = node->next;
     }
+
     if(prev != NULL)
         prev->next = node->next;
     else
         st->mappings = node->next;
+
     struct paging_map_node *mapnode = node->map_list;
     while(mapnode != NULL) {
         struct paging_map_node *temp = mapnode;
@@ -578,7 +588,10 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
         vnode_unmap(temp->table,temp->mapping);
         slab_free(&st->slab_alloc,temp);
     }
+
     paging_add_space(st,(lvaddr_t)node->start_addr,node->size);
+
     slab_free(&st->slab_alloc,node);
+
     return SYS_ERR_OK;
 }

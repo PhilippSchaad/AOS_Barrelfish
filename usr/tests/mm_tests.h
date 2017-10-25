@@ -5,9 +5,11 @@
 __attribute__((unused))
 static int mm_alloc_300f(void)
 {
-    TEST_PRINT_INFO("Allocate 300 frames (sizes 30 + 100*i).\n"  \
-            "           "   \
-            "This will also demonstrate slab refills.");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Allocate 300 frames (sizes 30 + 100*i).\n"
+                    "           "
+                    "This will also demonstrate slab refills.");
 
     errval_t err;
 
@@ -16,7 +18,6 @@ static int mm_alloc_300f(void)
     for(int i = 0; i<300; ++i){
         size_t frame_size=0;
         size_t bytes = 30 + i*100 ;
-//        debug_printf("round: %i \n", i);
         err = frame_alloc(&frame[i], bytes, &frame_size);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
@@ -39,7 +40,9 @@ static int mm_alloc_300f(void)
 __attribute__((unused))
 static int mm_alloc_and_map_10f(void)
 {
-    TEST_PRINT_INFO("Allocate 10 frames of different sizes and map them.");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Allocate 10 frames of different sizes and map them.");
 
     errval_t err;
 
@@ -53,9 +56,9 @@ static int mm_alloc_and_map_10f(void)
             TEST_PRINT_FAIL();
         }
         void *buf;
-        err = paging_map_frame_attr(get_current_paging_state(), &buf, frame_size,
-                                    frame[i],VREGION_FLAGS_READ_WRITE, NULL,
-                                    NULL);
+        err = paging_map_frame_attr(get_current_paging_state(), &buf,
+                                    frame_size, frame[i],
+                                    VREGION_FLAGS_READ_WRITE, NULL, NULL);
         char* access = (char*)buf;
         for(int j = 0; j < frame_size; j++) {
             access[j] = 'i';
@@ -88,7 +91,9 @@ static int mm_alloc_and_map_10f(void)
 __attribute__((unused))
 static int mm_alloc_and_map_large_10f(void)
 {
-    TEST_PRINT_INFO("Allocate 10 large frames of different sizes and map them.");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Allocate 10 large frames of different sizes and map them.");
 
     errval_t err;
 
@@ -137,7 +142,11 @@ static int mm_alloc_and_map_large_10f(void)
 __attribute__((unused))
 static int mm_alloc_free_20(void)
 {
-    TEST_PRINT_INFO("Allocate 20 chunks of ram (sizes 30 + 500*i). Repeated twice.");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Allocate 20 chunks of ram (sizes 30 + 500*i).\n"
+                    "           "
+                    "Repeated twice.");
 
     errval_t err;
     
@@ -167,7 +176,11 @@ static int mm_alloc_free_20(void)
 __attribute__((unused))
 static int mm_alloc_free_600(void)
 {
-    TEST_PRINT_INFO("Allocate 600 chunks of ram (size 30) and free again. This also uses slot alloc.");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Allocate 600 chunks of ram (size 30) and free again.\n"
+                    "           "
+                    "This also uses slot alloc.");
 
     errval_t err;
 
@@ -197,9 +210,13 @@ static int mm_alloc_free_600(void)
 __attribute__((unused))
 static int mm_alloc_free_10(void)
 {
-    TEST_PRINT_INFO("Allocate 10 chunks of ram (sizes 30 + 1000*i). Free every second.\n"   \
-            "           "   \
-            "Allocate 10 chunks of different size again and free all.");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Allocate 10 chunks of ram (sizes 30 + 1000*i).\n"
+                    "           "
+                    "Free every second.\n"
+                    "           "
+                    "Allocate 10 chunks of different size again and free all.");
 
     errval_t err;
 
@@ -256,7 +273,10 @@ static int mm_alloc_free_10(void)
 
 __attribute__((unused))
 static int mm_paging_map_fixed_attr_cursize_test(void) {
-    TEST_PRINT_INFO("Regression test for issue #21");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Regression test for issue #21");
+
     struct capref frame;
     errval_t err;
     size_t frame_size2=0;
@@ -264,33 +284,43 @@ static int mm_paging_map_fixed_attr_cursize_test(void) {
     if (err_is_fail(err)) {
         TEST_PRINT_FAIL();
     }
-    paging_map_fixed_attr(get_current_paging_state(),0x55c2000,frame,frame_size2,VREGION_FLAGS_READ_WRITE);
+
+    paging_map_fixed_attr(get_current_paging_state(), 0x55c2000, frame,
+                          frame_size2, VREGION_FLAGS_READ_WRITE);
+
     err = aos_ram_free(frame, frame_size2);
+
     cap_destroy(frame);
-    //cap_destroy(frame);
+
     TEST_PRINT_SUCCESS();
 }
 
 __attribute__((unused))
 static int mm_paging_alloc_aligned_allignment_test(void) {
-    TEST_PRINT_INFO("Regression test for alignment issue");
+    TEST_PRINT_INFO("\n"
+                    "           "
+                    "Regression test for alignment issue");
+
     errval_t err;
+
     struct capref frame[3];
     size_t sizes[3];
     sizes[0] = 4096 + 1024;
     sizes[1] = 4096 * 3 + 1024;
     sizes[2] = 4096 * 3 + 1024;
-    //we get it out of alignment
+
+    // We get it out of alignment
     err = aos_ram_alloc_aligned(&frame[0], sizes[0], BASE_PAGE_SIZE);
     if (err_is_fail(err)) {
         TEST_PRINT_FAIL();
     }
-    //we alloc our first test thing
+    // We alloc our first test thing
     err = aos_ram_alloc_aligned(&frame[1], sizes[1], BASE_PAGE_SIZE * 4);
     if (err_is_fail(err)) {
         TEST_PRINT_FAIL();
     }
-    //we alloc our second test thing, in case the very first alloc got us into alignment by random chance
+    // We alloc our second test thing, in case the very first alloc got 
+    // us into alignment by random chance.
     err = aos_ram_alloc_aligned(&frame[2], sizes[2], BASE_PAGE_SIZE * 4);
     if (err_is_fail(err)) {
         TEST_PRINT_FAIL();
