@@ -16,6 +16,7 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
+#include <aos/aos_rpc.h>
 #include <aos/waitset.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
@@ -27,43 +28,61 @@
 
 #include "../tests/test.h"
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 coreid_t my_core_id;
 struct bootinfo *bi;
-errval_t init_recv_handler(void *arg);
-errval_t init_send_handler(void *arg);
 
-
-errval_t init_send_handler(void *arg){
-    printf("init sends ACK\n");
+static errval_t handshake_send_handler(void *arg){
+    DBG(DETAILED, "init sends ACK\n");
     struct lmp_chan* chan =(struct lmp_chan*) arg;
-    CHECK(lmp_chan_send0(chan, LMP_FLAG_SYNC, NULL_CAP));
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, RPC_TYPE_ACK));
     return SYS_ERR_OK;
 }
 
-errval_t init_recv_handler(void *arg){
-    printf("init received cap\n");
+static errval_t handshake_recv_handler(void *arg, struct capref *child_cap){
+    DBG(DETAILED, "init received cap\n");
 
     struct lmp_chan* chan =(struct lmp_chan*) arg;
-    // get the message from the child
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    struct capref child_cap;
-    errval_t err = lmp_chan_recv(chan, &msg, &child_cap);
-    // regegister if failed
-    if (err_is_fail(err) && lmp_err_is_transient(err)) {
-        lmp_chan_register_recv(chan, get_default_waitset(),MKCLOSURE((void *)init_recv_handler, chan));
-        // TODO: do we have to create a new slot here?
-        return err;
-    }
-    printf("successfully received cap\n");
-    // set the remote cap we just got from the child
-    chan->remote_cap = child_cap;
 
-    // prepare for the next child
-    CHECK(lmp_chan_alloc_recv_slot(chan));
-    lmp_chan_register_recv(chan, get_default_waitset(),MKCLOSURE((void *)init_recv_handler, chan));
+    // set the remote cap we just got from the child
+    chan->remote_cap = *child_cap;
 
     // send ACK to the child
-    CHECK(lmp_chan_register_send(chan, get_default_waitset(), MKCLOSURE((void *)init_send_handler, chan)));
+    CHECK(lmp_chan_register_send(chan, get_default_waitset(),
+                                 MKCLOSURE((void *)handshake_send_handler,
+                                           chan)));
+
+    DBG(DETAILED, "successfully received cap\n");
+    return SYS_ERR_OK;
+}
+
+static errval_t general_recv_handler(void *args)
+{
+    DBG(VERBOSE, "Handling RPC-receipt\n");
+
+    struct lmp_chan *chan = (struct lmp_chan *) args;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    struct capref cap;
+
+    CHECK(lmp_chan_recv(chan, &msg, &cap));
+    CHECK(lmp_chan_alloc_recv_slot(chan));
+    CHECK(lmp_chan_register_recv(chan, get_default_waitset(),
+                                 MKCLOSURE((void *) general_recv_handler,
+                                           args)));
+
+    assert(msg.buf.msglen > 0);
+
+    // Check the message type and handle it accordingly.
+    switch (msg.words[0]) {
+        case RPC_TYPE_HANDSHAKE:
+            handshake_recv_handler(args, &cap);
+            break;
+        default:
+            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
+            // TODO: Maybe return an error instead of continuing?
+    }
 
     return SYS_ERR_OK;
 }
@@ -102,7 +121,9 @@ int main(int argc, char *argv[])
     CHECK(lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
     CHECK(lmp_chan_alloc_recv_slot(&chan));
     CHECK(cap_copy(cap_initep, chan.local_cap));
-    CHECK(lmp_chan_register_recv(&chan, get_default_waitset(), MKCLOSURE((void *)init_recv_handler, &chan)));
+    CHECK(lmp_chan_register_recv(&chan, get_default_waitset(),
+                                 MKCLOSURE((void *)general_recv_handler,
+                                           &chan)));
 
     // run tests
     struct tester t;
