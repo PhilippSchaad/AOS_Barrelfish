@@ -25,13 +25,5 @@ int main(int argc, char *argv[])
             printf("Found command line argument %d: %s \n", i, argv[i]);
         }
     }
-    size_t st = *(size_t*)0x1000;
-    printf("we are paging_state number: %u\n",st);
-    void *t = malloc(0x2000);
-    printf("we just malloc'd at the addr: %p\n",t);
-    printf("and now we are writing to it!\n");
-    for(int i = 0; i < 0x2000; i++) {
-        ((char*)t)[i] = 'i';
-    }
     return 0;
 }
