@@ -17,10 +17,17 @@
 
 #include <aos/aos.h>
 
+#define RPC_TYPE_ACK                0x0
+#define RPC_TYPE_FAIL               0x1
+#define RPC_TYPE_NUMBER             0x2
+#define RPC_TYPE_STRING             0x3
+#define RPC_TYPE_RAM                0x4
+#define RPC_TYPE_PUTCHAR            0x5
+#define RPC_TYPE_HANDSHAKE          0x6
+
 struct aos_rpc {
     struct lmp_chan chan;
     bool init;
-    // TODO: add state for your implementation
 };
 
 /**
