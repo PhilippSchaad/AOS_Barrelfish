@@ -30,6 +30,7 @@ static errval_t rpc_receive_handler(void *args){
         CHECK(lmp_chan_register_recv(args, get_default_waitset(),
                                      MKCLOSURE((void *) rpc_receive_handler,
                                                args)));
+        return err;
     }
 
     // do actions depending on the message type
@@ -113,10 +114,16 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
     uintptr_t sendargs[2];
     sendargs[0] = (uintptr_t) rpc;
     sendargs[1] = (uintptr_t) &c;
-    CHECK(lmp_chan_register_send(&rpc->chan, ws,
-                                 MKCLOSURE((void *) putchar_send_handler,
-                                           sendargs)));
 
+    errval_t err;
+    do {
+        // check if sender is currently busy
+        // TODO: could we implement some kind of buffer for this?
+        err = lmp_chan_register_send(&rpc->chan, ws,
+                                 MKCLOSURE((void *) putchar_send_handler,
+                                           sendargs));
+        CHECK(event_dispatch(ws));
+    } while(err == LIB_ERR_CHAN_ALREADY_REGISTERED);
     return SYS_ERR_OK;
 }
 
