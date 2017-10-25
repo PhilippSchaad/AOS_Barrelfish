@@ -34,22 +34,52 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
-static errval_t handshake_send_handler(void *arg){
+static errval_t handshake_send_handler(void *args)
+{
     DBG(DETAILED, "init sends ACK\n");
-    struct lmp_chan* chan =(struct lmp_chan*) arg;
+    struct lmp_chan* chan =(struct lmp_chan*) args;
     CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, RPC_TYPE_ACK));
     return SYS_ERR_OK;
 }
 
-static errval_t handshake_recv_handler(void *arg, struct capref *child_cap){
+static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                    struct capref *cap)
+{
+    // TODO: Implement.
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                    struct capref *cap)
+{
+    // TODO: Implement.
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                 struct capref *cap)
+{
+    // TODO: Implement.
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                     struct capref *cap)
+{
+    // TODO: Implement.
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
+{
     DBG(DETAILED, "init received cap\n");
 
-    struct lmp_chan* chan =(struct lmp_chan*) arg;
+    struct lmp_chan* chan =(struct lmp_chan*) args;
 
     // set the remote cap we just got from the child
     chan->remote_cap = *child_cap;
 
-    // send ACK to the child
+    // Send ACK to the child
     CHECK(lmp_chan_register_send(chan, get_default_waitset(),
                                  MKCLOSURE((void *)handshake_send_handler,
                                            chan)));
@@ -76,8 +106,20 @@ static errval_t general_recv_handler(void *args)
 
     // Check the message type and handle it accordingly.
     switch (msg.words[0]) {
+        case RPC_TYPE_NUMBER:
+            CHECK(number_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_TYPE_STRING:
+            CHECK(string_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_TYPE_RAM:
+            CHECK(ram_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_TYPE_PUTCHAR:
+            CHECK(putchar_recv_handler(args, &msg, &cap));
+            break;
         case RPC_TYPE_HANDSHAKE:
-            handshake_recv_handler(args, &cap);
+            CHECK(handshake_recv_handler(args, &cap));
             break;
         default:
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
