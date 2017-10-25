@@ -185,6 +185,8 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
     CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
     CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
+    char greeting[6] = {'H', 'e', 'l', 'l', 'o', '\0'};
+    CHECK(aos_rpc_send_string(&rpc, greeting));
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
