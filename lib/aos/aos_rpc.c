@@ -80,9 +80,67 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
+
+errval_t handshake_recv_handler(void* args);
+errval_t handshake_recv_handler(void* args){
+    printf("handshake_recv_handler\n");
+    struct aos_rpc* rpc =(struct aos_rpc*) args;
+    // get the message from the child
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    struct capref child_cap;
+    errval_t err = lmp_chan_recv(&rpc->chan, &msg, &child_cap);
+    // regegister if failed
+    if (err_is_fail(err) && lmp_err_is_transient(err)) {
+        lmp_chan_register_recv(args, get_default_waitset(),MKCLOSURE((void *)handshake_recv_handler, args));
+        return err;
+    }
+    printf("ACK received :) \n");
+    rpc->init=true;
+    return SYS_ERR_OK;
+}
+
+errval_t handshake_send_handler(void* args);
+errval_t handshake_send_handler(void* args){
+    printf("handshake_send_handler\n");
+    struct aos_rpc* rpc =(struct aos_rpc*) args;
+
+    errval_t err;
+    err = lmp_chan_send0(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap);
+    if (err_is_fail(err)){
+        //reregister if failed
+        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(), MKCLOSURE((void *)handshake_send_handler, args)));
+    }
+    return err;
+}
+
+errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest);
+errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest){
+    assert(rpc != NULL);
+    rpc->init=false;
+    struct waitset *ws = get_default_waitset();
+
+    /* allocate lmp channel structure */
+    /* create local endpoint */
+    /* set remote endpoint to dest's endpoint */
+    lmp_chan_accept(&rpc->chan, DEFAULT_LMP_BUF_WORDS, cap_initep);
+    /* set receive handler */
+    CHECK(lmp_chan_register_recv(&rpc->chan, ws, MKCLOSURE((void*) handshake_recv_handler, rpc)));
+    /* send local ep to init and wait for init to acknowledge receiving the endpoint */
+    /* set send handler */
+    CHECK(lmp_chan_register_send(&rpc->chan, ws, MKCLOSURE((void *)handshake_send_handler, rpc)));
+
+    /* wait for ACK */
+    while (!rpc->init){
+        CHECK(event_dispatch(ws));
+    }
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
-    // TODO: Initialize given rpc channel
+    CHECK(rpc_handshake_helper(rpc, cap_initep));
+    // store rpc
+    set_init_rpc(rpc);
     return SYS_ERR_OK;
 }
 
@@ -91,7 +149,8 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
  */
 struct aos_rpc *aos_rpc_get_init_channel(void)
 {
-    return NULL;
+    //TODO check if was created
+    return get_init_rpc();
 }
 
 /**

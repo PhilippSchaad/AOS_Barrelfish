@@ -18,6 +18,8 @@
 #include <aos/aos.h>
 
 struct aos_rpc {
+    struct lmp_chan chan;
+    bool init;
     // TODO: add state for your implementation
 };
 
