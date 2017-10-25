@@ -87,14 +87,11 @@ static errval_t putchar_send_handler(uintptr_t *args)
     DBG(DETAILED, "putchar_send_handler\n");
 
     struct aos_rpc *rpc = (struct aos_rpc *) args[0];
-    printf("The arg is: %c\n", *(char *)args[1]);
+    DBG(DETAILED, "The arg is: %c\n", *(char *)args[1]);
 
     errval_t err;
-    printf("hi\n");
-    // XXX: Can't get past here!
     err = lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
-                         RPC_TYPE_PUTCHAR, *((char *)args[1]));
-    printf("hi\n");
+                         RPC_MESSAGE(RPC_TYPE_PUTCHAR), *((char *)args[1]));
     if (err_is_fail(err)){
         // Reregister if failed.
         CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
@@ -224,7 +221,8 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
  */
 struct aos_rpc *aos_rpc_get_memory_channel(void)
 {
-    return NULL;
+    // TODO check if we want to create a separate mem server
+    return get_init_rpc();
 }
 
 /**
@@ -232,7 +230,8 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
  */
 struct aos_rpc *aos_rpc_get_process_channel(void)
 {
-    return NULL;
+    // TODO check if we want to create a separate process server
+    return get_init_rpc();
 }
 
 /**
@@ -240,5 +239,6 @@ struct aos_rpc *aos_rpc_get_process_channel(void)
  */
 struct aos_rpc *aos_rpc_get_serial_channel(void)
 {
-    return NULL;
+    // TODO check if we want to create a separate serial server
+    return get_init_rpc();
 }
