@@ -94,8 +94,15 @@ static errval_t number_send_handler(void *args)
     struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
     uintptr_t val = uargs[1];
 
-    CHECK(lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
-                         RPC_MESSAGE(RPC_TYPE_NUMBER), val));
+    errval_t err;
+    err = lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
+                         RPC_MESSAGE(RPC_TYPE_NUMBER), val);
+    if (err_is_fail(err)){
+        // Reregister if failed.
+        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
+                                     MKCLOSURE((void *) number_send_handler,
+                                               args)));
+    }
 
     return SYS_ERR_OK;
 }
@@ -111,16 +118,9 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
     sendargs[0] = (uintptr_t) chan;
     sendargs[1] = (uintptr_t) val;
 
-    CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
-
-    CHECK(lmp_chan_register_recv(&chan->chan, ws,
-                                 MKCLOSURE((void *) rpc_receive_handler,
-                                           sendargs)));
-
     CHECK(lmp_chan_register_send(&chan->chan, ws,
                                  MKCLOSURE((void *) number_send_handler,
                                            sendargs)));
-    CHECK(event_dispatch(ws));
 
     CHECK(event_dispatch(ws));
 
