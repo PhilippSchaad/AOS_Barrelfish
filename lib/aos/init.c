@@ -27,6 +27,9 @@
 #include "threads_priv.h"
 #include "init.h"
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
 

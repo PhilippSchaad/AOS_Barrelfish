@@ -17,6 +17,35 @@
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL DETAILED
 
+static errval_t ram_receive_handler(void *args)
+{
+    uintptr_t *uargs = (uintptr_t *) args;
+    struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
+    struct capref *retcap = (struct capref *) uargs[3];
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    errval_t err = lmp_chan_recv(&rpc->chan, &msg, retcap);
+    // Regegister if failed.
+    if (err_is_fail(err) && lmp_err_is_transient(err)) {
+        CHECK(lmp_chan_register_recv(&rpc->chan, get_default_waitset(),
+                                     MKCLOSURE((void *) ram_receive_handler,
+                                               args)));
+        return err;
+    }
+
+    assert(msg.buf.msglen >= 2);
+
+    if (msg.words[0] != RPC_ACK_MESSAGE(RPC_TYPE_RAM)) {
+        DBG(ERR, "This is bad\n");
+        // TODO: handle?
+    }
+
+    size_t *retsize = (size_t *) uargs[4];
+    *retsize = msg.words[1];
+
+    return SYS_ERR_OK;
+}
+
 static errval_t rpc_receive_handler(void *args)
 {
     DBG(DETAILED, "rpc_receive_handler\n");
@@ -25,14 +54,18 @@ static errval_t rpc_receive_handler(void *args)
     // Get the message from the child.
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref child_cap;
+    DBG(DETAILED, "1\n");
     errval_t err = lmp_chan_recv(&rpc->chan, &msg, &child_cap);
     // Regegister if failed.
+    DBG(DETAILED, "2\n");
     if (err_is_fail(err) && lmp_err_is_transient(err)) {
         CHECK(lmp_chan_register_recv(args, get_default_waitset(),
                                      MKCLOSURE((void *) rpc_receive_handler,
                                                args)));
+        DBG(DETAILED, "orhere\n");
         return err;
     }
+    DBG(DETAILED, "here\n");
 
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
@@ -46,10 +79,6 @@ static errval_t rpc_receive_handler(void *args)
             break;
         case RPC_ACK_MESSAGE(RPC_TYPE_RAM):
             DBG(DETAILED, "ACK Received (ram)\n");
-            assert(msg.buf.msglen >= 2);
-            // args[4] holds ret_size.
-            uintptr_t *uarg = (uintptr_t *) args;
-            *((size_t *) uarg[4]) = msg.words[1];
             break;
         default:
             assert(!"NOT IMPLEMENTED");
@@ -82,6 +111,8 @@ static errval_t ram_send_handler(uintptr_t *args)
     size_t size = *((size_t *) args[1]);
     size_t align = *((size_t *) args[2]);
 
+    DBG(DETAILED, "The size is %zu and alignment is %zu\n", size, align);
+
     errval_t err;
     do {
         // check if sender is currently busy
@@ -89,6 +120,7 @@ static errval_t ram_send_handler(uintptr_t *args)
         err = lmp_chan_send3(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
                              RPC_MESSAGE(RPC_TYPE_RAM), size, align);
     } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+    DBG(DETAILED, "rpc_ram_send_handler returned\n");
 
     return SYS_ERR_OK;
 }
@@ -110,15 +142,22 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
     CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
 
-    errval_t err;
-    do {
-        // check if sender is currently busy
-        // TODO: could we implement some kind of buffer for this?
-        err = lmp_chan_register_send(&chan->chan, ws,
+    CHECK(lmp_chan_register_recv(&chan->chan, ws,
+                                 MKCLOSURE((void *) ram_receive_handler,
+                                           sendargs)));
+
+    CHECK(lmp_chan_register_send(&chan->chan, ws,
                                  MKCLOSURE((void *) ram_send_handler,
-                                           sendargs));
-        CHECK(event_dispatch(ws));
-    } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+                                           sendargs)));
+    DBG(DETAILED, "a\n");
+    CHECK(event_dispatch(ws));
+    DBG(DETAILED, "b\n");
+
+    CHECK(event_dispatch(ws));
+    DBG(DETAILED, "c (ret)\n");
+
+    *retcap = *((struct capref *) sendargs[3]);
+    *ret_size = *((size_t *) sendargs[4]);
 
     return SYS_ERR_OK;
 }

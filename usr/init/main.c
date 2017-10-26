@@ -29,10 +29,30 @@
 #include "../tests/test.h"
 
 #undef DEBUG_LEVEL
-#define DEBUG_LEVEL WARN
+#define DEBUG_LEVEL DETAILED
 
 coreid_t my_core_id;
 struct bootinfo *bi;
+
+static errval_t ram_send_handler(void **args)
+{
+    DBG(DETAILED, "ram_send_handler sending ack\n");
+    struct lmp_chan *chan = (struct lmp_chan *) args[0];
+    struct capref *cap = (struct capref *) args[1];
+    size_t *size = (size_t *) args[2];
+
+    CHECK(lmp_chan_send2(chan, LMP_FLAG_SYNC, *cap,
+                         RPC_ACK_MESSAGE(RPC_TYPE_RAM), *size));
+
+    free(args[0]);
+    free(args[1]);
+    free(args[2]);
+    free(args);
+
+    DBG(DETAILED, "ACK sent\n");
+
+    return SYS_ERR_OK;
+}
 
 static errval_t handshake_send_handler(void *args)
 {
@@ -70,9 +90,21 @@ static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
 
     struct lmp_chan *chan = (struct lmp_chan *) args;
 
+    if (size % BASE_PAGE_SIZE != 0) {
+        size += (size_t) BASE_PAGE_SIZE - (size % BASE_PAGE_SIZE);
+    }
+    DBG(DETAILED, "we got ram with size %zu\n", size);
+
     // Send the response:
-    CHECK(lmp_chan_send2(chan, LMP_FLAG_SYNC, ram_cap,
-                         RPC_ACK_MESSAGE(RPC_TYPE_RAM), size));
+    void **sendargs = (void **) malloc(sizeof(void *) * 3);
+    sendargs[0] = (void *) malloc(sizeof(struct lmp_chan));
+    sendargs[1] = (void *) malloc(sizeof(struct capref));
+    sendargs[2] = (void *) malloc(sizeof(size_t));
+    *((struct lmp_chan *) sendargs[0]) = *chan;
+    *((struct capref *) sendargs[1]) = ram_cap;
+    *((size_t *) sendargs[2]) = size;
+    CHECK(lmp_chan_register_send(chan, get_default_waitset(),
+                                 MKCLOSURE((void *) ram_send_handler, sendargs)));
 
     return SYS_ERR_OK;
 }
