@@ -34,6 +34,7 @@
 
 struct aos_rpc {
     struct lmp_chan chan;
+    unsigned int id;
     bool init;
 };
 

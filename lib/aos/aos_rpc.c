@@ -17,6 +17,7 @@
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL DETAILED
 
+unsigned int id = 0;
 static errval_t ram_receive_handler(void *args)
 {
     uintptr_t *uargs = (uintptr_t *) args;
@@ -400,6 +401,8 @@ static errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest)
 errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
     CHECK(rpc_handshake_helper(rpc, cap_initep));
+    rpc->id = id;
+    id++;
     // store rpc
     set_init_rpc(rpc);
     return SYS_ERR_OK;
