@@ -162,6 +162,46 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
+    // Testing some RPCs:
+    DBG(RELEASE, "Testing PUTCHAR RPC:\n");
+    CHECK(aos_rpc_serial_putchar(&rpc, 'I'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 't'));
+    CHECK(aos_rpc_serial_putchar(&rpc, ' '));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 's'));
+    CHECK(aos_rpc_serial_putchar(&rpc, ' '));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'w'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'o'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'r'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'k'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'g'));
+    CHECK(aos_rpc_serial_putchar(&rpc, '!'));
+    CHECK(aos_rpc_serial_putchar(&rpc, '\n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'w'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'l'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'i'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'n'));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
+    CHECK(aos_rpc_serial_putchar(&rpc, '\n'));
+
+    DBG(RELEASE, "Testing RAM RPC:\n");
+    size_t reqsize = 100;
+    size_t retsize;
+    struct capref frame_1;
+    CHECK(aos_rpc_get_ram_cap(&rpc, reqsize, BASE_PAGE_SIZE, &frame_1, &retsize));
+    DBG(RELEASE, "We asked for %u and got %u memory\n", reqsize, retsize);
+
+    reqsize = 1024 * 1024 * 10;
+    struct capref frame_2;
+    CHECK(aos_rpc_get_ram_cap(&rpc, reqsize, BASE_PAGE_SIZE, &frame_2, &retsize));
+    DBG(RELEASE, "We asked for %u and got %u memory\n", reqsize, retsize);
+
+    DBG(RELEASE, "Testing SEND-NUMBER RPC:\n");
+    CHECK(aos_rpc_send_number(&rpc, 1995));
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
