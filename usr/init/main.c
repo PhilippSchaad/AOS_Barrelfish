@@ -128,6 +128,7 @@ static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
 }
 
 char* string_recv_buff = NULL;
+unsigned int current_id;
 static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
                                     struct capref *cap)
 {
@@ -149,11 +150,13 @@ static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
         }
     } else {
         assert(msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING));
+        current_id = msg->words[1];
+        DBG(DETAILED, "id %u is printing now\n", current_id);
     }
 
     // we might receive a splitted message
-    for (uint8_t i=1; i<9; ++i){
-        if (i==1 && msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING)){
+    for (uint8_t i=2; i<9; ++i){
+        if (i==2 && msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING)){
             // allocate memory for the string
             string_recv_buff = malloc((uint32_t) msg->words[i] * sizeof(char));
             memset(string_recv_buff, 0, msg->words[i] * sizeof(char));

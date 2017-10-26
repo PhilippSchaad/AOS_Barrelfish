@@ -130,7 +130,7 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 
 static errval_t string_send_handler(uintptr_t *args)
 {
-    DBG(DETAILED, "string_send_handler (%d)\n", args[9]);
+    DBG(DETAILED, "string_send_handler (%d)\n", args[8]);
 
     struct aos_rpc *rpc = (struct aos_rpc *) args[0];
 
@@ -144,7 +144,8 @@ static errval_t string_send_handler(uintptr_t *args)
 
     errval_t err;
     err = lmp_chan_send9(&rpc->chan, LMP_FLAG_SYNC, NULL_CAP ,
-                         RPC_MESSAGE((uint32_t) args[9]), args[1], args[2],args[3],args[4],args[5],args[6],args[7],args[8]);
+                         RPC_MESSAGE((uint32_t) args[8]), rpc->id, args[1],
+                         args[2],args[3],args[4],args[5],args[6],args[7]);
     if (err_is_fail(err)){
         // Reregister if failed.
         CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
@@ -166,9 +167,9 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 
     struct waitset *ws = get_default_waitset();
 
-    uint32_t args[10];
+    uint32_t args[9];
     args[0] = (uint32_t) rpc; // cast pointer to int
-    args[9] = (uint32_t) RPC_TYPE_STRING;
+    args[8] = (uint32_t) RPC_TYPE_STRING;
 
     // get the length of the string (including the terminating 0)
     uint32_t len = strlen(string) + 1;
@@ -188,7 +189,7 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
             args[count] += string[i] << ((i%4)*8);
         }
         // send if full
-        if(count == 8 && i%4==3){
+        if(count == 7 && i%4==3){
             errval_t err;
             do {
                 // check if sender is currently busy
@@ -197,7 +198,7 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
                                            args));
                 CHECK(event_dispatch(ws));
             } while(err == LIB_ERR_CHAN_ALREADY_REGISTERED);
-            args[9] = (uint32_t) RPC_TYPE_STRING_DATA;
+            args[8] = (uint32_t) RPC_TYPE_STRING_DATA;
 
             // reset counter
             count = 0;
