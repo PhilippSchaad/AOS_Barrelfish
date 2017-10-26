@@ -73,6 +73,7 @@ static void libc_assert(const char *expression, const char *file,
     sys_print(buf, len < sizeof(buf) ? len : sizeof(buf));
 }
 
+// use this function for serial domain
 static size_t syscall_terminal_write(const char *buf, size_t len)
 {
     if (len) {
@@ -80,6 +81,17 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
     }
     return 0;
 }
+
+// use this function on all non serial domains
+static size_t serial_channel_write(const char *buf, size_t len)
+{
+    if (len) {
+        aos_rpc_send_string(aos_rpc_get_serial_channel(), buf);
+        return len;
+    }
+    return 0;
+}
+
 
 static size_t dummy_terminal_read(char *buf, size_t len)
 {
@@ -94,7 +106,11 @@ void barrelfish_libc_glue_init(void)
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
     _libc_terminal_read_func = dummy_terminal_read;
-    _libc_terminal_write_func = syscall_terminal_write;
+    if (init_domain){
+        _libc_terminal_write_func = syscall_terminal_write;
+    } else {
+        _libc_terminal_write_func = serial_channel_write;
+    }
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
     /* morecore func is setup by morecore_init() */
@@ -216,6 +232,9 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     DBG(RELEASE, "Testing SEND-NUMBER RPC:\n");
     CHECK(aos_rpc_send_number(&rpc, 1995));
+
+    printf("test the serial server print\n");
+
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;

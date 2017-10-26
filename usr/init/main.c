@@ -166,7 +166,7 @@ static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
             if(current_char == '\0'){
                 // we reached the end of the string
                 // TODO: do something with the string
-                printf("%s\n", string_recv_buff);
+                printf("Terminal: %s\n", string_recv_buff);
                 free(string_recv_buff);
                 string_recv_buff=NULL;
                 return SYS_ERR_OK;
