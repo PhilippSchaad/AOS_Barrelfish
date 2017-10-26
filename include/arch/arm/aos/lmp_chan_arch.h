@@ -49,16 +49,11 @@ lmp_ep_send(
     uintptr_t arg9
     )
 {
-    printf("1\n");
     enum cnode_type invoke_level = get_cap_level(ep);
-    printf("2\n");
     capaddr_t invoke_cptr = get_cap_addr(ep);
-    printf("3\n");
 
     enum cnode_type send_level = get_cap_level(send_cap);
-    printf("4\n");
     capaddr_t send_cptr = get_cap_addr(send_cap);
-    printf("5\n");
 
     assert(length_words <= LMP_MSG_LENGTH);
 

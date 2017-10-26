@@ -28,25 +28,60 @@
 
 #include "../tests/test.h"
 
+coreid_t my_core_id;
+struct bootinfo *bi;
+
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL DETAILED
 
-coreid_t my_core_id;
-struct bootinfo *bi;
+static errval_t number_send_handler(void *args)
+{
+    DBG(DETAILED, "init sends ACK for number\n");
+    struct lmp_chan* chan = (struct lmp_chan*) args;
+    printf("%zu\n", RPC_ACK_MESSAGE(RPC_TYPE_NUMBER));
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP,
+                         RPC_ACK_MESSAGE(RPC_TYPE_NUMBER)));
+    return SYS_ERR_OK;
+}
+
+static errval_t ram_send_handler(void **args)
+{
+    DBG(VERBOSE, "ram_send_handler sending ack\n");
+    struct lmp_chan *chan = (struct lmp_chan *) args[0];
+    struct capref *cap = (struct capref *) args[1];
+    size_t *size = (size_t *) args[2];
+
+    CHECK(lmp_chan_send2(chan, LMP_FLAG_SYNC, *cap,
+                         RPC_ACK_MESSAGE(RPC_TYPE_RAM), *size));
+
+    free(args[0]);
+    free(args[1]);
+    free(args[2]);
+    free(args);
+
+    return SYS_ERR_OK;
+}
 
 static errval_t handshake_send_handler(void *args)
 {
     DBG(DETAILED, "init sends ACK\n");
     struct lmp_chan* chan =(struct lmp_chan*) args;
-    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, 
+                         RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
     return SYS_ERR_OK;
 }
 
 static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
                                     struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(RELEASE, "We got the number %u via RPC\n", (uint32_t) msg->words[1]);
+
+    struct lmp_chan* chan = (struct lmp_chan*) args;
+
+    CHECK(lmp_chan_register_send(chan, get_default_waitset(),
+                                 MKCLOSURE((void *) number_send_handler,
+                                           chan)));
+    return SYS_ERR_OK;
 }
 
 static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
@@ -59,8 +94,37 @@ static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
 static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
                                  struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(VERBOSE, "ram request received\n");
+
+    assert(msg->buf.msglen >= 3);
+
+    size_t size = (size_t) msg->words[1];
+    size_t align = (size_t) msg->words[2];
+
+    struct capref ram_cap;
+    CHECK(aos_ram_alloc_aligned(&ram_cap, size, align));
+
+    struct lmp_chan *chan = (struct lmp_chan *) args;
+
+    // Fix size based on BASE_PAGE_SIZE, the way we're retrieving it.
+    if (size % BASE_PAGE_SIZE != 0) {
+        size += (size_t) BASE_PAGE_SIZE - (size % BASE_PAGE_SIZE);
+    }
+    DBG(DETAILED, "We got ram with size %zu\n", size);
+
+    // Send the response:
+    void **sendargs = (void **) malloc(sizeof(void *) * 3);
+    sendargs[0] = (void *) malloc(sizeof(struct lmp_chan));
+    sendargs[1] = (void *) malloc(sizeof(struct capref));
+    sendargs[2] = (void *) malloc(sizeof(size_t));
+    *((struct lmp_chan *) sendargs[0]) = *chan;
+    *((struct capref *) sendargs[1]) = ram_cap;
+    *((size_t *) sendargs[2]) = size;
+    CHECK(lmp_chan_register_send(chan, get_default_waitset(),
+                                 MKCLOSURE((void *) ram_send_handler,
+                                           sendargs)));
+
+    return SYS_ERR_OK;
 }
 
 static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
@@ -69,7 +133,7 @@ static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
     DBG(DETAILED, "putchar request received\n");
 
     // Print the character.
-    printf("%c", (char) msg->words[1]);
+    sys_print((char *) &msg->words[1], 1);
 
     return SYS_ERR_OK;
 }
