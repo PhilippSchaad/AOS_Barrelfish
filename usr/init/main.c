@@ -131,6 +131,7 @@ char* string_recv_buff = NULL;
 static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
                                     struct capref *cap)
 {
+    // TODO: this is currently not thread save....
     DBG(DETAILED, "receive string\n");
     char current_char;
 
