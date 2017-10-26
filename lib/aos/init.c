@@ -216,7 +216,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     DBG(RELEASE, "Testing SEND-NUMBER RPC:\n");
     CHECK(aos_rpc_send_number(&rpc, 1995));
-
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;

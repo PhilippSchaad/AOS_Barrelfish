@@ -55,14 +55,9 @@ static errval_t rpc_receive_handler(void *args)
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref child_cap;
     errval_t err = lmp_chan_recv(&rpc->chan, &msg, &child_cap);
-    // Regegister if failed.
-    if (err_is_fail(err) && lmp_err_is_transient(err)) {
-        CHECK(lmp_chan_register_recv(args, get_default_waitset(),
-                                     MKCLOSURE((void *) rpc_receive_handler,
-                                               args)));
+    if (err_is_fail(err)) {
         return err;
     }
-
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     switch (msg.words[0]) {
@@ -82,9 +77,10 @@ static errval_t rpc_receive_handler(void *args)
             DBG(DETAILED, "ACK Received (number)\n");
             break;
         default:
+            debug_printf("got message type %d", msg.words[0]);
             printf("%zu\n", msg.words[0]);
-            assert(!"NOT IMPLEMENTED");
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
+            assert(!"NOT IMPLEMENTED");
     }
 
     return SYS_ERR_OK;
