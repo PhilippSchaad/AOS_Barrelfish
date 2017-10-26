@@ -76,7 +76,8 @@ static void register_memory_tests(struct tester *t)
 
 static void register_spawn_tests(struct tester *t)
 {
-    register_test(t, spawn_hello1);
+    //register_test(t, spawn_hello1);
+    register_test(t, spawn_memeater);
     //register_test(t, spawn_hello10);
 }
 
