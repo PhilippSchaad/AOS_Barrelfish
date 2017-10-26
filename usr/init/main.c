@@ -31,6 +31,19 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
+static errval_t number_send_handler(void *args)
+{
+    DBG(DETAILED, "init sends ACK for number\n");
+    struct lmp_chan* chan = (struct lmp_chan*) args;
+    printf("%zu\n", RPC_ACK_MESSAGE(RPC_TYPE_NUMBER));
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP,
+                         RPC_ACK_MESSAGE(RPC_TYPE_NUMBER)));
+    return SYS_ERR_OK;
+}
+
 static errval_t ram_send_handler(void **args)
 {
     DBG(VERBOSE, "ram_send_handler sending ack\n");
@@ -61,8 +74,14 @@ static errval_t handshake_send_handler(void *args)
 static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
                                     struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(RELEASE, "We got the number %u via RPC\n", (uint32_t) msg->words[1]);
+
+    struct lmp_chan* chan = (struct lmp_chan*) args;
+
+    CHECK(lmp_chan_register_send(chan, get_default_waitset(),
+                                 MKCLOSURE((void *) number_send_handler,
+                                           chan)));
+    return SYS_ERR_OK;
 }
 
 static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,

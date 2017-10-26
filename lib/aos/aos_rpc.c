@@ -14,6 +14,9 @@
 
 #include <aos/aos_rpc.h>
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 static errval_t ram_receive_handler(void *args)
 {
     uintptr_t *uargs = (uintptr_t *) args;
@@ -75,7 +78,11 @@ static errval_t rpc_receive_handler(void *args)
                 "This is not intended. Expect badness.\n");
             // TODO: Handle?
             break;
+        case RPC_ACK_MESSAGE(RPC_TYPE_NUMBER):
+            DBG(DETAILED, "ACK Received (number)\n");
+            break;
         default:
+            printf("%zu\n", msg.words[0]);
             assert(!"NOT IMPLEMENTED");
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
     }
@@ -84,10 +91,43 @@ static errval_t rpc_receive_handler(void *args)
 
 }
 
+static errval_t number_send_handler(void *args)
+{
+    uintptr_t *uargs = (uintptr_t *) args;
+
+    struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
+    uintptr_t val = uargs[1];
+
+    CHECK(lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
+                         RPC_MESSAGE(RPC_TYPE_NUMBER), val));
+
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
-    // TODO: implement functionality to send a number ofer the channel
-    // given channel and wait until the ack gets returned.
+    DBG(VERBOSE, "rpc_send_number\n");
+
+    struct waitset *ws = get_default_waitset();
+
+    uintptr_t sendargs[2];
+
+    sendargs[0] = (uintptr_t) chan;
+    sendargs[1] = (uintptr_t) val;
+
+    CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
+
+    CHECK(lmp_chan_register_recv(&chan->chan, ws,
+                                 MKCLOSURE((void *) rpc_receive_handler,
+                                           sendargs)));
+
+    CHECK(lmp_chan_register_send(&chan->chan, ws,
+                                 MKCLOSURE((void *) number_send_handler,
+                                           sendargs)));
+    CHECK(event_dispatch(ws));
+
+    CHECK(event_dispatch(ws));
+
     return SYS_ERR_OK;
 }
 

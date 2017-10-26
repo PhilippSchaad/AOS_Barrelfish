@@ -200,6 +200,9 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     CHECK(aos_rpc_get_ram_cap(&rpc, reqsize, BASE_PAGE_SIZE, &frame_2, &retsize));
     DBG(RELEASE, "We asked for %u and got %u memory\n", reqsize, retsize);
 
+    DBG(RELEASE, "Testing SEND-NUMBER RPC:\n");
+    CHECK(aos_rpc_send_number(&rpc, 1995));
+
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;
