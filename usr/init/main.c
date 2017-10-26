@@ -49,11 +49,53 @@ static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
+char* string_recv_buff = NULL;
 static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
                                     struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(DETAILED, "receive string\n");
+    char current_char;
+
+    uint32_t count=0;
+
+    if(string_recv_buff != NULL){
+        //debug_printf("find count\n");
+        assert(msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING_DATA));
+        // find the counter
+        while(true){
+            if((uint8_t) string_recv_buff[count] == 0){
+                break;
+            }
+            ++count;
+        }
+    } else {
+        assert(msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING));
+    }
+
+    // we might receive a splitted message
+    for (uint8_t i=1; i<9; ++i){
+        if (i==1 && msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING)){
+            // allocate memory for the string
+            string_recv_buff = malloc((uint32_t) msg->words[i] * sizeof(char));
+            memset(string_recv_buff, 0, msg->words[i] * sizeof(char));
+            count=0;
+            //printf("str with size %d allocated at 0x%p\n", (uint32_t) msg->words[i], string_recv_buff);
+            continue;
+        }
+        for (uint8_t j=0; j<4; ++j){
+            current_char = (char) ((uint32_t) msg->words[i] >> 8*j);
+            if(current_char == '\0'){
+                // we reached the end of the string
+                // TODO: do something with the string
+                printf("%s\n", string_recv_buff);
+                free(string_recv_buff);
+                string_recv_buff=NULL;
+                return SYS_ERR_OK;
+            }
+            string_recv_buff[count++] = current_char;
+        }
+    }
+    return SYS_ERR_OK;
 }
 
 static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
@@ -69,7 +111,7 @@ static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
     DBG(DETAILED, "putchar request received\n");
 
     // Print the character.
-    printf("%c", (char) msg->words[1]);
+    debug_printf("%c", (char) msg->words[1]);
 
     return SYS_ERR_OK;
 }
@@ -94,7 +136,6 @@ static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
 
 static errval_t general_recv_handler(void *args)
 {
-    DBG(VERBOSE, "Handling RPC-receipt\n");
 
     struct lmp_chan *chan = (struct lmp_chan *) args;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
@@ -107,6 +148,7 @@ static errval_t general_recv_handler(void *args)
                                            args)));
 
     assert(msg.buf.msglen > 0);
+    DBG(VERBOSE, "Handling RPC receive event (type %d)\n", msg.words[0]);
 
     // Check the message type and handle it accordingly.
     switch (msg.words[0]) {
@@ -114,6 +156,9 @@ static errval_t general_recv_handler(void *args)
             CHECK(number_recv_handler(args, &msg, &cap));
             break;
         case RPC_MESSAGE(RPC_TYPE_STRING):
+            CHECK(string_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
             CHECK(string_recv_handler(args, &msg, &cap));
             break;
         case RPC_MESSAGE(RPC_TYPE_RAM):

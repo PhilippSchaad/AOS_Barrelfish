@@ -187,7 +187,19 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
     char greeting[6] = {'H', 'e', 'l', 'l', 'o', '\0'};
     CHECK(aos_rpc_send_string(&rpc, greeting));
-
+    //try long message
+    char longmessage[101];
+    for(uint8_t i=0;i<99;++i){
+        if(i%2){
+            longmessage[i] = 'a';
+        } else {
+            longmessage[i] = 'b';
+        }
+    }
+    longmessage[99] = 'e';
+    longmessage[100] = '\0';
+    CHECK(aos_rpc_send_string(&rpc, longmessage));
+    CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;

@@ -61,27 +61,27 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 
 static errval_t string_send_handler(uintptr_t *args)
 {
-    assert((char *) args[1] != NULL);
-    DBG(DETAILED, "string_send_handler\n");
+    DBG(DETAILED, "string_send_handler (%d)\n", args[9]);
 
     struct aos_rpc *rpc = (struct aos_rpc *) args[0];
 
-   // for (uint8_t i=1; i<9; ++i){
-   //     printf("%#010x\n", args[i]);
-   //     for (uint8_t j=0; j<4; ++j){
-   //         debug_printf("%c", (char) ((uint32_t) args[i] >> 8*j) );
-   //    }
-   //    debug_printf("\n");
-   // }
+    //printf("send:\n");
+    //for (uint8_t i=1; i<9; ++i){
+    //    for (uint8_t j=0; j<4; ++j){
+    //        printf("%c", (char) ((uint32_t) args[i] >> 8*j) );
+    //   }
+    //   printf("\n\n");
+    //}
 
     errval_t err;
-    err = lmp_chan_send9(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
-                         RPC_MESSAGE(RPC_TYPE_STRING), args[1], args[2],args[3],args[4],args[5],args[6],args[7],args[8]);
+    err = lmp_chan_send9(&rpc->chan, LMP_FLAG_SYNC, NULL_CAP ,
+                         RPC_MESSAGE((uint32_t) args[9]), args[1], args[2],args[3],args[4],args[5],args[6],args[7],args[8]);
     if (err_is_fail(err)){
         // Reregister if failed.
         CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
                                      MKCLOSURE((void *) string_send_handler,
                                                args)));
+        CHECK(event_dispatch(get_default_waitset()));
     }
 
     return SYS_ERR_OK;
@@ -97,14 +97,18 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 
     struct waitset *ws = get_default_waitset();
 
-    uint32_t args[9];
+    uint32_t args[10];
     args[0] = (uint32_t) rpc; // cast pointer to int
+    args[9] = (uint32_t) RPC_TYPE_STRING;
 
-    // get the length of the string
-    uint32_t len = strlen(string);
+    // get the length of the string (including the terminating 0)
+    uint32_t len = strlen(string) + 1;
 
     uint8_t count = 0; // we init with 0 to be able to add 1 at the beginning
-    for (uint32_t i=0; i<len;++i){
+
+    // we send the size of the string in the first message
+    args[++count] = len;
+    for (uint32_t i=0; i<=len;++i){
         // we go through the array and pack 4 of them together
         if (i%4==0){
             // increase count
@@ -112,10 +116,10 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
             args[++count] = string[i];
         } else {
             // shift and add the other 3 values
-            args[count] += string[i] << ((i%8)*8);
+            args[count] += string[i] << ((i%4)*8);
         }
         // send if full
-        if(count == 7 && i%4==3){
+        if(count == 8 && i%4==3){
             errval_t err;
             do {
                 // check if sender is currently busy
@@ -124,6 +128,7 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
                                            args));
                 CHECK(event_dispatch(ws));
             } while(err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+            args[9] = (uint32_t) RPC_TYPE_STRING_DATA;
 
             // reset counter
             count = 0;
@@ -141,7 +146,6 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
             CHECK(event_dispatch(ws));
         } while(err == LIB_ERR_CHAN_ALREADY_REGISTERED);
     }
-
     // and wait for a response.
     return SYS_ERR_OK;
 }
