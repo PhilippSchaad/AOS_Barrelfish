@@ -34,19 +34,97 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
+struct domain {
+    struct lmp_chan chan;
+    struct capability identification_cap;
+
+    struct domain *next;
+};
+
+struct domain_list {
+    struct domain *head;
+};
+
+struct domain_list *active_domains = NULL;
+
+/// Try to find the correct domain identified by cap.
+static struct domain * find_domain(struct capref *cap)
+{
+    struct capability identification_cap;
+    CHECK(debug_cap_identify(*cap, &identification_cap));
+
+    assert(active_domains != NULL);
+
+    struct domain *current = active_domains->head;
+    while (current != NULL) {
+        if (current->identification_cap.u.endpoint.epoffset ==
+                identification_cap.u.endpoint.epoffset &&
+                current->identification_cap.u.endpoint.listener ==
+                identification_cap.u.endpoint.listener) {
+            return current;
+        }
+        current = current->next;
+    }
+
+    DBG(DETAILED, "Domain not found\n");
+
+    return NULL;
+}
+
+static errval_t number_send_handler(void *args)
+{
+    DBG(DETAILED, "init sends ACK for number\n");
+
+    struct lmp_chan *chan = (struct lmp_chan *) args;
+
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP,
+                         RPC_ACK_MESSAGE(RPC_TYPE_NUMBER)));
+    return SYS_ERR_OK;
+}
+
+static errval_t ram_send_handler(void **args)
+{
+    DBG(VERBOSE, "ram_send_handler sending ack\n");
+    struct lmp_chan *chan = (struct lmp_chan *) args[0];
+    struct capref *cap = (struct capref *) args[1];
+    size_t *size = (size_t *) args[2];
+
+    CHECK(lmp_chan_send2(chan, LMP_FLAG_SYNC, *cap,
+                         RPC_ACK_MESSAGE(RPC_TYPE_RAM), *size));
+
+    free(args[0]);
+    free(args[1]);
+    free(args[2]);
+    free(args);
+
+    return SYS_ERR_OK;
+}
+
 static errval_t handshake_send_handler(void *args)
 {
     DBG(DETAILED, "init sends ACK\n");
-    struct lmp_chan* chan =(struct lmp_chan*) args;
-    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
+
+    struct lmp_chan *chan = (struct lmp_chan *) args;
+
+    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP, 
+                         RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
     return SYS_ERR_OK;
 }
 
 static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
                                     struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(RELEASE, "We got the number %u via RPC\n", (uint32_t) msg->words[1]);
+
+    struct domain *dom = find_domain(cap);
+    if (dom == NULL) {
+        assert(!"Failed to find active domain!");
+    }
+
+    CHECK(lmp_chan_register_send(&dom->chan, get_default_waitset(),
+                                 MKCLOSURE((void *) number_send_handler,
+                                           &dom->chan)));
+    return SYS_ERR_OK;
 }
 
 char* string_recv_buff = NULL;
@@ -101,8 +179,40 @@ static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
 static errval_t ram_recv_handler(void *args, struct lmp_recv_msg *msg,
                                  struct capref *cap)
 {
-    // TODO: Implement.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(VERBOSE, "ram request received\n");
+
+    assert(msg->buf.msglen >= 3);
+
+    struct domain *dom = find_domain(cap);
+    if (dom == NULL) {
+        assert(!"Failed to find active domain!");
+    }
+
+    size_t size = (size_t) msg->words[1];
+    size_t align = (size_t) msg->words[2];
+
+    struct capref ram_cap;
+    CHECK(aos_ram_alloc_aligned(&ram_cap, size, align));
+
+    // Fix size based on BASE_PAGE_SIZE, the way we're retrieving it.
+    if (size % BASE_PAGE_SIZE != 0) {
+        size += (size_t) BASE_PAGE_SIZE - (size % BASE_PAGE_SIZE);
+    }
+    DBG(DETAILED, "We got ram with size %zu\n", size);
+
+    // Send the response:
+    void **sendargs = (void **) malloc(sizeof(void *) * 3);
+    sendargs[0] = (void *) malloc(sizeof(struct lmp_chan));
+    sendargs[1] = (void *) malloc(sizeof(struct capref));
+    sendargs[2] = (void *) malloc(sizeof(size_t));
+    *((struct lmp_chan *) sendargs[0]) = dom->chan;
+    *((struct capref *) sendargs[1]) = ram_cap;
+    *((size_t *) sendargs[2]) = size;
+    CHECK(lmp_chan_register_send(&dom->chan, get_default_waitset(),
+                                 MKCLOSURE((void *) ram_send_handler,
+                                           sendargs)));
+
+    return SYS_ERR_OK;
 }
 
 static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
@@ -111,7 +221,7 @@ static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
     DBG(DETAILED, "putchar request received\n");
 
     // Print the character.
-    debug_printf("%c", (char) msg->words[1]);
+    sys_print((char *) &msg->words[1], 1);
 
     return SYS_ERR_OK;
 }
@@ -120,15 +230,29 @@ static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
 {
     DBG(DETAILED, "init received cap\n");
 
-    struct lmp_chan* chan =(struct lmp_chan*) args;
+    // Check if the domain/channel already exists. If so, no need to create one
+    struct domain *dom = find_domain(child_cap);
+    if (dom == NULL) {
+        dom = (struct domain *) malloc(sizeof(struct domain));
+        dom->next = active_domains->head;
+        active_domains->head = dom;
 
-    // set the remote cap we just got from the child
-    chan->remote_cap = *child_cap;
+        struct capability identification_cap;
+        CHECK(debug_cap_identify(*child_cap, &identification_cap));
+        dom->identification_cap = identification_cap;
+
+        CHECK(lmp_chan_accept(&dom->chan, DEFAULT_LMP_BUF_WORDS, *child_cap));
+
+        // set the remote cap we just got from the child
+        dom->chan.remote_cap = *child_cap;
+
+        DBG(DETAILED, "Created new channel\n");
+    }
 
     // Send ACK to the child
-    CHECK(lmp_chan_register_send(chan, get_default_waitset(),
+    CHECK(lmp_chan_register_send(&dom->chan, get_default_waitset(),
                                  MKCLOSURE((void *)handshake_send_handler,
-                                           chan)));
+                                           &dom->chan)));
 
     DBG(DETAILED, "successfully received cap\n");
     return SYS_ERR_OK;
@@ -207,6 +331,9 @@ int main(int argc, char *argv[])
     // create the init ep
     CHECK(cap_retype(cap_selfep, cap_dispatcher,0, ObjType_EndPoint, 0, 1));
 
+    // Structure to keep track of domains.
+    active_domains = malloc(sizeof(struct domain_list));
+
     // create channel to receive child eps
     struct lmp_chan chan;
     CHECK(lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
@@ -233,6 +360,8 @@ int main(int argc, char *argv[])
             abort();
         }
     }
+
+    free(active_domains);
 
     return EXIT_SUCCESS;
 }
