@@ -27,9 +27,6 @@
 #include "threads_priv.h"
 #include "init.h"
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
 
@@ -166,6 +163,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
     // Testing some RPCs:
+    DBG(RELEASE, "Testing PUTCHAR RPC:\n");
     CHECK(aos_rpc_serial_putchar(&rpc, 'I'));
     CHECK(aos_rpc_serial_putchar(&rpc, 't'));
     CHECK(aos_rpc_serial_putchar(&rpc, ' '));
@@ -190,15 +188,17 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     CHECK(aos_rpc_serial_putchar(&rpc, 'e'));
     CHECK(aos_rpc_serial_putchar(&rpc, '\n'));
 
-    DBG(VERBOSE, "Testing RAM RPC\n");
+    DBG(RELEASE, "Testing RAM RPC:\n");
     size_t reqsize = 100;
     size_t retsize;
-    struct capref frame;
-    CHECK(aos_rpc_get_ram_cap(&rpc, reqsize, BASE_PAGE_SIZE, &frame, &retsize));
-    DBG(VERBOSE, "We asked for %u and got %u memory\n", reqsize, retsize);
-    void *buf;
-    CHECK(paging_map_frame_attr(get_current_paging_state(), &buf, retsize,
-                                frame, VREGION_FLAGS_READ_WRITE, NULL, NULL));
+    struct capref frame_1;
+    CHECK(aos_rpc_get_ram_cap(&rpc, reqsize, BASE_PAGE_SIZE, &frame_1, &retsize));
+    DBG(RELEASE, "We asked for %u and got %u memory\n", reqsize, retsize);
+
+    reqsize = 1024 * 1024 * 10;
+    struct capref frame_2;
+    CHECK(aos_rpc_get_ram_cap(&rpc, reqsize, BASE_PAGE_SIZE, &frame_2, &retsize));
+    DBG(RELEASE, "We asked for %u and got %u memory\n", reqsize, retsize);
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here

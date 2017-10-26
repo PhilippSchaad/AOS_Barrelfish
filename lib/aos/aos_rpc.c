@@ -14,9 +14,6 @@
 
 #include <aos/aos_rpc.h>
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 static errval_t ram_receive_handler(void *args)
 {
     uintptr_t *uargs = (uintptr_t *) args;
@@ -54,18 +51,14 @@ static errval_t rpc_receive_handler(void *args)
     // Get the message from the child.
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref child_cap;
-    DBG(DETAILED, "1\n");
     errval_t err = lmp_chan_recv(&rpc->chan, &msg, &child_cap);
     // Regegister if failed.
-    DBG(DETAILED, "2\n");
     if (err_is_fail(err) && lmp_err_is_transient(err)) {
         CHECK(lmp_chan_register_recv(args, get_default_waitset(),
                                      MKCLOSURE((void *) rpc_receive_handler,
                                                args)));
-        DBG(DETAILED, "orhere\n");
         return err;
     }
-    DBG(DETAILED, "here\n");
 
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
@@ -78,7 +71,9 @@ static errval_t rpc_receive_handler(void *args)
             DBG(DETAILED, "ACK Received (putchar) \n");
             break;
         case RPC_ACK_MESSAGE(RPC_TYPE_RAM):
-            DBG(DETAILED, "ACK Received (ram)\n");
+            DBG(WARN, "RAM RPC received, but with standard handler\n"
+                "This is not intended. Expect badness.\n");
+            // TODO: Handle?
             break;
         default:
             assert(!"NOT IMPLEMENTED");
@@ -120,7 +115,6 @@ static errval_t ram_send_handler(uintptr_t *args)
         err = lmp_chan_send3(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
                              RPC_MESSAGE(RPC_TYPE_RAM), size, align);
     } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
-    DBG(DETAILED, "rpc_ram_send_handler returned\n");
 
     return SYS_ERR_OK;
 }
@@ -128,7 +122,7 @@ static errval_t ram_send_handler(uintptr_t *args)
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
                              struct capref *retcap, size_t *ret_size)
 {
-    DBG(DETAILED, "rpc_get_ram_cap\n");
+    DBG(VERBOSE, "rpc_get_ram_cap\n");
 
     struct waitset *ws = get_default_waitset();
 
@@ -149,12 +143,9 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     CHECK(lmp_chan_register_send(&chan->chan, ws,
                                  MKCLOSURE((void *) ram_send_handler,
                                            sendargs)));
-    DBG(DETAILED, "a\n");
     CHECK(event_dispatch(ws));
-    DBG(DETAILED, "b\n");
 
     CHECK(event_dispatch(ws));
-    DBG(DETAILED, "c (ret)\n");
 
     *retcap = *((struct capref *) sendargs[3]);
     *ret_size = *((size_t *) sendargs[4]);
@@ -172,10 +163,9 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 static errval_t putchar_send_handler(uintptr_t *args)
 {
     assert((char *) args[1] != NULL);
-    DBG(DETAILED, "putchar_send_handler\n");
+    DBG(VERBOSE, "putchar_send_handler\n");
 
     struct aos_rpc *rpc = (struct aos_rpc *) args[0];
-    DBG(DETAILED, "The arg is: %c\n", *(char *)args[1]);
 
     errval_t err;
     err = lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
