@@ -14,9 +14,6 @@
 
 #include <aos/aos_rpc.h>
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 unsigned int id = 0;
 __attribute__((unused))
 static errval_t ram_receive_handler(void *args)
