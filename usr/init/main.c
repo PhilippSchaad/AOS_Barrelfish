@@ -37,7 +37,8 @@ struct bootinfo *bi;
 struct domain {
     struct lmp_chan chan;
     struct capability identification_cap;
-
+    int id;
+    char* name;
     struct domain *next;
 };
 
@@ -230,7 +231,7 @@ static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
 
     return SYS_ERR_OK;
 }
-
+static int pid;
 static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
 {
     DBG(DETAILED, "init received cap\n");
@@ -239,6 +240,7 @@ static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
     struct domain *dom = find_domain(child_cap);
     if (dom == NULL) {
         dom = (struct domain *) malloc(sizeof(struct domain));
+        dom->id = pid++;
         dom->next = active_domains->head;
         active_domains->head = dom;
 
@@ -262,6 +264,13 @@ static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
     DBG(DETAILED, "successfully received cap\n");
     return SYS_ERR_OK;
 }
+
+static errval_t process_get_name_recv_handler(void* args, struct lmp_recv_msg *msg) {
+    //Todo: lookup msg.words[1] in table of processes
+//    msg.words[1];
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
 
 static errval_t general_recv_handler(void *args)
 {
@@ -299,6 +308,11 @@ static errval_t general_recv_handler(void *args)
         case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
             CHECK(handshake_recv_handler(args, &cap));
             break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
+            CHECK(process_get_name_recv_handler(args,&msg));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
         default:
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
             // TODO: Maybe return an error instead of continuing?
