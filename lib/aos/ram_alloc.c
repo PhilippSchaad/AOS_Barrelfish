@@ -14,11 +14,26 @@
 
 #include <aos/aos.h>
 #include <aos/core_state.h>
+#include <aos/aos_rpc.h>
 
 /* remote (indirect through a channel) version of ram_alloc, for most domains */
 static errval_t ram_alloc_remote(struct capref *ret, size_t size, size_t alignment)
 {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    /* from the book on this procedure:
+     * As a hint, receiving a capability always uses a slot in your CSPACE. If you run out
+of slots, you will need to get new memory to create a new CNODE to hold new
+capabilities. You may want to make sure that you always have enough free slots
+available.
+     */
+    size_t bytes;
+    struct aos_rpc *memchan = aos_rpc_get_memory_channel();
+    errval_t err = aos_rpc_get_ram_cap(memchan, size, alignment, ret, &bytes);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "ram_alloc_remote had an issue\n");
+        return err;
+    }
+
+    return SYS_ERR_OK;
 }
 
 
@@ -133,7 +148,7 @@ errval_t ram_alloc_set(ram_alloc_func_t local_allocator)
         return SYS_ERR_OK;
     }
 
-    USER_PANIC("ram_alloc_set(NULL) NYI");
+    //USER_PANIC("ram_alloc_set(NULL) NYI");
     ram_alloc_state->ram_alloc_func = ram_alloc_remote;
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }

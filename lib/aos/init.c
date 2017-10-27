@@ -175,6 +175,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // TODO MILESTONE 3: register ourselves with init
     struct aos_rpc rpc;
     aos_rpc_init(&rpc);
+    ram_alloc_set(NULL);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
