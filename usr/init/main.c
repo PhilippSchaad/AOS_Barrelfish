@@ -73,12 +73,13 @@ static struct domain * find_domain(struct capref *cap)
 
 static errval_t number_send_handler(void *args)
 {
-    DBG(DETAILED, "init sends ACK for number\n");
+/* how about we don't throw a number ack into our pipeline where it rots forever
+  DBG(DETAILED, "init sends ACK for number\n");
 
     struct lmp_chan *chan = (struct lmp_chan *) args;
 
     CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP,
-                         RPC_ACK_MESSAGE(RPC_TYPE_NUMBER)));
+                         RPC_ACK_MESSAGE(RPC_TYPE_NUMBER)));*/
     return SYS_ERR_OK;
 }
 

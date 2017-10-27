@@ -18,27 +18,36 @@
 #define DEBUG_LEVEL DETAILED
 
 unsigned int id = 0;
+__attribute__((unused))
 static errval_t ram_receive_handler(void *args)
 {
     uintptr_t *uargs = (uintptr_t *) args;
     struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
     struct capref *retcap = (struct capref *) uargs[3];
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    
+    DBG(DETAILED,"before call to get mem stuff done\n");
     errval_t err = lmp_chan_recv(&rpc->chan, &msg, retcap);
     // Regegister if failed.
     if (err_is_fail(err) && lmp_err_is_transient(err)) {
+        DBG(DETAILED,"rereg ram_receive_handler\n");
         CHECK(lmp_chan_register_recv(&rpc->chan, get_default_waitset(),
                                      MKCLOSURE((void *) ram_receive_handler,
                                                args)));
         return err;
     }
-
+    if(err_is_fail(err)) {
+        DBG(ERR, "ram_receive_handler's call to lmp_chan_recv failed non-transiently\n");
+        return err;
+    }
+    DBG(DETAILED, "after call to get mem stuff done\n");
     assert(msg.buf.msglen >= 2);
 
     if (msg.words[0] != RPC_ACK_MESSAGE(RPC_TYPE_RAM)) {
-        DBG(ERR, "This is bad\n");
+        DBG(ERR, "This is bad, we got msg type (raw, aka shifted to the left): %p\n",msg.words[0]);
         // TODO: handle?
+    }
+    if(retcap->cnode.cnode == NULL_CAP.cnode.cnode && retcap->cnode.level == NULL_CAP.cnode.level && retcap->cnode.croot == NULL_CAP.cnode.croot && retcap->slot == NULL_CAP.slot) {
+        DBG(ERR, "Got null cap back :(\n");
     }
 
     size_t *retsize = (size_t *) uargs[4];
@@ -232,6 +241,7 @@ static errval_t ram_send_handler(uintptr_t *args)
 
     errval_t err;
     do {
+        DBG(DETAILED, "calling lmp_chan_send3 in rpc_ram_send_handler\n");
         // check if sender is currently busy
         // TODO: could we implement some kind of buffer for this?
         err = lmp_chan_send3(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
@@ -258,16 +268,19 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
     CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
 
-    CHECK(lmp_chan_register_recv(&chan->chan, ws,
-                                 MKCLOSURE((void *) ram_receive_handler,
-                                           sendargs)));
 
     CHECK(lmp_chan_register_send(&chan->chan, ws,
                                  MKCLOSURE((void *) ram_send_handler,
                                            sendargs)));
-    CHECK(event_dispatch(ws));
 
+    CHECK(lmp_chan_register_recv(&chan->chan, ws,
+                                 MKCLOSURE((void *) ram_receive_handler,
+                                           sendargs)));
+DBG(DETAILED,"event dispatch 1\n");
     CHECK(event_dispatch(ws));
+    DBG(DETAILED,"event dispatch 2\n");
+    CHECK(event_dispatch(ws));
+    DBG(DETAILED,"event dispatch done\n");
 
     *retcap = *((struct capref *) sendargs[3]);
     *ret_size = *((size_t *) sendargs[4]);

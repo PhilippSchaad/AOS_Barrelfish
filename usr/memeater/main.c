@@ -66,7 +66,7 @@ static errval_t request_and_map_memory(void)
     void *buf1;
     err = paging_map_frame(pstate, &buf1, BASE_PAGE_SIZE, cap1_frame, NULL, NULL);
     if (err_is_fail(err)) {
-        DEBUG_ERR(err, "could not get BASE_PAGE_SIZE cap\n");
+        DEBUG_ERR(err, "could not map BASE_PAGE_SIZE cap\n");
         return err;
     }
 
@@ -81,23 +81,34 @@ static errval_t request_and_map_memory(void)
                  LARGE_PAGE_SIZE);
 
     struct capref cap2;
-    err = frame_alloc(&cap2, LARGE_PAGE_SIZE, &bytes);
+    err = aos_rpc_get_ram_cap(&init_rpc, LARGE_PAGE_SIZE, BASE_PAGE_SIZE, &cap2, &bytes);
     if (err_is_fail(err)) {
-        DEBUG_ERR(err, "could not get BASE_PAGE_SIZE cap\n");
+        debug_printf("err code: %s\n",err_getcode(err));
+        DEBUG_ERR(err, "could not get LARGE_PAGE_SIZE cap\n");
         return err;
     }
 
-    err = invoke_frame_identify(cap2, &id);
+    struct capref cap2_frame;
+    err = slot_alloc(&cap2_frame);
+    assert(err_is_ok(err));
+
+    err = cap_retype(cap2_frame, cap2, 0, ObjType_Frame, LARGE_PAGE_SIZE, 1);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "could not retype RAM cap to frame cap\n");
+        return err;
+    }
+
+    err = invoke_frame_identify(cap2_frame, &id);
     assert(err_is_ok(err));
 
     void *buf2;
-    err = paging_map_frame(pstate, &buf2, LARGE_PAGE_SIZE, cap2, NULL, NULL);
+    err = paging_map_frame(pstate, &buf2, LARGE_PAGE_SIZE, cap2_frame, NULL, NULL);
     if (err_is_fail(err)) {
-        DEBUG_ERR(err, "could not get BASE_PAGE_SIZE cap\n");
+        DEBUG_ERR(err, "could not map LARGE_PAGE_SIZE cap\n");
         return err;
     }
 
-    debug_printf("got frame: 0x%" PRIxGENPADDR " mapped at %p\n", id.base, buf1);
+    debug_printf("got frame: 0x%" PRIxGENPADDR " mapped at %p\n", id.base, buf2);
 
     debug_printf("performing memset.\n");
     memset(buf2, 0x00, LARGE_PAGE_SIZE);
