@@ -28,9 +28,6 @@
 
 #include "../tests/test.h"
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 coreid_t my_core_id;
 struct bootinfo *bi;
 
