@@ -265,12 +265,78 @@ static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
     return SYS_ERR_OK;
 }
 
-static errval_t process_get_name_recv_handler(void* args, struct lmp_recv_msg *msg) {
-    //Todo: lookup msg.words[1] in table of processes
-//    msg.words[1];
-    return LIB_ERR_NOT_IMPLEMENTED;
+struct adhoc_process_table {
+    int id;
+    char* name;
+    struct spawninfo *si;
+    struct adhoc_process_table* next;
+};
+
+static struct adhoc_process_table *adhoc_process_table = NULL;
+
+static errval_t spawn_recv_handler(void *args, struct lmp_recv_msg *msg, struct capref* cap) {
+//    struct lmp_chan *chan = (struct lmp_chan *) args;
+    int totalcount = (int)msg->words[1];
+    if(totalcount > 4*6)
+        return -1; //todo: real error number
+    char *name = (char*) malloc(sizeof(char) * (4*6+1));
+    for(int i = 0; i < totalcount; i++) {
+        char *c = (char*)&(msg->words[(i>>2)+2]);
+        name[i] = c[i%4];
+    }
+    name[totalcount] = '\0';
+    struct spawninfo* si = (struct spawninfo*) malloc(sizeof(struct spawninfo));
+    errval_t err;
+    err = spawn_load_by_name(name, si);
+    size_t ret_id = si->paging_state.debug_paging_state_index;
+    struct adhoc_process_table *apt = (struct adhoc_process_table*) malloc(sizeof(struct adhoc_process_table));
+    apt->id = ret_id;
+    apt->name = name;
+    apt->si = si;
+    apt->next = adhoc_process_table;
+    adhoc_process_table = apt;
+    struct domain *dom = find_domain(cap);
+    if (dom == NULL) {
+        assert(!"Failed to find active domain!");
+    }
+    CHECK(lmp_chan_send2(&dom->chan, LMP_FLAG_SYNC, NULL_CAP,
+                         RPC_ACK_MESSAGE(RPC_TYPE_PROCESS_SPAWN),(uintptr_t)ret_id));
+    return SYS_ERR_OK;
 }
 
+static errval_t process_get_name_recv_handler(struct capref* cap, struct lmp_recv_msg* msg) {
+
+    int id = (int)msg->words[1];
+    struct adhoc_process_table *apt = adhoc_process_table;
+    char* name;
+    bool found = false;
+    while(apt) {
+        if(apt->id == id) {
+            name = apt->name;
+            found = true;
+            break;
+        }
+        apt = apt->next;
+    }
+    if(!found)
+        name = "No Such Id, Sorry.";
+
+    uintptr_t sendargs[9]; //1+1
+    size_t totalcount = strlen(name);
+    sendargs[1] = (uintptr_t)totalcount;
+    if(totalcount > 4*6)
+        return -1; //TODO: Real error message
+    for(int i = 0; i < totalcount; i++) {
+        sendargs[(i >> 2)+2] = (i % 4 ? sendargs[(i >> 2)+2] : 0) + (name[i] << (8*(i % 4)));
+    }
+    struct domain *dom = find_domain(cap);
+    if (dom == NULL) {
+        assert(!"Failed to find active domain!");
+    }
+    CHECK(lmp_chan_send9(&dom->chan, LMP_FLAG_SYNC, NULL_CAP,
+                         RPC_ACK_MESSAGE(RPC_TYPE_PROCESS_GET_NAME),sendargs[1],sendargs[2],sendargs[3],sendargs[4],sendargs[5],sendargs[6],sendargs[7],sendargs[8]));
+    return SYS_ERR_OK;
+}
 
 static errval_t general_recv_handler(void *args)
 {
@@ -309,9 +375,11 @@ static errval_t general_recv_handler(void *args)
             CHECK(handshake_recv_handler(args, &cap));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
-            CHECK(process_get_name_recv_handler(args,&msg));
+            CHECK(process_get_name_recv_handler(&cap,&msg));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
+            CHECK(spawn_recv_handler(args,&msg,&cap));
+            break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
         default:
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");

@@ -169,5 +169,12 @@ int main(int argc, char *argv[])
 
     debug_printf("memeater terminated....\n");
 
+    domainid_t ret;
+    aos_rpc_process_spawn(&init_rpc,"hello",1,&ret);
+    char *name;
+    aos_rpc_process_get_name(&init_rpc,ret,&name);
+    debug_printf("We spawned 'hello' and then requested the name of the process with its idea, result: %s\n",name);
+    //disabled because it gets ugly, as the name would indicate
+    //aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
     return EXIT_SUCCESS;
 }

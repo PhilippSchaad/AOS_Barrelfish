@@ -16,6 +16,7 @@ module /armv7/sbin/hello I_am_a_fancy_argument another_one
 
 # milestone 3
 module /armv7/sbin/memeater
+module /armv7/sbin/forkbomb
 
 # For pandaboard, use following values.
 mmap map 0x40000000 0x40000000 13 # Devices
