@@ -17,6 +17,92 @@
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL DETAILED
 
+
+#define send_handler_core(name,asserts,sendline) static errval_t name(uintptr_t* args) { \
+    DBG(VERBOSE, #name"\n") \
+    asserts;\
+    struct aos_rpc *rpc = (struct aos_rpc *) args[0]; \
+    errval_t err; \
+    err = sendline; \
+    if (err_is_fail(err)){ \
+        /* Reregister if failed. */ \
+        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),\
+                                     MKCLOSURE((void *) putchar_send_handler,\
+                                               args)));\
+    }\
+    return SYS_ERR_OK;\
+}
+
+#define send_handler_0(name,type) send_handler_core(name,,lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,type));
+#define send_handler_1(name,type,arg) send_handler_core(name,,lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,type,arg));
+
+#define impl(send_handler,receive_handler,recvslot) \
+    if(recvslot == true) CHECK(lmp_chan_alloc_recv_slot(&chan->chan)); \
+    CHECK(lmp_chan_register_send(&chan->chan, ws,MKCLOSURE((void *) send_handler,sendargs))); \
+    CHECK(lmp_chan_register_recv(&chan->chan, ws,MKCLOSURE((void *) receive_handler,sendargs))); \
+    CHECK(event_dispatch(ws)); \
+    CHECK(event_dispatch(ws));
+
+#define recv_handler_fleshy_bits(name,capindex,type) \
+    DBG(VERBOSE,#name"\n"); \
+    struct aos_rpc *rpc = (struct aos_rpc *) args[0]; \
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT; \
+    errval_t err;\
+    if(capindex != -1) { \
+        struct capref *retcap = (struct capref *) args[capindex]; \
+        err = lmp_chan_recv(&rpc->chan, &msg, retcap); \
+    }else {\
+        err = lmp_chan_recv(&rpc->chan, &msg, NULL);\
+    }\
+    if (err_is_fail(err) && lmp_err_is_transient(err)) { \
+        DBG(DETAILED,"rereg "#name"\n"); \
+        CHECK(lmp_chan_register_recv(&rpc->chan, get_default_waitset(), \
+                             MKCLOSURE((void *) name, args))); \
+        return err; \
+    } \
+    if(err_is_fail(err)) { \
+        DBG(ERR, #name"'s call to lmp_chan_recv failed non-transiently\n"); \
+        return err; \
+    } \
+    if (msg.words[0] != RPC_ACK_MESSAGE(type)) { \
+        DBG(ERR, "This is bad, we got msg type (raw, aka shifted to the left): %p\n",msg.words[0]); \
+        /* TODO: handle? */ \
+    }
+
+static errval_t round_and_round_we_recv_internal(uintptr_t* args) {
+    recv_handler_fleshy_bits(round_and_round_we_recv_internal,-1,(int)args[1]);
+    void (*processing)(void*, struct lmp_recv_msg,int) = (void (*)(void*, struct lmp_recv_msg,int))args[2];
+    processing((void*)args[4],msg,(int)args[5]);
+    return SYS_ERR_OK;
+}
+
+static errval_t round_and_round_we_recv(void*processing, void* processing_buffer, int totalcount, int type, struct aos_rpc *chan) {
+    uintptr_t args[5];
+    args[0] = (uintptr_t )chan;
+    args[1] = type;
+    args[2] = (uintptr_t )processing;
+    args[3] = (uintptr_t )processing_buffer;
+    struct waitset* ws = get_default_waitset();
+    errval_t err;
+    //TODO: supposedly 9 is the magic number of how much we can cram into a message at a time. So 1 for ID, 8 for payload.
+    //TODO: However, this should be looked up and replaced with the correct constant here.
+    int trips = (totalcount / 8) + (totalcount % 8 ? 1 : 0);
+    args[4] = 0;
+    //TODO: error checking
+    err = round_and_round_we_recv_internal(args);
+    for(int i = 1; i < trips; i++) {
+        args[4] = i;
+        do {
+            // check if receiver is currently busy
+            // which it kinda can't be but whatever, this is copied code and I'm out of time. So TODO: check the sanity of this (especially in wether or not it is needed)
+            err = lmp_chan_register_recv(&chan->chan, ws,
+                                         MKCLOSURE((void *) round_and_round_we_recv_internal, args));
+            CHECK(event_dispatch(ws));
+        } while(err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+    }
+    return SYS_ERR_OK;
+}
+
 unsigned int id = 0;
 __attribute__((unused))
 static errval_t ram_receive_handler(void *args)
@@ -337,25 +423,113 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
     return SYS_ERR_OK;
 }
 
+
+
+send_handler_0(process_get_pids_send_handler,RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS))
+send_handler_1(process_get_name_send_handler,RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME),args[1])
+
+
+
+
+
+
+send_handler_1(process_spawn_send_handler,RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN),args[1]) //todo: change this to taking a string instead of a number. The number bit is just for first try now
+
+static errval_t process_spawn_receive_handler(uintptr_t* args) {
+    recv_handler_fleshy_bits(process_spawn_receive_handler,-1,RPC_TYPE_PROCESS_SPAWN);
+    args[1] = msg.words[1];
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
                                coreid_t core, domainid_t *newpid)
 {
     // TODO (milestone 5): implement spawn new process rpc
+    struct waitset *ws = get_default_waitset();
+    uintptr_t sendargs[3]; //1+1
+    sendargs[0] = (uintptr_t) chan;
+    //todo: this needs to actually transfer the string in "name" instead of doing this silliness here
+    if(!strcmp(name,"hello")) {
+        sendargs[1] = 1;
+    }
+    else if(!strcmp(name,"memeater")) {
+        sendargs[1] = 2;
+    }
+    else if(!strcmp(name,"forkbomb")) {
+        sendargs[1] = 3;
+    }
+    else return LIB_ERR_NOT_IMPLEMENTED;
+    impl(process_spawn_send_handler,process_spawn_receive_handler,true);
+    *newpid = (domainid_t)sendargs[2];
+
     return SYS_ERR_OK;
+}
+
+struct pgnrp_buf {
+    size_t cur;
+    size_t totalcount;
+    char* name;
+};
+
+static void process_string(struct pgnrp_buf *buffer, int tripnumber, struct lmp_recv_msg msg) {
+    //todo: get rid of magic numbers
+    int max_one_round = (sizeof(uintptr_t)/ sizeof(char)) * 8;
+    int alreadygotten = (tripnumber * max_one_round);
+    int totalcount = buffer->totalcount;
+    int this_round = (totalcount < (alreadygotten+max_one_round)) ? totalcount-alreadygotten : max_one_round;
+    for(int i = 0; i < this_round; i++) {
+        char *c = (char*)msg.words[(i>>2)+1];
+        buffer->name[i] = c[i%4];
+    }
+}
+
+static errval_t process_get_name_receive_handler(uintptr_t* args) {
+    recv_handler_fleshy_bits(process_get_name_receive_handler,-1,RPC_TYPE_PROCESS_GET_NAME);
+    int totalcount = (int)args[2];
+    struct pgnrp_buf buffer;
+    buffer.cur = 0;
+    buffer.totalcount = totalcount;
+    buffer.name = malloc(sizeof(char)*(totalcount+1));
+    round_and_round_we_recv(process_string,&buffer,totalcount,RPC_TYPE_PROCESS_GET_NAME,rpc);
+    buffer.name[totalcount] = '\0';
+    args[3] = (uintptr_t)buffer.name;
+    return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
                                   char **name)
 {
     // TODO (milestone 5): implement name lookup for process given a process
-    // id
+    struct waitset *ws = get_default_waitset();
+    uintptr_t sendargs[3]; //1 to send, 1 to receive
+    sendargs[0] = (uintptr_t) chan;
+    sendargs[1] = (uintptr_t)pid;
+
+    impl(process_get_name_send_handler,process_get_name_receive_handler,true);
+
+    *name = (char*)sendargs[2];
+
     return SYS_ERR_OK;
+}
+
+static errval_t process_get_pids_receive_handler(uintptr_t* args) {
+    recv_handler_fleshy_bits(process_get_pids_receive_handler,-1,RPC_TYPE_PROCESS_GET_PIDS);
+    return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count)
 {
     // TODO (milestone 5): implement process id discovery
+    struct waitset *ws = get_default_waitset();
+    uintptr_t sendargs[3]; //0+2
+    sendargs[0] = (uintptr_t) chan;
+
+    impl(process_get_pids_send_handler,process_get_pids_receive_handler,true);
+
+    *pid_count = (size_t)sendargs[1];
+    *pids = (domainid_t *)sendargs[2];
+
     return SYS_ERR_OK;
 }
 

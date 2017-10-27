@@ -32,6 +32,10 @@
 #define RPC_TYPE_PUTCHAR            0x6
 #define RPC_TYPE_HANDSHAKE          0x7
 
+#define RPC_TYPE_PROCESS_SPAWN      0x8
+#define RPC_TYPE_PROCESS_GET_NAME   0x9
+#define RPC_TYPE_PROCESS_GET_PIDS   0x10
+
 struct aos_rpc {
     struct lmp_chan chan;
     unsigned int id;
