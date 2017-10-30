@@ -23,9 +23,20 @@
 #include <stdio.h>
 #include <string.h>
 
+#define PAGEFAULT_STACK_SIZE    16384 // = 16 * 1024 = 16kb
+
 //#define no_page_align_in_frame_alloc
 
 static struct paging_state current;
+
+static char pagefault_stack[PAGEFAULT_STACK_SIZE];
+static void pagefault_handler(enum exception_type type, int subtype,
+                              void *addr, arch_registers_state_t *regs,
+                              arch_registers_fpu_state_t *fpuregs)
+{
+    USER_PANIC("WE CAUGHT A PAGEFAULT\n");
+    // TODO: Implement
+}
 
 /**
  * \brief Helper function that allocates a slot and
@@ -101,6 +112,14 @@ errval_t paging_init(void)
     // TIP: use thread_set_exception_handler() to setup a page fault handler
     // TIP: Think about the fact that later on, you'll have to make sure that
     // you can handle page faults in any thread of a domain.
+    CHECK(thread_set_exception_handler(pagefault_handler, NULL,
+                                       (void *) &pagefault_stack,
+                                       (void *) &pagefault_stack +
+                                                 PAGEFAULT_STACK_SIZE,
+                                       NULL, NULL));
+    // TODO: Note this is temporary here. After we start using threads, this
+    // will be handled by the paging_init_onthread method below and can be
+    // removed from here.
 
     set_current_paging_state(&current);
 
@@ -123,7 +142,9 @@ errval_t paging_init(void)
  */
 void paging_init_onthread(struct thread *t)
 {
-    // TODO (M4): setup exception handler for thread `t'.
+    t->exception_handler = pagefault_handler;
+    t->exception_stack = (void *) &pagefault_stack;
+    t->exception_stack_top = (void *) &pagefault_stack + PAGEFAULT_STACK_SIZE;
 }
 
 /**

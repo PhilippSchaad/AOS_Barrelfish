@@ -26,5 +26,9 @@ int main(int argc, char *argv[])
             debug_printf("Found command line argument %d: %s \n", i, argv[i]);
         }
     }
+
+    char *invalid_address = (char *)0xffff1232;
+    char letter = *invalid_address;
+    printf("%c\n", letter);
     return 0;
 }
