@@ -328,7 +328,7 @@ static errval_t map_paging_state_to_child(struct paging_state *st) {
 
     CHECK(frame_alloc(&frame, sizeof(struct paging_state) +
                       nodes * sizeof(struct paging_frame_node), &ret));
-    paging_map_fixed(st,0x1000,frame,ret);
+    paging_map_fixed(st,PAGING_STATE_PADDR,frame,ret);
 
     void *our_side;
     paging_map_frame(get_current_paging_state(),&our_side,ret,frame,NULL,NULL);

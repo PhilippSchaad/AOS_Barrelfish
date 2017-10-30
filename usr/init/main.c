@@ -71,13 +71,6 @@ static struct domain * find_domain(struct capref *cap)
 
 static errval_t number_send_handler(void *args)
 {
-/* how about we don't throw a number ack into our pipeline where it rots forever
-  DBG(DETAILED, "init sends ACK for number\n");
-
-    struct lmp_chan *chan = (struct lmp_chan *) args;
-
-    CHECK(lmp_chan_send1(chan, LMP_FLAG_SYNC, NULL_CAP,
-                         RPC_ACK_MESSAGE(RPC_TYPE_NUMBER)));*/
     return SYS_ERR_OK;
 }
 
@@ -137,12 +130,11 @@ static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
 
     uint32_t count=0;
 
-    if(string_recv_buff != NULL){
-        //debug_printf("find count\n");
+    if (string_recv_buff != NULL) {
         assert(msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING_DATA));
-        // find the counter
-        while(true){
-            if((uint8_t) string_recv_buff[count] == 0){
+        // Find the counter.
+        while (true) {
+            if ((uint8_t) string_recv_buff[count] == 0) {
                 break;
             }
             ++count;
@@ -153,20 +145,19 @@ static errval_t string_recv_handler(void *args, struct lmp_recv_msg *msg,
         DBG(DETAILED, "id %u is printing now\n", current_id);
     }
 
-    // we might receive a splitted message
-    for (uint8_t i=2; i<9; ++i){
-        if (i==2 && msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING)){
-            // allocate memory for the string
+    // We might receive a splitted message.
+    for (uint8_t i = 2; i < 9; ++i) {
+        if (i == 2 && msg->words[0] == RPC_MESSAGE(RPC_TYPE_STRING)) {
+            // Allocate memory for the string
             string_recv_buff = malloc((uint32_t) msg->words[i] * sizeof(char));
             memset(string_recv_buff, 0, msg->words[i] * sizeof(char));
-            count=0;
-            //printf("str with size %d allocated at 0x%p\n", (uint32_t) msg->words[i], string_recv_buff);
+            count = 0;
             continue;
         }
-        for (uint8_t j=0; j<4; ++j){
-            current_char = (char) ((uint32_t) msg->words[i] >> 8*j);
-            if(current_char == '\0'){
-                // we reached the end of the string
+        for (uint8_t j = 0; j < 4; ++j) {
+            current_char = (char) ((uint32_t) msg->words[i] >> 8 * j);
+            if (current_char == '\0') {
+                // We reached the end of the string.
                 // TODO: do something with the string
                 printf("Terminal: %s\n", string_recv_buff);
                 free(string_recv_buff);
@@ -228,6 +219,7 @@ static errval_t putchar_recv_handler(void *args, struct lmp_recv_msg *msg,
 
     return SYS_ERR_OK;
 }
+
 static int pid;
 static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
 {
@@ -264,74 +256,92 @@ static errval_t handshake_recv_handler(void *args, struct capref *child_cap)
 
 struct adhoc_process_table {
     int id;
-    char* name;
+    char *name;
     struct spawninfo *si;
     struct adhoc_process_table* next;
 };
 
 static struct adhoc_process_table *adhoc_process_table = NULL;
 
-static errval_t spawn_recv_handler(void *args, struct lmp_recv_msg *msg, struct capref* cap) {
-//    struct lmp_chan *chan = (struct lmp_chan *) args;
-    int totalcount = (int)msg->words[1];
-    if(totalcount > 4*6)
-        return -1; //todo: real error number
-    char *name = (char*) malloc(sizeof(char) * (4*6+1));
-    for(int i = 0; i < totalcount; i++) {
-        char *c = (char*)&(msg->words[(i>>2)+2]);
-        name[i] = c[i%4];
+static errval_t spawn_recv_handler(void *args, struct lmp_recv_msg *msg,
+                                   struct capref* cap)
+{
+    int totalcount = (int) msg->words[1];
+
+    if (totalcount > 4 * 6)
+        return -1; // TODO: real error number
+
+    char *name = (char *) malloc(sizeof(char) * (4 * 6 + 1));
+    for (int i = 0; i < totalcount; i++) {
+        char *c = (char*) &(msg->words[(i >> 2) + 2]);
+        name[i] = c[i % 4];
     }
     name[totalcount] = '\0';
-    struct spawninfo* si = (struct spawninfo*) malloc(sizeof(struct spawninfo));
+    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
     err = spawn_load_by_name(name, si);
     size_t ret_id = si->paging_state.debug_paging_state_index;
-    struct adhoc_process_table *apt = (struct adhoc_process_table*) malloc(sizeof(struct adhoc_process_table));
+    struct adhoc_process_table *apt =
+        (struct adhoc_process_table *) malloc(sizeof(struct adhoc_process_table));
+
     apt->id = ret_id;
     apt->name = name;
     apt->si = si;
     apt->next = adhoc_process_table;
     adhoc_process_table = apt;
+
     struct domain *dom = find_domain(cap);
     if (dom == NULL) {
         assert(!"Failed to find active domain!");
     }
+
     CHECK(lmp_chan_send2(&dom->chan, LMP_FLAG_SYNC, NULL_CAP,
-                         RPC_ACK_MESSAGE(RPC_TYPE_PROCESS_SPAWN),(uintptr_t)ret_id));
+                         RPC_ACK_MESSAGE(RPC_TYPE_PROCESS_SPAWN),
+                         (uintptr_t) ret_id));
+
     return SYS_ERR_OK;
 }
 
-static errval_t process_get_name_recv_handler(struct capref* cap, struct lmp_recv_msg* msg) {
-
+static errval_t process_get_name_recv_handler(struct capref* cap,
+                                              struct lmp_recv_msg* msg)
+{
     int id = (int)msg->words[1];
     struct adhoc_process_table *apt = adhoc_process_table;
-    char* name;
+    char *name;
     bool found = false;
-    while(apt) {
-        if(apt->id == id) {
+    while (apt) {
+        if (apt->id == id) {
             name = apt->name;
             found = true;
             break;
         }
         apt = apt->next;
     }
-    if(!found)
+    if (!found)
         name = "No Such Id, Sorry.";
 
-    uintptr_t sendargs[9]; //1+1
+    uintptr_t sendargs[9]; // 1+1
     size_t totalcount = strlen(name);
-    sendargs[1] = (uintptr_t)totalcount;
-    if(totalcount > 4*6)
-        return -1; //TODO: Real error message
-    for(int i = 0; i < totalcount; i++) {
-        sendargs[(i >> 2)+2] = (i % 4 ? sendargs[(i >> 2)+2] : 0) + (name[i] << (8*(i % 4)));
+    sendargs[1] = (uintptr_t) totalcount;
+
+    if (totalcount > 4 * 6)
+        return -1; // TODO: Real error message
+
+    for (int i = 0; i < totalcount; i++) {
+        sendargs[(i >> 2) + 2] = (i % 4 ? sendargs[(i >> 2) + 2] : 0) +
+            (name[i] << (8 * (i % 4)));
     }
+
     struct domain *dom = find_domain(cap);
+
     if (dom == NULL) {
         assert(!"Failed to find active domain!");
     }
+
     CHECK(lmp_chan_send9(&dom->chan, LMP_FLAG_SYNC, NULL_CAP,
-                         RPC_ACK_MESSAGE(RPC_TYPE_PROCESS_GET_NAME),sendargs[1],sendargs[2],sendargs[3],sendargs[4],sendargs[5],sendargs[6],sendargs[7],sendargs[8]));
+                         RPC_ACK_MESSAGE(RPC_TYPE_PROCESS_GET_NAME),
+                         sendargs[1], sendargs[2], sendargs[3], sendargs[4],
+                         sendargs[5], sendargs[6], sendargs[7], sendargs[8]));
     return SYS_ERR_OK;
 }
 
@@ -372,10 +382,10 @@ static errval_t general_recv_handler(void *args)
             CHECK(handshake_recv_handler(args, &cap));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
-            CHECK(process_get_name_recv_handler(&cap,&msg));
+            CHECK(process_get_name_recv_handler(&cap, &msg));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
-            CHECK(spawn_recv_handler(args,&msg,&cap));
+            CHECK(spawn_recv_handler(args, &msg, &cap));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
         default:
@@ -390,7 +400,7 @@ int main(int argc, char *argv[])
 {
     errval_t err;
 
-    /* Set the core id in the disp_priv struct */
+    // Set the core id in the disp_priv struct.
     err = invoke_kernel_get_core_id(cap_kernel, &my_core_id);
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
@@ -401,14 +411,14 @@ int main(int argc, char *argv[])
     }
     printf("\n");
 
-    /* First argument contains the bootinfo location, if it's not set */
+    // First argument contains the bootinfo location, if it's not set.
     bi = (struct bootinfo*)strtol(argv[1], NULL, 10);
     if (!bi) {
         assert(my_core_id > 0);
     }
 
     err = initialize_ram_alloc();
-    if(err_is_fail(err)){
+    if (err_is_fail(err)) {
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 

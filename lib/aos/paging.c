@@ -187,11 +187,11 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
     assert(pr->base_addr >= base);
     assert(pr->base_addr+pr->region_size >= base+bytes);
     assert(pr->current_addr >= base+bytes);
-    if(pr->current_addr - bytes == base) {
+    if (pr->current_addr - bytes == base) {
         pr->current_addr = base;
-    }else{
+    } else {
         //TODO: catch node overlaps via asserts
-        if(pr->holes == NULL) {
+        if (pr->holes == NULL) {
             struct paging_frame_node *new_node =
                 (struct paging_frame_node *) slab_alloc(pr->slab_alloc);
             new_node->base_addr = base;
@@ -201,16 +201,16 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
         } else {
             struct paging_frame_node* node = pr->holes;
             bool done = false;
-            while(node->next != NULL) {
-                if(node->base_addr < base) {
-                    if(node->base_addr+node->region_size == base) {
+            while (node->next != NULL) {
+                if (node->base_addr < base) {
+                    if (node->base_addr+node->region_size == base) {
                         node->region_size += bytes;
                         done = true;
                         break;
-                    }else{
+                    } else {
                         node = node->next;
                     }
-                }else{
+                } else {
                     struct paging_frame_node* new_node =
                         (struct paging_frame_node*) slab_alloc(pr->slab_alloc);
 
@@ -224,7 +224,7 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
                     break;
                 }
             }
-            if(!done) {
+            if (!done) {
                 struct paging_frame_node* new_node =
                     (struct paging_frame_node*) slab_alloc(pr->slab_alloc);
                 new_node->base_addr = base;
@@ -236,24 +236,24 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
     }
 
     // Coalesce holes.
-    if(pr->holes) {
+    if (pr->holes) {
         struct paging_frame_node* node = pr->holes;
         struct paging_frame_node* prev = NULL;
-        while(node->next != NULL) {
+        while (node->next != NULL) {
             struct paging_frame_node* temp = node->next;
-            if(temp->base_addr == node->base_addr+node->region_size) {
+            if (temp->base_addr == node->base_addr+node->region_size) {
                 node->region_size += temp->region_size;
                 node->next = temp->next;
                 slab_free(pr->slab_alloc,temp);
-            }else{
+            } else {
                 prev = node;
                 node = node->next;
             }
         }
-        if(node->base_addr+node->region_size == pr->current_addr) {
+        if (node->base_addr+node->region_size == pr->current_addr) {
             pr->current_addr -= node->region_size;
             slab_free(pr->slab_alloc,node);
-            if(prev != NULL)
+            if (prev != NULL)
                 prev->next = NULL;
             else
                 pr->holes = NULL;
@@ -277,8 +277,8 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base,
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
     struct paging_frame_node *node = &st->free_vspace;
-    while(node != NULL) {
-        if(node->region_size >= bytes) {
+    while (node != NULL) {
+        if (node->region_size >= bytes) {
             DBG(DETAILED, "ps %u paging_alloc base: %p size: %u req: %u \n",
                 st->debug_paging_state_index, node->base_addr,
                 node->region_size, bytes);
@@ -300,7 +300,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
                 st->debug_paging_state_index, node->base_addr,
                 node->region_size);
 
-            if(node->region_size == 0) {
+            if (node->region_size == 0) {
                 // TODO: add removing, just move content of next node
                 // into this and delete next node 
                 // this does mean we'll eventually trail a size 0 node
@@ -333,7 +333,7 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
 {
     CHECK_MSG(paging_alloc(st, buf, bytes), "to addr %p of size %i\n",
               *buf, bytes);
-    return paging_map_fixed_attr(st, (lvaddr_t)(*buf), frame, bytes, flags);
+    return paging_map_fixed_attr(st, (lvaddr_t) (*buf), frame, bytes, flags);
 }
 
 errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
@@ -357,7 +357,7 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
               buf, bytes);
     DBG(DETAILED, "now pagefault goes into replication of the fixed mapping\n");
     lvaddr_t vaddr = (lvaddr_t)buf;
-    while(bytes > 0) {
+    while (bytes > 0) {
         // Get the index of the L2 table in the L1 table.
         lvaddr_t l1_index = ARM_L1_OFFSET(vaddr);
 
@@ -388,7 +388,7 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
             st->l2_page_tables[l1_index].init = true;
 
             // Add to child process if necessary.
-            if(st->spawninfo != NULL){
+            if (st->spawninfo != NULL){
                 DBG(DETAILED, "I should add the new slot to the child\n");
                 ((struct spawninfo *)st->spawninfo)->slot_callback(
                         ((struct spawninfo *)st->spawninfo), l2_pagetable);
@@ -410,7 +410,7 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
         CHECK(st->slot_alloc->alloc(st->slot_alloc, &l2_frame));
         CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, mapped_bytes,
                         mapping_size/BASE_PAGE_SIZE, l2_frame));
-        if(st->spawninfo != NULL){
+        if (st->spawninfo != NULL){
             ((struct spawninfo *)st->spawninfo)->slot_callback(
                     ((struct spawninfo *)st->spawninfo), l2_frame);
         }
@@ -442,7 +442,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
     // Iterate over the L2 page tables and map the memory.
     size_t mapped_bytes = 0;
-    if(slab_freecount(&st->slab_alloc) == 0) {
+    if (slab_freecount(&st->slab_alloc) == 0) {
         DBG(DETAILED, "triggering special slab refill\n");
         struct capref slabframe;
         st->slot_alloc->alloc(st->slot_alloc,&slabframe);
@@ -459,7 +459,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     mappings->next = st->mappings;
     st->mappings = mappings;
     mappings->map_list = NULL;
-    while(bytes > 0) {
+    while (bytes > 0) {
         // Get the index of the L2 table in the L1 table.
         lvaddr_t l1_index = ARM_L1_OFFSET(vaddr);
 
@@ -490,7 +490,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             st->l2_page_tables[l1_index].init = true;
 
             // Add to child process if necessary.
-            if(st->spawninfo != NULL){
+            if (st->spawninfo != NULL){
                 DBG(DETAILED, "I should add the new slot to the child\n");
                 ((struct spawninfo *)st->spawninfo)->slot_callback(
                     ((struct spawninfo *)st->spawninfo), l2_pagetable);
@@ -512,7 +512,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         CHECK(st->slot_alloc->alloc(st->slot_alloc, &l2_frame));
         CHECK(vnode_map(l2_pagetable, frame, l2_index, flags, mapped_bytes,
                         mapping_size/BASE_PAGE_SIZE, l2_frame));
-        if(st->spawninfo != NULL){
+        if (st->spawninfo != NULL){
             ((struct spawninfo *)st->spawninfo)->slot_callback(
                 ((struct spawninfo *)st->spawninfo), l2_frame);
         }
@@ -567,29 +567,30 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
     struct paging_used_node *node = st->mappings;
     struct paging_used_node *prev = NULL;
 
-    while(true) {
+    while (true) {
         assert(node != NULL); // TODO: make nicer
-        if(node->start_addr == (lvaddr_t)region) {
+        if (node->start_addr == (lvaddr_t) region) {
             break;
         }
         prev = node;
         node = node->next;
     }
 
-    if(prev != NULL)
+    if (prev != NULL)
         prev->next = node->next;
     else
         st->mappings = node->next;
 
     struct paging_map_node *mapnode = node->map_list;
-    while(mapnode != NULL) {
+
+    while (mapnode != NULL) {
         struct paging_map_node *temp = mapnode;
         mapnode = mapnode->next;
-        vnode_unmap(temp->table,temp->mapping);
-        slab_free(&st->slab_alloc,temp);
+        vnode_unmap(temp->table, temp->mapping);
+        slab_free(&st->slab_alloc, temp);
     }
 
-    paging_add_space(st,(lvaddr_t)node->start_addr,node->size);
+    paging_add_space(st, (lvaddr_t) node->start_addr, node->size);
 
     slab_free(&st->slab_alloc,node);
 

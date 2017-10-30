@@ -53,7 +53,7 @@
 #include <aos/lmp_chan.h>
 #include <aos/lmp_endpoints.h>
 
-/* XXX: utility macros. not sure where to put these */
+#define PAGING_STATE_PADDR      0x1000
 
 /* Duplicate memory */
 static inline void * memdup(const void *ptr, size_t size) {
