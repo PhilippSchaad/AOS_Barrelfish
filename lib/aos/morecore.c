@@ -26,7 +26,7 @@ extern morecore_free_func_t sys_morecore_free;
 
 // this define makes morecore use an implementation that just has a static
 // 16MB heap.
-#define USE_STATIC_HEAP
+//#define USE_STATIC_HEAP
 
 
 #ifdef USE_STATIC_HEAP
@@ -94,8 +94,12 @@ errval_t morecore_init(void)
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {
-    USER_PANIC("NYI");
-    return NULL;
+    struct morecore_state *mcs = get_morecore_state();
+
+    void *buffer;
+    CHECK(paging_region_map(&mcs->region, bytes, &buffer, retbytes));
+
+    return buffer;
 }
 
 static void morecore_free(void *base, size_t bytes)
@@ -103,9 +107,22 @@ static void morecore_free(void *base, size_t bytes)
     USER_PANIC("NYI");
 }
 
+// TODO: thread safety is missing...
 errval_t morecore_init(void)
 {
-    USER_PANIC("NYI");
+    struct morecore_state *mcs = get_morecore_state();
+
+    CHECK(paging_region_init(get_current_paging_state(),
+                             &mcs->region, 50 * BASE_PAGE_SIZE));
+    // TODO: XXX: Find a better number for '50 * BASE_PAGE_SIZE'. I
+    // have no idea how big this region needs to be, it just seems like
+    // this works for all our current tests! Making it less will lead to us
+    // running out of space eventually. (in memeater, with 'exhausted paging
+    // region').
+
+    sys_morecore_alloc = morecore_alloc;
+    sys_morecore_free = morecore_free;
+
     return SYS_ERR_OK;
 }
 

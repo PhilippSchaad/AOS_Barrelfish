@@ -30,12 +30,26 @@
 static struct paging_state current;
 
 static char pagefault_stack[PAGEFAULT_STACK_SIZE];
+// TODO: Make threadsafe (Probably best to acquire a lock o.s.s.?)
 static void pagefault_handler(enum exception_type type, int subtype,
                               void *addr, arch_registers_state_t *regs,
                               arch_registers_fpu_state_t *fpuregs)
 {
-    USER_PANIC("WE CAUGHT A PAGEFAULT\n");
-    // TODO: Implement
+    lvaddr_t vaddr = (lvaddr_t) addr;
+
+    // TODO: Check if we are in a valid heap-range address.
+    // TODO: Also check if we need to refill slabs and do so if yes.
+
+    // Align the address where the fault occurred against base page size.
+    vaddr = vaddr - (vaddr % BASE_PAGE_SIZE);
+
+    struct capref frame;
+    size_t retsize;
+
+    CHECK(frame_alloc(&frame, BASE_PAGE_SIZE, &retsize));
+    CHECK(paging_map_fixed_attr(get_current_paging_state(),
+                                vaddr, frame, retsize,
+                                VREGION_FLAGS_READ_WRITE));
 }
 
 /**
