@@ -41,14 +41,18 @@ void libc_exit(int status)
 {
     // Use spawnd if spawned through spawnd
     if(disp_get_domain_id() == 0) {
+        /*
         errval_t err = cap_revoke(cap_dispatcher);
         if (err_is_fail(err)) {
             sys_print("revoking dispatcher failed in _Exit, spinning!", 100);
             while (1) {}
         }
-        err = cap_delete(cap_dispatcher);
-        sys_print("deleting dispatcher failed in _Exit, spinning!", 100);
-
+        */
+        errval_t err = cap_delete(cap_dispatcher);
+        if (err_is_fail(err)) {
+            sys_print("revoking dispatcher failed in _Exit, spinning!\n", 100);
+            while (1) {}
+        }
         // XXX: Leak all other domain allocations
     } else {
         debug_printf("libc_exit NYI!\n");
@@ -56,6 +60,7 @@ void libc_exit(int status)
 
     thread_exit(status);
     // If we're not dead by now, we wait
+    sys_print("revoking dispatcher failed in _Exit, spinning!\n", 100);
     while (1) {}
 }
 
