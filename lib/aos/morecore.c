@@ -94,10 +94,8 @@ errval_t morecore_init(void)
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {
-    struct morecore_state *mcs = get_morecore_state();
-
     void *buffer;
-    CHECK(paging_region_map(&mcs->region, bytes, &buffer, retbytes));
+    CHECK(paging_alloc(get_current_paging_state(), &buffer, bytes));
 
     return buffer;
 }
@@ -113,12 +111,7 @@ errval_t morecore_init(void)
     struct morecore_state *mcs = get_morecore_state();
 
     CHECK(paging_region_init(get_current_paging_state(),
-                             &mcs->region, 50 * BASE_PAGE_SIZE));
-    // TODO: XXX: Find a better number for '50 * BASE_PAGE_SIZE'. I
-    // have no idea how big this region needs to be, it just seems like
-    // this works for all our current tests! Making it less will lead to us
-    // running out of space eventually. (in memeater, with 'exhausted paging
-    // region').
+                             &mcs->region, BASE_PAGE_SIZE));
 
     sys_morecore_alloc = morecore_alloc;
     sys_morecore_free = morecore_free;
