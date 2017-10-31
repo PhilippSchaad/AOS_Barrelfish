@@ -176,5 +176,26 @@ int main(int argc, char *argv[])
     debug_printf("We spawned 'hello' and then requested the name of the process with its idea, result: %s\n",name);
     //disabled because it gets ugly, as the name would indicate
     //aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
+
+    struct capref slot[2000];
+    debug_printf("Try to allocate 2000 slots\n");
+    for (int i=1; i<=2000; ++i){
+        err = slot_alloc(&slot[i-1]);
+        if (err_is_fail(err)) {
+            return err_push(err, LIB_ERR_SLOT_ALLOC);
+        }
+        if (i%20==0){
+            debug_printf("Created %d slots\n", i);
+        }
+    }
+    for (int i=1; i<=2000; ++i){
+        err = slot_free(slot[i-1]);
+        if (err_is_fail(err)) {
+            return err_push(err, LIB_ERR_SLOT_ALLOC);
+        }
+    }
+    debug_printf("Freed them again...\n");
+
+
     return EXIT_SUCCESS;
 }

@@ -53,6 +53,7 @@ errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
 
     /* If no more slots left, grow */
     if (ca->space == 0) {
+        DBG(DETAILED,"grow slot space");
         ca->space = ca->nslots;
         /* Pull in the reserve */
         mca->reserve->next = mca->head;
@@ -80,6 +81,15 @@ errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
         }
         err = cnode_create_raw(cap, &cnode, ObjType_L2CNode, ca->nslots, NULL);
         if (err_is_fail(err)) {
+            // TODO: find out why this happens: when allocating a slot on a non-init domain
+            // it gets occupied. Could it be that the slot is created in the main domain and
+            // a slot is used to send the mem cap? if so, this sounds like a bad design...
+            err = slot_alloc_root(&cap);
+            err = cnode_create_raw(cap, &cnode, ObjType_L2CNode, ca->nslots, NULL);
+        }
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "cnode_create_raw failed");
+            debug_printf("grow_fail");
             return err_push(err, LIB_ERR_CNODE_CREATE);
         }
         thread_mutex_lock(&ca->mutex);
