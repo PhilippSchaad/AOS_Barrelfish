@@ -180,7 +180,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Register ourselves with init
     struct aos_rpc rpc;
     aos_rpc_init(&rpc);
-    ram_alloc_set(NULL);
+//    ram_alloc_set(NULL);
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here

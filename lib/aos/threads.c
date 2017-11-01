@@ -39,6 +39,8 @@
 #  include <arch/fpu.h>
 #endif
 
+#define SELF_PAGING_WORKS
+
 /// Maximum number of threads in a domain, used to size VM region for thread structures
 // there is no point having MAX_THREADS > LDT_NENTRIES on x86 (see ldt.c)
 #define MAX_THREADS 256
