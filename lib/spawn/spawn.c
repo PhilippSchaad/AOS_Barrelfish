@@ -307,9 +307,17 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
     CHECK(paging_map_frame(get_current_paging_state(), ret, retsize,
                            frame, NULL, NULL));
 
+
+    struct paging_frame_node *new_node =
+            (struct paging_frame_node *) slab_alloc(&((struct spawninfo *)state)->paging_state.slab_alloc);
+    new_node->base_addr = (lvaddr_t )*ret;
+    new_node->region_size = retsize;
+    new_node->next =     ((struct spawninfo *)state)->allocated_sects;
+    ((struct spawninfo *)state)->allocated_sects = new_node;
+
     // Correct return to fit alignment.
     *ret += alignment_offset;
-    DBG(DETAILED, "end elf_alloc_sect_func. I will return buffer at "
+    DBG(-1, "end elf_alloc_sect_func. I will return buffer at "
         "address 0x%"PRIxPTR"\n", *ret);
     return SYS_ERR_OK;
 }
@@ -428,6 +436,13 @@ errval_t spawn_load_by_name(void *binary_name, struct spawninfo *si)
     CHECK(invoke_dispatcher(si->dispatcher, cap_dispatcher, si->l1_cnode,
                             si->process_l1_pt, si->spawned_disp_memframe,
                             true));
+
+    while(si->allocated_sects != NULL) {
+        paging_unmap(get_current_paging_state(),(void*)si->allocated_sects->base_addr);
+        struct paging_frame_node *prev = si->allocated_sects;
+        si->allocated_sects = si->allocated_sects->next;
+        slab_free(&si->paging_state.slab_alloc,prev);
+    }
 
     return SYS_ERR_OK;
 }

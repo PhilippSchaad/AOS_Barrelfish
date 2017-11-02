@@ -32,6 +32,7 @@ struct spawninfo {
     arch_registers_state_t *enabled_area;
     int next_slot;
     errval_t (*slot_callback)(struct spawninfo* si, struct capref cap);
+    struct paging_frame_node *allocated_sects;
 };
 
 /// Start a child process by binary name. This fills in the spawninfo.
