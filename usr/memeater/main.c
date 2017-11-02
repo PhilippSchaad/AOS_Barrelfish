@@ -145,6 +145,12 @@ static errval_t test_basic_rpc(void)
     return SYS_ERR_OK;
 }
 
+void derference_null(void);
+void derference_null(void){
+    int* a=NULL;
+    *a=5;
+}
+
 int main(int argc, char *argv[])
 {
     errval_t err;
@@ -222,9 +228,14 @@ int main(int argc, char *argv[])
     printf("\033[32mSUCCESS\033[0m");
     printf("\n");
 
+    debug_printf("\033[33mTry to dereference NULL\n\033[0m");
+    struct thread* nullthread = thread_create((thread_func_t) derference_null, NULL); 
+    int retval;
+    thread_join(nullthread, &retval);
+    debug_printf("\033[32m\"SUCCESS\"\n\033[0m");
 
     thread_create((thread_func_t) test_basic_rpc, NULL);
-
+    
 
     debug_printf("seems I have done everything I should... =)\n");
     debug_printf("memeater terminated....\n");

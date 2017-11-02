@@ -43,6 +43,12 @@ static void pagefault_handler(enum exception_type type, int subtype,
 
     debug_printf("pagefault\n");
 
+    // Do some checks
+    if (vaddr == 0x0) {
+        DBG(ERR,"Tried to dereference NULL\n");
+        thread_exit(1);
+    }
+
     // TODO: Check if we are in a valid heap-range address.
     // TODO: Also check if we need to refill slabs and do so if yes.
 
