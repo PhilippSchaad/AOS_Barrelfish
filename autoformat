@@ -1,0 +1,118 @@
+#!/bin/bash
+
+DO_BACKUP=false
+DO_PATCH=false
+DO_SHOW=false
+ONLY_FILE=false
+NOARGS=true
+FILE=""
+
+file_err () {
+    printf "File not found or not valid .cpp or .hpp file.\n"
+}
+
+format_file () {
+    if [ $DO_PATCH = true ]; then
+        if [ $DO_BACKUP = true ]; then
+            if [ $DO_SHOW = true ]; then
+                clang-format -style=file $FILE | diff -u $FILE -;
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s -b $FILE;
+            else
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s -b $FILE;
+            fi
+        else
+            if [ $DO_SHOW = true ]; then
+                clang-format -style=file $FILE | diff -u $FILE -;
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s $FILE;
+            else
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s $FILE;
+            fi
+        fi
+    elif [ $DO_SHOW = true ]; then
+        clang-format -style=file $FILE | diff -u $FILE -;
+    fi
+}
+
+run_formatting () {
+    if [ $ONLY_FILE = true ]; then
+        if [ ! -e $FILE ]; then
+            printf "$FILE\n"
+            file_err
+        elif [[ $FILE =~ \.cpp$ ]] || [[ $FILE =~ \.hpp$ ]]; then
+            format_file
+        elif [[ $FILE =~ \.c$ ]] || [[ $FILE =~ \.h$ ]]; then
+            format_file
+        else
+            printf "$FILE\n"
+            printf "invalid extension\n"
+            file_err
+        fi
+    else
+        printf "This project is huge, this can take forever..\n"
+        read -p "Procceed without -f flag? [Y/n] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]
+        then
+            for f in $(find . -name '*.cpp' -or -name '*.hpp');
+            do
+                FILE=$f;
+                format_file
+            done
+        fi
+    fi
+}
+
+print_help () {
+    printf "Help:\n"
+    printf "    -h\n"
+    printf "        Display this page\n"
+    printf "    -p\n"
+    printf "        Apply the correct formatting rules to all files\n"
+    printf "    -b\n"
+    printf "        Create a backup of the original files first\n"
+    printf "    -s\n"
+    printf "        Show all formatting violations.\n"
+    printf "        If used together with -p, it will display all changes\n"
+    printf "        made to the patched files.\n"
+    printf "    -f [path]\n"
+    printf "        Only apply to a file found at [path]\n"
+}
+
+if hash clang-format 2>/dev/null; then
+    while getopts ":hpbsf:" opt; do
+        NOARGS=false
+        case ${opt} in
+            h)
+                print_help
+                exit 0
+                ;;
+            p)
+                DO_PATCH=true
+                ;;
+            b)
+                DO_BACKUP=true
+                ;;
+            s)
+                DO_SHOW=true
+                ;;
+            f)
+                ONLY_FILE=true
+                FILE=$OPTARG
+                ;;
+            *)
+                printf "Invalid or no arguments\n"
+                print_help
+                exit 0
+                ;;
+        esac
+    done
+
+    if [ $NOARGS = true ]; then
+        printf "Invalid or no arguments\n"
+        print_help
+    else
+        run_formatting
+    fi
+else
+    printf "This requires 'clang-format' to be installed! A simple apt.. :)\n"
+fi
