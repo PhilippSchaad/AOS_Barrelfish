@@ -675,20 +675,24 @@ errval_t frame_create(struct capref dest, size_t bytes, size_t *retbytes)
         }
         return err_push(err, LIB_ERR_RAM_ALLOC);
     }
-
+    debug_printf("we got the ram for a frame\n");
     err = cap_retype(dest, ram, 0, ObjType_Frame, bytes, 1);
     if (err_is_fail(err)) {
+        debug_printf("frame cap retype failed\n");
         return err_push(err, LIB_ERR_CAP_RETYPE);
     }
+    debug_printf("and past the retype\n");
 
     err = cap_destroy(ram);
     if (err_is_fail(err)) {
+        debug_printf("frame cap destroy failed\n");
         return err_push(err, LIB_ERR_CAP_DESTROY);
     }
 
     if (retbytes != NULL) {
         *retbytes = bytes;
     }
+    debug_printf("we got all the frame things done\n");
 
     return SYS_ERR_OK;
 }

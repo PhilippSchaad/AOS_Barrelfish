@@ -323,9 +323,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     sendargs[2] = (uintptr_t) &align;
     sendargs[3] = (uintptr_t) retcap;
     sendargs[4] = (uintptr_t) ret_size;
-
     CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
-
 
     CHECK(lmp_chan_register_send(&chan->chan, ws,
                                  MKCLOSURE((void *) ram_send_handler,

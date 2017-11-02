@@ -128,8 +128,8 @@ errval_t lmp_endpoint_create_in_slot(size_t buflen, struct capref dest,
  */
 void lmp_endpoint_set_recv_slot(struct lmp_endpoint *ep, struct capref slot)
 {
-     DBG(DETAILED,"%s: recv_cspace = %"PRIxCADDR", recv_cptr = %"PRIxCADDR"\n",
-            __FUNCTION__, get_croot_addr(slot), get_cap_addr(slot));
+//     DBG(DETAILED,"%s: recv_cspace = %"PRIxCADDR", recv_cptr = %"PRIxCADDR"\n",
+//            __FUNCTION__, get_croot_addr(slot), get_cap_addr(slot));
     ep->k.recv_cspc = get_croot_addr(slot);
     ep->k.recv_cptr = get_cap_addr(slot);
     ep->recv_slot = slot;

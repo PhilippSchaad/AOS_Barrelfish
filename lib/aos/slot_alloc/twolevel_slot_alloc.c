@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include "internal.h"
 
+
 static errval_t rootcn_alloc(void *st, size_t reqsize, struct capref *ret)
 {
     return ram_alloc(ret, reqsize);
@@ -34,9 +35,9 @@ errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
     struct multi_slot_allocator *mca = (struct multi_slot_allocator*)ca;
 
     thread_mutex_lock(&ca->mutex);
+    DBG(DETAILED,"two_level_alloc beyond the mutex\n");
     assert(ca->space != 0);
     ca->space--;
-
     /* Try allocating from the list of single slot allocators */
     struct slot_allocator_list *walk = mca->head;
     //struct slot_allocator_list *prev = NULL;
@@ -48,7 +49,10 @@ errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
         //prev = walk;
         walk = walk->next;
     }
+    DBG(DETAILED,"two_level_alloc we have walked the walk\n");
     if (err_is_fail(err)) {
+        debug_printf("uhh this is bad guys\n");
+        thread_mutex_unlock(&ca->mutex);
         return err_push(err, LIB_ERR_SINGLE_SLOT_ALLOC);
     }
 
@@ -241,24 +245,32 @@ errval_t two_level_slot_alloc_init(struct multi_slot_allocator *ret)
         return LIB_ERR_MALLOC_FAIL;
     }
 
+    //we touch all the space we got, to make sure it's actually backed by things
+    memset(top_buf,1,bufsize);
+
+
     ret->head = malloc(sizeof(struct slot_allocator_list));
     if (!ret->head) {
         return LIB_ERR_MALLOC_FAIL;
     }
+    memset(ret,0,sizeof(struct slot_allocator_list));
     ret->head->next = NULL;
     void *head_buf = malloc(bufsize);
     if (!head_buf) {
         return LIB_ERR_MALLOC_FAIL;
     }
+    memset(head_buf,0,bufsize);
 
     ret->reserve = malloc(sizeof(struct slot_allocator_list));
     if (!ret->reserve) {
         return LIB_ERR_MALLOC_FAIL;
     }
+    memset(ret->reserve,0,sizeof(struct slot_allocator_list));
     void *reserve_buf = malloc(bufsize);
     if (!reserve_buf) {
         return LIB_ERR_MALLOC_FAIL;
     }
+    memset(reserve_buf,0,bufsize);
 
     size_t allocation_unit = sizeof(struct slot_allocator_list) + bufsize;
     err = paging_region_init(get_current_paging_state(), &ret->region,

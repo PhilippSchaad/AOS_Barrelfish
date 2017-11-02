@@ -97,7 +97,7 @@ errval_t two_level_slot_alloc_init_raw(struct multi_slot_allocator *ret,
 errval_t slot_alloc_init(void);
 struct slot_allocator *get_default_slot_allocator(void);
 errval_t slot_alloc(struct capref *ret);
-
+int get_slot_alloc_rec_depth(void);
 /// Root slot allocator functions
 errval_t slot_alloc_root(struct capref *ret);
 typedef errval_t (*cn_ram_alloc_func_t)(void *st, size_t reqsize, struct capref *ret);

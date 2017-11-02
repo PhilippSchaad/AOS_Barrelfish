@@ -39,10 +39,73 @@ struct slot_allocator *get_default_slot_allocator(void)
  *
  * Allocates one slot from the default allocator
  */
+static int slot_alloc_rec_depth = 0;
+
+static int usedslots = 31;
+static struct capref capbuffer[5];
+static bool refilling = false;
+
+static void sloc_alloc_refill_preallocated_with_cap(struct capref *cap) {
+    for(int i = 0; i < 5; i++) {
+        if(usedslots & (1 << i)) {
+            capbuffer[i] = *cap;
+            usedslots -= (1 << i);
+            return;
+        }
+    }
+    DBG(ERR,"we tried to hand a slot back to the prefilled buffer despite that one being full. This is bad as we just lost a cap into the infinite void\n");
+}
+
+static void sloc_alloc_refill_preallocated_slots(void) {
+    refilling = true;
+    debug_printf("we are refilling slots\n");
+    for(int i = 0; i < 5; i++) {
+        if(usedslots & (1 << i)) {
+            if(slot_alloc(&capbuffer[i]) != SYS_ERR_OK) {
+                DBG(ERR,
+                    "we failed to refill in lmp_chan_recv_slot_refill_preallocated_slots, things are going to be bad\n");
+            } else
+                usedslots -= (1 << i);
+        }
+    }
+    refilling = false;
+}
+
+static void slot_alloc_use_prefilled_slot(struct capref *slot) {
+    assert(!refilling);
+    for(int i = 0; i < 5; i++) {
+        if(usedslots & (1 << i))
+            continue;
+        *slot = capbuffer[i];
+        usedslots = usedslots | (1 << i);
+        return;
+    }
+    assert(!"lmp_chan_alloc_recv_slot_use_prefilled_slot ran out of buffers. Something is really wrong\n");
+
+}
 errval_t slot_alloc(struct capref *ret)
 {
-    struct slot_allocator *ca = get_default_slot_allocator();
-    return ca->alloc(ca, ret);
+    //this is inherently not threadsafe. But hey, problems for later.
+    errval_t err;
+    if(get_slot_alloc_rec_depth() == 0) {
+        slot_alloc_rec_depth++;
+        struct slot_allocator *ca = get_default_slot_allocator();
+        err = ca->alloc(ca, ret);
+        slot_alloc_rec_depth--;
+    }else{
+        debug_printf("we get into this case!\n");
+        slot_alloc_use_prefilled_slot(ret);
+        debug_printf("and out again\n");
+        err = SYS_ERR_OK;
+    }
+    if(usedslots != 0 && !refilling && get_slot_alloc_rec_depth() == 0)
+        sloc_alloc_refill_preallocated_slots();
+
+    return err;
+}
+
+int get_slot_alloc_rec_depth(void) {
+    return slot_alloc_rec_depth;
 }
 
 /**
@@ -137,7 +200,13 @@ errval_t slot_free(struct capref ret)
     }
 
     struct slot_allocator *ca = (struct slot_allocator*)(&state->defca);
-    errval_t err = ca->free(ca, ret);
+    errval_t err;
+    if(slot_alloc_rec_depth == 0)
+        err = ca->free(ca, ret);
+    else {
+        sloc_alloc_refill_preallocated_with_cap(&ret);
+        err = SYS_ERR_OK;
+    }
     // XXX: Detect frees in special case of init and mem_serv
     if (err_no(err) == LIB_ERR_SLOT_ALLOC_WRONG_CNODE) {
         return SYS_ERR_OK;

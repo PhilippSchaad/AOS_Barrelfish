@@ -35,6 +35,7 @@ static void pagefault_handler(enum exception_type type, int subtype,
                               void *addr, arch_registers_state_t *regs,
                               arch_registers_fpu_state_t *fpuregs)
 {
+    debug_printf("hi from the pagefault handler\n");
     lvaddr_t vaddr = (lvaddr_t) addr;
 
     // TODO: Check if we are in a valid heap-range address.
@@ -47,9 +48,11 @@ static void pagefault_handler(enum exception_type type, int subtype,
     size_t retsize;
 
     CHECK(frame_alloc(&frame, BASE_PAGE_SIZE, &retsize));
+    debug_printf("pagefault handler is halfways\n");
     CHECK(paging_map_fixed_attr(get_current_paging_state(),
                                 vaddr, frame, retsize,
                                 VREGION_FLAGS_READ_WRITE));
+    debug_printf("pagefault handler is done\n");
 }
 
 /**
@@ -67,6 +70,16 @@ static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
 // For debugging only. Keeps track of number of created paging states.
 static size_t ps_index = 1;
 
+static errval_t slot_alloc2(struct slot_allocator *ca, struct capref * cap) {
+    return slot_alloc(cap);
+}
+
+static errval_t slot_free2(struct slot_allocator *ca, struct capref cap) {
+    return slot_free(cap);
+}
+
+static struct slot_allocator k;
+
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca)
 {
@@ -77,7 +90,13 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     DBG(DETAILED, "Setting up paging_state #%u", st->debug_paging_state_index);
 
     // Slot allocator.
-    st->slot_alloc = ca;
+    //st->slot_alloc = ca;
+    //bad hacks
+    k.space = 0;
+    k.nslots = 0;
+    k.free = slot_free2;
+    k.alloc = slot_alloc2;
+    st->slot_alloc = &k;
 
     // Set the l1 page table.
     st->l1_page_table = pdir;

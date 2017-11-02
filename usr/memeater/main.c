@@ -167,7 +167,6 @@ int main(int argc, char *argv[])
 
     printf("Hello world using terminal service\n");
 
-    debug_printf("memeater terminated....\n");
 
     domainid_t ret;
     aos_rpc_process_spawn(&init_rpc,"hello",1,&ret);
@@ -196,6 +195,7 @@ int main(int argc, char *argv[])
     }
     debug_printf("Freed them again...\n");
 
+    debug_printf("memeater terminated....\n");
 
     return EXIT_SUCCESS;
 }

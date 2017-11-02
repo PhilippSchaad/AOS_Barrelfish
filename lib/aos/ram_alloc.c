@@ -25,6 +25,8 @@ of slots, you will need to get new memory to create a new CNODE to hold new
 capabilities. You may want to make sure that you always have enough free slots
 available.
      */
+    debug_printf("%s\n",__FUNCTION__);
+
     size_t bytes;
     struct aos_rpc *memchan = aos_rpc_get_memory_channel();
     errval_t err = aos_rpc_get_ram_cap(memchan, size, alignment, ret, &bytes);
@@ -32,6 +34,7 @@ available.
         DEBUG_ERR(err, "ram_alloc_remote had an issue\n");
         return err;
     }
+    debug_printf("%s done\n",__FUNCTION__);
 
     return SYS_ERR_OK;
 }

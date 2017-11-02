@@ -19,15 +19,16 @@
 #include <aos/aos.h>
 #include <aos/caddr.h>
 
+
 static errval_t salloc(struct slot_allocator *ca, struct capref *ret)
 {
     struct single_slot_allocator *sca = (struct single_slot_allocator*)ca;
-    DBG(DETAILED,"salloc %u %u %u\n", sca->head->space, sca->head->slot, sca->a.space);
+    //DBG(DETAILED,"salloc %u %u %u\n", sca->head->space, sca->head->slot, sca->a.space);
 
     if (sca->a.space == 0) {
+        DBG(DETAILED,"salloc no space\n");
         return LIB_ERR_SLOT_ALLOC_NO_SPACE;
     }
-
     thread_mutex_lock(&ca->mutex);
 
     // Slot to return
@@ -46,9 +47,11 @@ static errval_t salloc(struct slot_allocator *ca, struct capref *ret)
 
     // Check to free head
     if (sca->head->space == 0) {
+        debug_printf("no\n");
         struct cnode_meta *walk = sca->head;
         sca->head = walk->next;
         slab_free(&sca->slab, walk);
+        debug_printf("done\n");
     }
 
     thread_mutex_unlock(&ca->mutex);
@@ -265,6 +268,8 @@ errval_t single_slot_alloc_init(struct single_slot_allocator *ret,
     if (!buf) {
         return LIB_ERR_MALLOC_FAIL;
     }
+    //we touch all the space we got, to make sure it's actually backed by things
+    memset(buf,0,buflen);
 
     err = single_slot_alloc_init_raw(ret, cap, cnode, nslots, buf, buflen);
     if (err_is_fail(err)) {
@@ -274,5 +279,6 @@ errval_t single_slot_alloc_init(struct single_slot_allocator *ret,
     if (retslots) {
         *retslots = nslots;
     }
+
     return SYS_ERR_OK;
 }
