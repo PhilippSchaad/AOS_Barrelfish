@@ -413,7 +413,6 @@ send_handler_1(process_get_name_send_handler,
                RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME), args[1])
 
 static errval_t process_spawn_receive_handler(uintptr_t* args) {
-    debug_printf("on the other side\n");
     recv_handler_fleshy_bits(process_spawn_receive_handler,
                              -1, RPC_TYPE_PROCESS_SPAWN);
     args[8] = msg.words[1];
