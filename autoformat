@@ -5,6 +5,7 @@ DO_PATCH=false
 DO_SHOW=false
 ONLY_FILE=false
 NOARGS=true
+DIFF="diff"
 FILE=""
 
 file_err () {
@@ -15,21 +16,21 @@ format_file () {
     if [ $DO_PATCH = true ]; then
         if [ $DO_BACKUP = true ]; then
             if [ $DO_SHOW = true ]; then
-                clang-format -style=file $FILE | diff -u $FILE -;
-                clang-format -style=file $FILE | diff -u $FILE - | patch -s -b $FILE;
+                clang-format -style=file $FILE | $DIFF -u $FILE -;
+                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s -b $FILE;
             else
-                clang-format -style=file $FILE | diff -u $FILE - | patch -s -b $FILE;
+                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s -b $FILE;
             fi
         else
             if [ $DO_SHOW = true ]; then
-                clang-format -style=file $FILE | diff -u $FILE -;
-                clang-format -style=file $FILE | diff -u $FILE - | patch -s $FILE;
+                clang-format -style=file $FILE | $DIFF -u $FILE -;
+                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s $FILE;
             else
-                clang-format -style=file $FILE | diff -u $FILE - | patch -s $FILE;
+                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s $FILE;
             fi
         fi
     elif [ $DO_SHOW = true ]; then
-        clang-format -style=file $FILE | diff -u $FILE -;
+        clang-format -style=file $FILE | $DIFF -u $FILE -;
     fi
 }
 
@@ -111,7 +112,15 @@ if hash clang-format 2>/dev/null; then
         printf "Invalid or no arguments\n"
         print_help
     else
+        if hash colordiff 2>/dev/null; then
+            DIFF="colordiff"
+        fi
         run_formatting
+        if [ $DIFF = "diff" ] && [ $DO_SHOW = true ]; then
+            printf "\033[32m"
+            printf "Hint: 'sudo apt install colordiff' can drastically improve"
+            printf " how -s looks..!\033[0m\n"
+        fi
     fi
 else
     printf "This requires 'clang-format' to be installed! A simple apt.. :)\n"

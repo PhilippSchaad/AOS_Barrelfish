@@ -10,3 +10,5 @@ SpaceAfterCStyleCast: true
 BreakBeforeBraces: Custom
 BraceWrapping:
     AfterFunction: true
+
+MaxEmptyLinesToKeep: 1
