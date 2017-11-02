@@ -403,7 +403,6 @@ errval_t cnode_create_from_mem(struct capref dest, struct capref src,
     // Construct the cnoderef to return
     if (cnoderef != NULL) {
         enum cnode_type ref_cntype = cntype == ObjType_L1CNode ? CNODE_TYPE_ROOT : CNODE_TYPE_OTHER;
-        // debug_printf("building cnoderef for objtype = %d, cntype = %d\n", cntype, ref_cntype);
         *cnoderef = build_cnoderef(dest, ref_cntype);
     }
 
@@ -457,8 +456,9 @@ errval_t cnode_create_l2(struct capref *ret_dest, struct cnoderef *cnoderef)
     err = cnode_create_raw(*ret_dest, cnoderef, ObjType_L2CNode,
                            L2_CNODE_SLOTS, &retslots);
     if (retslots != L2_CNODE_SLOTS) {
-        debug_printf("Unable to create properly sized L2 CNode: got %"PRIuCSLOT" slots instead of %"PRIuCSLOT"\n",
-                retslots, (cslot_t)L2_CNODE_SLOTS);
+        DBG(ERR, "Unable to create properly sized L2 CNode: "
+            "got %"PRIuCSLOT" slots instead of %"PRIuCSLOT"\n",
+            retslots, (cslot_t)L2_CNODE_SLOTS);
     }
     return err;
 }
@@ -478,8 +478,9 @@ errval_t cnode_create_l1(struct capref *ret_dest, struct cnoderef *cnoderef)
     err = cnode_create_raw(*ret_dest, cnoderef, ObjType_L1CNode,
                            L2_CNODE_SLOTS, &retslots);
     if (retslots != L2_CNODE_SLOTS) {
-        debug_printf("Unable to create initial L1 CNode: got %"PRIuCSLOT" slots instead of %"PRIuCSLOT"\n",
-                retslots, (cslot_t)L2_CNODE_SLOTS);
+        DBG(ERR, "Unable to create initial L1 CNode: "
+            "got %"PRIuCSLOT" slots instead of %"PRIuCSLOT"\n",
+            retslots, (cslot_t)L2_CNODE_SLOTS);
     }
     return err;
 }
@@ -512,9 +513,9 @@ errval_t cnode_create_foreign_l2(struct capref dest_l1, cslot_t dest_slot,
     cslot_t retslots;
     err = cnode_create_raw(dest, NULL, ObjType_L2CNode, L2_CNODE_SLOTS, &retslots);
     if (retslots != L2_CNODE_SLOTS) {
-        debug_printf("Unable to create properly sized foreign CNode: "
-                     "got %"PRIuCSLOT" slots instead of %"PRIuCSLOT"\n",
-                     retslots, (cslot_t)L2_CNODE_SLOTS);
+        DBG(ERR, "Unable to create properly sized foreign CNode: "
+            "got %"PRIuCSLOT" slots instead of %"PRIuCSLOT"\n",
+            retslots, (cslot_t)L2_CNODE_SLOTS);
     }
 
     // Create proper cnoderef for foreign L2
@@ -675,24 +676,19 @@ errval_t frame_create(struct capref dest, size_t bytes, size_t *retbytes)
         }
         return err_push(err, LIB_ERR_RAM_ALLOC);
     }
-    debug_printf("we got the ram for a frame\n");
     err = cap_retype(dest, ram, 0, ObjType_Frame, bytes, 1);
     if (err_is_fail(err)) {
-        debug_printf("frame cap retype failed\n");
         return err_push(err, LIB_ERR_CAP_RETYPE);
     }
-    debug_printf("and past the retype\n");
 
     err = cap_destroy(ram);
     if (err_is_fail(err)) {
-        debug_printf("frame cap destroy failed\n");
         return err_push(err, LIB_ERR_CAP_DESTROY);
     }
 
     if (retbytes != NULL) {
         *retbytes = bytes;
     }
-    debug_printf("we got all the frame things done\n");
 
     return SYS_ERR_OK;
 }

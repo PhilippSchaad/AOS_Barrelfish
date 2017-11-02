@@ -53,17 +53,21 @@ static void sloc_alloc_refill_preallocated_with_cap(struct capref *cap) {
             return;
         }
     }
-    DBG(ERR,"we tried to hand a slot back to the prefilled buffer despite that one being full. This is bad as we just lost a cap into the infinite void\n");
+    /*
+    DBG(WARN,"we tried to hand a slot back to the prefilled buffer despite "
+        "that one being full. This is bad as we just lost a cap into the "
+        "infinite void\n");
+        */
 }
 
 static void sloc_alloc_refill_preallocated_slots(void) {
     refilling = true;
-    debug_printf("we are refilling slots\n");
     for(int i = 0; i < 5; i++) {
         if(usedslots & (1 << i)) {
             if(slot_alloc(&capbuffer[i]) != SYS_ERR_OK) {
-                DBG(ERR,
-                    "we failed to refill in lmp_chan_recv_slot_refill_preallocated_slots, things are going to be bad\n");
+                DBG(ERR, "we failed to refill in "
+                    "lmp_chan_recv_slot_refill_preallocated_slots, "
+                    "things are going to be bad\n");
             } else
                 usedslots -= (1 << i);
         }
@@ -93,9 +97,7 @@ errval_t slot_alloc(struct capref *ret)
         err = ca->alloc(ca, ret);
         slot_alloc_rec_depth--;
     }else{
-        debug_printf("we get into this case!\n");
         slot_alloc_use_prefilled_slot(ret);
-        debug_printf("and out again\n");
         err = SYS_ERR_OK;
     }
     if(usedslots != 0 && !refilling && get_slot_alloc_rec_depth() == 0)

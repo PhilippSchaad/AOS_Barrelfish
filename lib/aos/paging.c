@@ -35,7 +35,6 @@ static void pagefault_handler(enum exception_type type, int subtype,
                               void *addr, arch_registers_state_t *regs,
                               arch_registers_fpu_state_t *fpuregs)
 {
-    debug_printf("hi from the pagefault handler\n");
     lvaddr_t vaddr = (lvaddr_t) addr;
 
     // TODO: Check if we are in a valid heap-range address.
@@ -48,11 +47,9 @@ static void pagefault_handler(enum exception_type type, int subtype,
     size_t retsize;
 
     CHECK(frame_alloc(&frame, BASE_PAGE_SIZE, &retsize));
-    debug_printf("pagefault handler is halfways\n");
     CHECK(paging_map_fixed_attr(get_current_paging_state(),
                                 vaddr, frame, retsize,
                                 VREGION_FLAGS_READ_WRITE));
-    debug_printf("pagefault handler is done\n");
 }
 
 /**

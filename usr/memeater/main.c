@@ -172,7 +172,8 @@ int main(int argc, char *argv[])
     aos_rpc_process_spawn(&init_rpc,"hello",1,&ret);
     char *name;
     aos_rpc_process_get_name(&init_rpc,ret,&name);
-    debug_printf("We spawned 'hello' and then requested the name of the process with its idea, result: %s\n",name);
+    debug_printf("We spawned 'hello' and then requested the name of the "
+                 "process with its idea, result: %s\n",name);
     //disabled because it gets ugly, as the name would indicate
     //aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
 
@@ -183,10 +184,13 @@ int main(int argc, char *argv[])
         if (err_is_fail(err)) {
             return err_push(err, LIB_ERR_SLOT_ALLOC);
         }
+        /*
         if (i%20==0){
             debug_printf("Created %d slots\n", i);
         }
+        */
     }
+    debug_printf("Created them all\n");
     for (int i=1; i<=2000; ++i){
         err = slot_free(slot[i-1]);
         if (err_is_fail(err)) {
@@ -194,6 +198,21 @@ int main(int argc, char *argv[])
         }
     }
     debug_printf("Freed them again...\n");
+
+    debug_printf("We're now gonna alloc a large array and only access a few"
+                 " tiny parts of it..\n");
+    char *large_array = (char *) malloc(sizeof(char) * 1000000000);
+    debug_printf("Allocated 1GB array\n");
+    int offset = 500000000;
+    for (int i = 0; i < 100; i++) {
+        large_array[i + offset] = 'x';
+    }
+    debug_printf("Assigned 100 places towards the middle a value 'x'\n");
+    debug_printf("Now printing those values:\n");
+    for (int i = 0; i < 100; i++) {
+        printf("%c", large_array[i + offset]);
+    }
+    printf("\ndone!\n");
 
     debug_printf("memeater terminated....\n");
 

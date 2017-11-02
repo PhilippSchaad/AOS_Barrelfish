@@ -19,13 +19,13 @@
 /* remote (indirect through a channel) version of ram_alloc, for most domains */
 static errval_t ram_alloc_remote(struct capref *ret, size_t size, size_t alignment)
 {
-    /* from the book on this procedure:
-     * As a hint, receiving a capability always uses a slot in your CSPACE. If you run out
-of slots, you will need to get new memory to create a new CNODE to hold new
-capabilities. You may want to make sure that you always have enough free slots
-available.
+    /* 
+     * From the book on this procedure:
+     * As a hint, receiving a capability always uses a slot in your CSPACE.
+     * If you run out of slots, you will need to get new memory to create a
+     * new CNODE to hold new capabilities. You may want to make sure that you
+     * always have enough free slots available.
      */
-    debug_printf("%s\n",__FUNCTION__);
 
     size_t bytes;
     struct aos_rpc *memchan = aos_rpc_get_memory_channel();
@@ -34,7 +34,6 @@ available.
         DEBUG_ERR(err, "ram_alloc_remote had an issue\n");
         return err;
     }
-    debug_printf("%s done\n",__FUNCTION__);
 
     return SYS_ERR_OK;
 }

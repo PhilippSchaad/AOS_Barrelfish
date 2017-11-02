@@ -317,7 +317,7 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
 
     // Correct return to fit alignment.
     *ret += alignment_offset;
-    DBG(-1, "end elf_alloc_sect_func. I will return buffer at "
+    DBG(DETAILED, "end elf_alloc_sect_func. I will return buffer at "
         "address 0x%"PRIxPTR"\n", *ret);
     return SYS_ERR_OK;
 }

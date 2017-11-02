@@ -47,11 +47,9 @@ static errval_t salloc(struct slot_allocator *ca, struct capref *ret)
 
     // Check to free head
     if (sca->head->space == 0) {
-        debug_printf("no\n");
         struct cnode_meta *walk = sca->head;
         sca->head = walk->next;
         slab_free(&sca->slab, walk);
-        debug_printf("done\n");
     }
 
     thread_mutex_unlock(&ca->mutex);
