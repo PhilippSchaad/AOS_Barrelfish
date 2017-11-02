@@ -150,6 +150,11 @@ void derference_null(void){
     int* a=NULL;
     *a=5;
 }
+void derference_kernel(void);
+void derference_kernel(void){
+    int* a=(int*) 0x80050000;
+    *a=5;
+}
 
 int main(int argc, char *argv[])
 {
@@ -234,8 +239,14 @@ int main(int argc, char *argv[])
     thread_join(nullthread, &retval);
     debug_printf("\033[32m\"SUCCESS\"\n\033[0m");
 
-    thread_create((thread_func_t) test_basic_rpc, NULL);
+    debug_printf("\033[33mTry to dereference something from the kernel space\n\033[0m");
+    struct thread* kernelthread = thread_create((thread_func_t) derference_kernel, NULL); 
+    thread_join(kernelthread, &retval);
+    debug_printf("\033[32m\"SUCCESS\"\n\033[0m");
     
+    debug_printf("\033[33mDo basic checks on thread\n\033[0m");
+    struct thread* threadchecks =  thread_create((thread_func_t) test_basic_rpc, NULL); 
+    thread_join(threadchecks, &retval);
 
     debug_printf("seems I have done everything I should... =)\n");
     debug_printf("memeater terminated....\n");
