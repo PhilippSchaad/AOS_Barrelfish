@@ -14,6 +14,9 @@
 
 #include <aos/aos_rpc.h>
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 #define send_handler_core(name, asserts, sendline)                            \
     static errval_t name(uintptr_t *args)                                     \
     {                                                                         \
@@ -44,13 +47,15 @@
                                              arg7,arg8));
 
 #define impl(send_handler, receive_handler, recvslot)                         \
+    thread_mutex_lock(&chan->mutex);                                          \
     if (recvslot == true) CHECK(lmp_chan_alloc_recv_slot(&chan->chan));       \
     CHECK(lmp_chan_register_send(&chan->chan, ws, MKCLOSURE((void *) send_handler, \
                                                             sendargs)));      \
     CHECK(lmp_chan_register_recv(&chan->chan, ws, MKCLOSURE((void *) receive_handler, \
                                                             sendargs)));      \
     CHECK(event_dispatch(ws));                                                \
-    CHECK(event_dispatch(ws));
+    CHECK(event_dispatch(ws));                                                \
+    thread_mutex_unlock(&chan->mutex);
 
 #define recv_handler_fleshy_bits(name,capindex,type)                          \
     DBG(VERBOSE,#name"\n");                                                   \
@@ -179,12 +184,14 @@ static errval_t number_send_handler(void *args)
                                      MKCLOSURE((void *) number_send_handler,
                                                args)));
     }
+    thread_mutex_unlock(&rpc->mutex);
 
     return SYS_ERR_OK;
 }
 
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
+    thread_mutex_lock(&chan->mutex);
     DBG(VERBOSE, "rpc_send_number\n");
 
     struct waitset *ws = get_default_waitset();
@@ -226,6 +233,7 @@ static errval_t string_send_handler(uintptr_t *args)
 
 errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
+    thread_mutex_lock(&rpc->mutex);
     assert(rpc != NULL);
     // We probably have to split the string into smaller pieces.
     // Reminder: string is null terminated ('\0')
@@ -283,6 +291,7 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
             CHECK(event_dispatch(ws));
         } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
     }
+    thread_mutex_unlock(&rpc->mutex);
 
     return SYS_ERR_OK;
 }
@@ -312,6 +321,7 @@ static errval_t ram_send_handler(uintptr_t *args)
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
                              struct capref *retcap, size_t *ret_size)
 {
+    //thread_mutex_lock(&chan->mutex);
     DBG(VERBOSE, "rpc_get_ram_cap\n");
 
     struct waitset *ws = get_default_waitset();
@@ -342,6 +352,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     *retcap = *((struct capref *) sendargs[3]);
     *ret_size = *((size_t *) sendargs[4]);
 
+    //thread_mutex_unlock(&chan->mutex);
     return SYS_ERR_OK;
 }
 
@@ -530,6 +541,7 @@ static errval_t handshake_send_handler(void* args)
 
 static errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest)
 {
+    // this does not need to be locked here. no threads so far
     assert(rpc != NULL);
     rpc->init = false;
     struct waitset *ws = get_default_waitset();
