@@ -41,6 +41,8 @@
                                }                                              \
                            }
 
+#define DBG_LINE DBG(DETAILED, "Function %s, Line %d\n" , __FUNCTION__, __LINE__)
+
 __BEGIN_DECLS
 
 struct capability;
