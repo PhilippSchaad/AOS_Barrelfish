@@ -79,7 +79,6 @@
         /* TODO: handle? */                                                   \
     }
 
-unsigned int id = 0;
 __attribute__((unused))
 static errval_t ram_receive_handler(void *args)
 {
@@ -562,6 +561,7 @@ static errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest)
     return SYS_ERR_OK;
 }
 
+unsigned int id = 1337;
 errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
     CHECK(rpc_handshake_helper(rpc, cap_initep));

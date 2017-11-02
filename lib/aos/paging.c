@@ -473,7 +473,7 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
-    DBG(DETAILED, "fixed alloc: vaddr: %p, bytes: %u \n", vaddr, bytes);
+    DBG(VERBOSE, "st %u fixed alloc: vaddr: %p, bytes: 0x%x \n", st->debug_paging_state_index, vaddr, bytes);
 
     // Iterate over the L2 page tables and map the memory.
     size_t mapped_bytes = 0;
@@ -597,7 +597,7 @@ static void paging_add_space(struct paging_state *st, lvaddr_t base,
  */
 errval_t paging_unmap(struct paging_state *st, const void *region)
 {
-    DBG(DETAILED,"unmapping %p", region);
+    DBG(VERBOSE,"st %u - unmapping %p\n", st->debug_paging_state_index, region);
 
     struct paging_used_node *node = st->mappings;
     struct paging_used_node *prev = NULL;

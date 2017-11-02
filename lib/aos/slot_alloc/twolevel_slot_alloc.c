@@ -29,6 +29,7 @@ static errval_t rootcn_alloc(void *st, size_t reqsize, struct capref *ret)
  */
 errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
 {
+    DBG(DETAILED,"two_level_alloc\n");
     errval_t err = SYS_ERR_OK;
     struct multi_slot_allocator *mca = (struct multi_slot_allocator*)ca;
 
@@ -137,6 +138,7 @@ errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
     }
 
     thread_mutex_unlock(&ca->mutex);
+    DBG(DETAILED,"two_level_alloc done\n");
     return SYS_ERR_OK;
 }
 

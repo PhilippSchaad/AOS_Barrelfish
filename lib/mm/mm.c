@@ -385,11 +385,11 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
         // lose space to fullfill alignment restrictions ideally we'd just
         // allocate a new node and store the remaining space in there.
         // Size of the node exactly as needed.
-        DBG(DETAILED, "Memory reuse\n");
+        DBG(VERBOSE, "Memory reuse\n");
         slab_free(&(mm->slabs), new_node);
         new_node = node;
     }
-
+    DBG(VERBOSE,"new node: base: 0x%"PRIxGENPADDR" size: 0x%x\n",new_node->base,new_node->size);
     // TODO: cleanup
 
     // Create the capability.
@@ -457,6 +457,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
         if (node->base == base && node->size - size <= BASE_PAGE_SIZE) {
             // Free the node.
             node->type = NodeType_Free;
+            DBG(VERBOSE,"freeing node: base: 0x%"PRIxGENPADDR" size: 0x%x\n",node->base,node->size);
 
             // XXX: What's happening here exactly, why are both calls
             // throwing errors and why are we ok with it?..

@@ -24,6 +24,7 @@
 errval_t range_slot_alloc(struct range_slot_allocator *alloc, cslot_t nslots,
                           struct capref *ret)
 {
+    DBG(DETAILED,"range_slot_alloc\n");
     assert(alloc);
     if (!alloc->is_head) {
         return LIB_ERR_RANGE_ALLOC_NOT_HEAD;
