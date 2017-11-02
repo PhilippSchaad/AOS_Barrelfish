@@ -139,7 +139,6 @@ static errval_t test_basic_rpc(void)
     return SYS_ERR_OK;
 }
 
-
 int main(int argc, char *argv[])
 {
     errval_t err;
@@ -214,7 +213,11 @@ int main(int argc, char *argv[])
     }
     printf("\ndone!\n");
 
-    debug_printf("memeater terminated....\n");
 
+    thread_create((thread_func_t) test_basic_rpc, NULL);
+
+
+    debug_printf("seems I have done everything I should... =)\n");
+    debug_printf("memeater terminated....\n");
     return EXIT_SUCCESS;
 }
