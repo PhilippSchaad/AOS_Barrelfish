@@ -197,16 +197,51 @@ void lmp_chan_migrate_send(struct lmp_chan *lc, struct waitset *ws)
  *
  * \param lc LMP channel
  */
+static int repeatcount = 0;
+static int filled = 0;
+static struct capref capbuffer[5];
+
+static void lmp_chan_recv_slot_refill_preallocated_slots(void) {
+    for(int i = 0; i < 5; i++) {
+        if(filled & (1 << i)) {
+            if(slot_alloc(&capbuffer[i]) != SYS_ERR_OK) {
+                DBG(ERR,
+                    "we failed to refill in lmp_chan_recv_slot_refill_preallocated_slots, things are going to be bad\n");
+            } else
+                filled -= (1 << i);
+        }
+    }
+}
+
+static void lmp_chan_alloc_recv_slot_use_prefilled_slot(struct capref *slot) {
+    for(int i = 0; i < 5; i++) {
+        if(filled & (1 << i))
+            continue;
+        *slot = capbuffer[i];
+        filled = filled | (1 << i);
+        return;
+    }
+    DBG(ERR,"lmp_chan_alloc_recv_slot_use_prefilled_slot ran out of buffers. Something is really wrong\n");
+
+}
+
 errval_t lmp_chan_alloc_recv_slot(struct lmp_chan *lc)
 {
+    //this is inherently not threadsafe. But our whole RPC implementation is not threadsafe so whatever
     struct capref slot;
-
-    errval_t err = slot_alloc(&slot);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_SLOT_ALLOC);
+    repeatcount++;
+    if(repeatcount == 1) {
+        errval_t err = slot_alloc(&slot);
+        if (err_is_fail(err)) {
+            return err_push(err, LIB_ERR_SLOT_ALLOC);
+        }
+    }else{
+        lmp_chan_alloc_recv_slot_use_prefilled_slot(&slot);
     }
-
+    repeatcount--;
     lmp_chan_set_recv_slot(lc, slot);
+    if(repeatcount == 0)
+        lmp_chan_recv_slot_refill_preallocated_slots();
     return SYS_ERR_OK;
 }
 
