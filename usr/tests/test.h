@@ -64,14 +64,14 @@ static void tests_run(struct tester *t)
 
 static void register_memory_tests(struct tester *t)
 {
-   /* register_test(t, mm_alloc_300f);
+    register_test(t, mm_alloc_300f);
     register_test(t, mm_alloc_free_600);
     register_test(t, mm_alloc_free_20);
     register_test(t, mm_alloc_free_10);
     register_test(t, mm_alloc_and_map_10f);
     register_test(t, mm_alloc_and_map_large_10f);
     register_test(t, mm_paging_map_fixed_attr_cursize_test);
-    register_test(t, mm_paging_alloc_aligned_allignment_test); */
+    register_test(t, mm_paging_alloc_aligned_allignment_test);
 }
 
 static void register_spawn_tests(struct tester *t)
