@@ -29,6 +29,7 @@
 
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
+static struct aos_rpc init_rpc;
 
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
 extern size_t (*_libc_terminal_write_func)(const char *, size_t);
@@ -142,7 +143,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         extern char **environ;
         environ = params->envp;
     }
-
     // Init default waitset for this dispatcher
     struct waitset *default_ws = get_default_waitset();
     waitset_init(default_ws);
@@ -178,10 +178,8 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     }
 
     // Register ourselves with init
-    struct aos_rpc rpc;
-    aos_rpc_init(&rpc);
-//    ram_alloc_set(NULL);
-
+    aos_rpc_init(&init_rpc);
+    ram_alloc_set(NULL);
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;
