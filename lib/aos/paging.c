@@ -28,6 +28,7 @@
 //#define no_page_align_in_frame_alloc
 
 static struct paging_state current;
+static struct thread_mutex mutex;
 
 static char pagefault_stack[PAGEFAULT_STACK_SIZE];
 // TODO: Make threadsafe (Probably best to acquire a lock o.s.s.?)
@@ -35,7 +36,12 @@ static void pagefault_handler(enum exception_type type, int subtype,
                               void *addr, arch_registers_state_t *regs,
                               arch_registers_fpu_state_t *fpuregs)
 {
+    thread_mutex_lock(&mutex);
+    struct paging_state* st = get_current_paging_state();
+
     lvaddr_t vaddr = (lvaddr_t) addr;
+
+    debug_printf("pagefault\n");
 
     // TODO: Check if we are in a valid heap-range address.
     // TODO: Also check if we need to refill slabs and do so if yes.
@@ -47,9 +53,10 @@ static void pagefault_handler(enum exception_type type, int subtype,
     size_t retsize;
 
     CHECK(frame_alloc(&frame, BASE_PAGE_SIZE, &retsize));
-    CHECK(paging_map_fixed_attr(get_current_paging_state(),
+    CHECK(paging_map_fixed_attr(st,
                                 vaddr, frame, retsize,
                                 VREGION_FLAGS_READ_WRITE));
+    thread_mutex_unlock(&mutex);
 }
 
 /**
@@ -127,6 +134,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     // TODO (M4): Implement page fault handler that installs frames when a page
     // fault occurs and keeps track of the virtual address space.
 
+
     return SYS_ERR_OK;
 }
 
@@ -164,6 +172,7 @@ errval_t paging_init(void)
     paging_init_state(&current, (1<<25), l1_pagetable,
                       get_default_slot_allocator());
 
+    thread_mutex_init(&mutex);
     return SYS_ERR_OK;
 }
 
