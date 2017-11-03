@@ -102,6 +102,11 @@ static void *morecore_alloc(size_t bytes, size_t *retbytes)
 
 static void morecore_free(void *base, size_t bytes)
 {
+    // check if allocated (in paging state)
+    // check mapped frames and free them
+    // send base and size using rpc
+    // free on the other side
+    // Destroy cap
     USER_PANIC("NYI");
 }
 
