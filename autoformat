@@ -4,9 +4,11 @@ DO_BACKUP=false
 DO_PATCH=false
 DO_SHOW=false
 ONLY_FILE=false
+ONLY_DIR=false
 NOARGS=true
 DIFF="diff"
 FILE=""
+DIR=""
 
 file_err () {
     printf "File not found or not valid .cpp or .hpp file.\n"
@@ -48,13 +50,23 @@ run_formatting () {
             printf "invalid extension\n"
             file_err
         fi
+    elif [ $ONLY_DIR = true ]; then
+        if [ -d "$DIR" ]; then
+            for f in $(find $DIR -name '*.c' -or -name '*.h' -or -name '*.cpp' -or -name '*.hpp');
+            do
+                FILE=$f
+                format_file
+            done
+        else
+            printf "Not a valid directory or directory not found\n"
+        fi
     else
         printf "This project is huge, this can take forever..\n"
         read -p "Procceed without -f flag? [Y/n] " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]
         then
-            for f in $(find . -name '*.cpp' -or -name '*.hpp');
+            for f in $(find . -name '*.cpp' -or -name '*.hpp' -or -name '*.c' -or -name '*.h');
             do
                 FILE=$f;
                 format_file
@@ -75,12 +87,14 @@ print_help () {
     printf "        Show all formatting violations.\n"
     printf "        If used together with -p, it will display all changes\n"
     printf "        made to the patched files.\n"
+    printf "    -d [path]\n"
+    printf "        Only apply to a directory found at [path]\n"
     printf "    -f [path]\n"
     printf "        Only apply to a file found at [path]\n"
 }
 
 if hash clang-format 2>/dev/null; then
-    while getopts ":hpbsf:" opt; do
+    while getopts ":hpbsf:d:" opt; do
         NOARGS=false
         case ${opt} in
             h)
@@ -100,6 +114,10 @@ if hash clang-format 2>/dev/null; then
                 ONLY_FILE=true
                 FILE=$OPTARG
                 ;;
+            d)
+                ONLY_DIR=true
+                DIR=$OPTARG
+                ;;
             *)
                 printf "Invalid or no arguments\n"
                 print_help
@@ -110,6 +128,9 @@ if hash clang-format 2>/dev/null; then
 
     if [ $NOARGS = true ]; then
         printf "Invalid or no arguments\n"
+        print_help
+    elif [ $ONLY_DIR = true ] && [ $ONLY_FILE = true ]; then
+        printf "Can't use -d and -f together\n"
         print_help
     else
         if hash colordiff 2>/dev/null; then
