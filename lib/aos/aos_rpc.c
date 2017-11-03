@@ -409,6 +409,50 @@ send_handler_0(process_get_pids_send_handler,
 send_handler_1(process_get_name_send_handler,
                RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME), args[1])
 
+static errval_t kill_me_send_handler(void *args)
+{
+    DBG(VERBOSE, "kill_me_send_handler\n");
+
+    uintptr_t *uargs = (uintptr_t *) args;
+
+    struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
+    struct capref *cap = (struct capref *) uargs[1];
+
+    errval_t err;
+    err = lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, *cap,
+                         RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME));
+    if (err_is_fail(err)){
+        // Reregister if failed.
+        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
+                                     MKCLOSURE((void *) kill_me_send_handler,
+                                               args)));
+    }
+    thread_mutex_unlock(&rpc->mutex);
+
+    return SYS_ERR_OK;
+}
+
+errval_t aos_rpc_kill_me(struct aos_rpc *chan, struct capref disp)
+{
+    DBG(VERBOSE, "aos_rpc_kill_me\n");
+    thread_mutex_lock(&chan->mutex);
+
+    struct waitset *ws = get_default_waitset();
+
+    uintptr_t sendargs[2];
+
+    sendargs[0] = (uintptr_t) chan;
+    sendargs[1] = (uintptr_t) &disp;
+
+    CHECK(lmp_chan_register_send(&chan->chan, ws,
+                                 MKCLOSURE((void *) kill_me_send_handler,
+                                           sendargs)));
+
+    CHECK(event_dispatch(ws));
+
+    return SYS_ERR_OK;
+}
+
 static errval_t process_spawn_receive_handler(uintptr_t* args) {
     recv_handler_fleshy_bits(process_spawn_receive_handler,
                              -1, RPC_TYPE_PROCESS_SPAWN);

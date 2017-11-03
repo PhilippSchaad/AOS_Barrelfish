@@ -35,6 +35,7 @@
 #define RPC_TYPE_PROCESS_SPAWN      0x8
 #define RPC_TYPE_PROCESS_GET_NAME   0x9
 #define RPC_TYPE_PROCESS_GET_PIDS   0x10
+#define RPC_TYPE_PROCESS_KILL_ME    0x11
 
 struct aos_rpc {
     struct lmp_chan chan;
@@ -69,6 +70,11 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc);
  * \brief send one character to the serial port
  */
 errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c);
+
+/**
+ * \brief Request the process manager to remove our dispatcher and kill us
+ */
+errval_t aos_rpc_kill_me(struct aos_rpc *chan, struct capref disp);
 
 /**
  * \brief Request process manager to start a new process

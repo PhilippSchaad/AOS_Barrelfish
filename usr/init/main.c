@@ -69,11 +69,6 @@ static struct domain * find_domain(struct capref *cap)
     return NULL;
 }
 
-static errval_t number_send_handler(void *args)
-{
-    return SYS_ERR_OK;
-}
-
 static errval_t ram_send_handler(void **args)
 {
     DBG(VERBOSE, "ram_send_handler sending ack\n");
@@ -107,15 +102,6 @@ static errval_t number_recv_handler(void *args, struct lmp_recv_msg *msg,
                                     struct capref *cap)
 {
     DBG(RELEASE, "We got the number %u via RPC\n", (uint32_t) msg->words[1]);
-
-    struct domain *dom = find_domain(cap);
-    if (dom == NULL) {
-        assert(!"Failed to find active domain!");
-    }
-
-    CHECK(lmp_chan_register_send(&dom->chan, get_default_waitset(),
-                                 MKCLOSURE((void *) number_send_handler,
-                                           &dom->chan)));
     return SYS_ERR_OK;
 }
 
@@ -263,6 +249,18 @@ struct adhoc_process_table {
 
 static struct adhoc_process_table *adhoc_process_table = NULL;
 
+static errval_t kill_me_recv_handler(struct capref *cap,
+                                     struct lmp_recv_msg *msg)
+{
+    // TODO: Does this have to remove something in the adhoc_process_table?..
+    DBG(DETAILED, "kill_me_recv_handler\n");
+    errval_t err = cap_delete(*cap);
+    if (err_is_fail(err)) {
+        DBG(WARN, "We failed to delete the dispatcher in init..\n");
+    }
+    return SYS_ERR_OK;
+}
+
 static errval_t spawn_recv_handler(void *args, struct lmp_recv_msg *msg,
                                    struct capref* cap)
 {
@@ -386,6 +384,9 @@ static errval_t general_recv_handler(void *args)
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
             CHECK(spawn_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
+            CHECK(kill_me_recv_handler(&cap, &msg));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
         default:
