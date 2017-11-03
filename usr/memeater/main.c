@@ -9,7 +9,8 @@
  *
  * This file is distributed under the terms in the attached LICENSE file.
  * If you do not find this file, copies can be found by writing to:
- * ETH Zurich D-INFK, Universitaetsstrasse 6, CH-8092 Zurich. Attn: Systems Group.
+ * ETH Zurich D-INFK, Universitaetsstrasse 6, CH-8092 Zurich. Attn: Systems
+ * Group.
  */
 
 #include <stdio.h>
@@ -17,8 +18,8 @@
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
-#include <aos/waitset.h>
 #include <aos/paging.h>
+#include <aos/waitset.h>
 
 static struct aos_rpc init_rpc;
 
@@ -59,7 +60,7 @@ static errval_t request_and_map_memory(void)
     err = cap_retype(cap1_frame, cap1, 0, ObjType_Frame, BASE_PAGE_SIZE, 1);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not retype RAM cap to frame "
-                  "cap\n\033[0m");
+                       "cap\n\033[0m");
         return err;
     }
 
@@ -75,15 +76,15 @@ static errval_t request_and_map_memory(void)
     }
 
     debug_printf("\033[33mgot frame: 0x%" PRIxGENPADDR " mapped at %p\n"
-                 "\033[0m", id.base, buf1);
+                 "\033[0m",
+                 id.base, buf1);
 
     debug_printf("\033[33mperforming memset.\n\033[0m");
     memset(buf1, 0x00, BASE_PAGE_SIZE);
 
-
-
     debug_printf("\033[33mobtaining cap of %" PRIu32 " bytes using frame "
-                 "alloc...\n\033[0m", LARGE_PAGE_SIZE);
+                 "alloc...\n\033[0m",
+                 LARGE_PAGE_SIZE);
 
     struct capref cap2;
     err = frame_alloc(&cap2, LARGE_PAGE_SIZE, &bytes);
@@ -104,7 +105,8 @@ static errval_t request_and_map_memory(void)
     }
 
     debug_printf("\033[33mgot frame: 0x%" PRIxGENPADDR " mapped at %p\n"
-                 "\033[0m", id.base, buf2);
+                 "\033[0m",
+                 id.base, buf2);
 
     debug_printf("\033[33mperforming memset.\n\033[0m");
     memset(buf2, 0x00, LARGE_PAGE_SIZE);
@@ -120,21 +122,21 @@ static errval_t test_basic_rpc(void)
     debug_printf("\033[33mRPC: testing basic RPCs...\033[0m\n");
 
     debug_printf("\033[33mRPC: sending number...\033[0m\n");
-    err =  aos_rpc_send_number(&init_rpc, 42);
+    err = aos_rpc_send_number(&init_rpc, 42);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not send a string\033[0m\n");
         return err;
     }
 
     debug_printf("\033[33mRPC: sending small string...\033[0m\n");
-    err =  aos_rpc_send_string(&init_rpc, "Hello init");
+    err = aos_rpc_send_string(&init_rpc, "Hello init");
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not send a string\033[0m\n");
         return err;
     }
 
     debug_printf("\033[33mRPC: sending large string...\033[0m\n");
-    err =  aos_rpc_send_string(&init_rpc, str);
+    err = aos_rpc_send_string(&init_rpc, str);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not send a string\033[0m\n");
         return err;
@@ -145,15 +147,15 @@ static errval_t test_basic_rpc(void)
     return SYS_ERR_OK;
 }
 
-void derference_null(void);
-void derference_null(void){
-    int* a=NULL;
-    *a=5;
+static void derference_null(void)
+{
+    int *a = NULL;
+    *a = 5;
 }
-void derference_kernel(void);
-void derference_kernel(void){
-    int* a=(int*) 0x80050000;
-    *a=5;
+static void derference_kernel(void)
+{
+    int *a = (int *) 0x80050000;
+    *a = 5;
 }
 
 int main(int argc, char *argv[])
@@ -174,29 +176,29 @@ int main(int argc, char *argv[])
 
     err = request_and_map_memory();
     if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "\033[31mcould not request and map memory\033[0m\n");
+        USER_PANIC_ERR(err,
+                       "\033[31mcould not request and map memory\033[0m\n");
     }
-
 
     /* test printf functionality */
     debug_printf("\033[33mtesting terminal printf function...\033[0m\n");
 
     printf("Hello world using terminal service\n");
 
-
     domainid_t ret;
     aos_rpc_process_spawn(&init_rpc, "hello", 1, &ret);
     char *name;
     aos_rpc_process_get_name(&init_rpc, ret, &name);
     debug_printf("\033[33mWe spawned 'hello' and then requested the name of "
-                 "the process with its idea, result: %s\n\033[0m", name);
-    //disabled because it gets ugly, as the name would indicate
-    //aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
+                 "the process with its idea, result: %s\n\033[0m",
+                 name);
+    // disabled because it gets ugly, as the name would indicate
+    // aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
 
     struct capref slot[2000];
     debug_printf("\033[33mTry to allocate 2000 slots\n\033[0m");
-    for (int i=1; i<=2000; ++i){
-        err = slot_alloc(&slot[i-1]);
+    for (int i = 1; i <= 2000; ++i) {
+        err = slot_alloc(&slot[i - 1]);
         if (err_is_fail(err)) {
             return err_push(err, LIB_ERR_SLOT_ALLOC);
         }
@@ -207,7 +209,7 @@ int main(int argc, char *argv[])
         */
     }
     debug_printf("\033[33mCreated them all\n\033[0m");
-    for (int i = 1; i <= 2000; ++i){
+    for (int i = 1; i <= 2000; ++i) {
         err = slot_free(slot[i - 1]);
         if (err_is_fail(err)) {
             return err_push(err, LIB_ERR_SLOT_ALLOC);
@@ -224,7 +226,8 @@ int main(int argc, char *argv[])
     for (int i = 0; i < 100; i++) {
         large_array[i + offset] = 'x';
     }
-    debug_printf("\033[33mAssigned 100 places towards the middle a value 'x'\n\033[0m");
+    debug_printf(
+        "\033[33mAssigned 100 places towards the middle a value 'x'\n\033[0m");
     debug_printf("\033[33mNow printing those values:\n\033[0m");
     for (int i = 0; i < 100; i++) {
         printf("%c", large_array[i + offset]);
@@ -234,18 +237,22 @@ int main(int argc, char *argv[])
     printf("\n");
 
     debug_printf("\033[33mTry to dereference NULL\n\033[0m");
-    struct thread* nullthread = thread_create((thread_func_t) derference_null, NULL); 
+    struct thread *nullthread =
+        thread_create((thread_func_t) derference_null, NULL);
     int retval;
     thread_join(nullthread, &retval);
-    debug_printf("\033[32m\"SUCCESS\"\n\033[0m");
+    debug_printf("\033[32mSUCCESS\n\033[0m");
 
-    debug_printf("\033[33mTry to dereference something from the kernel space\n\033[0m");
-    struct thread* kernelthread = thread_create((thread_func_t) derference_kernel, NULL); 
+    debug_printf(
+        "\033[33mTry to dereference something from the kernel space\n\033[0m");
+    struct thread *kernelthread =
+        thread_create((thread_func_t) derference_kernel, NULL);
     thread_join(kernelthread, &retval);
-    debug_printf("\033[32m\"SUCCESS\"\n\033[0m");
-    
-    debug_printf("\033[33mDo basic checks on thread\n\033[0m");
-    struct thread* threadchecks =  thread_create((thread_func_t) test_basic_rpc, NULL); 
+    debug_printf("\033[32mSUCCESS\n\033[0m");
+
+    debug_printf("\033[33mPerform basic RPC again, but on a thread\n\033[0m");
+    struct thread *threadchecks =
+        thread_create((thread_func_t) test_basic_rpc, NULL);
     thread_join(threadchecks, &retval);
 
     debug_printf("seems I have done everything I should... =)\n");

@@ -41,8 +41,6 @@ static void pagefault_handler(enum exception_type type, int subtype,
 
     lvaddr_t vaddr = (lvaddr_t) addr;
 
-    debug_printf("pagefault\n");
-
     // Do some checks
     if (vaddr == 0x0) {
         thread_mutex_unlock(&mutex);

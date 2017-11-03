@@ -14,9 +14,6 @@
 
 #include <aos/aos_rpc.h>
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 #define send_handler_core(name, asserts, sendline)                            \
     static errval_t name(uintptr_t *args)                                     \
     {                                                                         \

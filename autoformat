@@ -17,16 +17,16 @@ format_file () {
         if [ $DO_BACKUP = true ]; then
             if [ $DO_SHOW = true ]; then
                 clang-format -style=file $FILE | $DIFF -u $FILE -;
-                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s -b $FILE;
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s -b $FILE;
             else
-                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s -b $FILE;
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s -b $FILE;
             fi
         else
             if [ $DO_SHOW = true ]; then
                 clang-format -style=file $FILE | $DIFF -u $FILE -;
-                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s $FILE;
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s $FILE;
             else
-                clang-format -style=file $FILE | $DIFF -u $FILE - | patch -s $FILE;
+                clang-format -style=file $FILE | diff -u $FILE - | patch -s $FILE;
             fi
         fi
     elif [ $DO_SHOW = true ]; then
