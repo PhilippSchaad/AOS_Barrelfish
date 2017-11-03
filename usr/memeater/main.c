@@ -164,6 +164,8 @@ int main(int argc, char *argv[])
 
     debug_printf("memeater started....\n");
 
+    debug_printf("Domain ID: %d\n", disp_get_domain_id());
+
     err = aos_rpc_init(&init_rpc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "\033[31mcould not initialize RPC\033[0m\n");
