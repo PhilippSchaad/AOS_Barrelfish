@@ -23,8 +23,8 @@
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
+#include "lib_multicore.h"
 #include <spawn/spawn.h>
-
 
 #include "../tests/test.h"
 

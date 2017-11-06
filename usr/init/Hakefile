@@ -13,10 +13,16 @@
 [ build application { target = "init",
                       cFiles = [
                         "main.c",
-                        "mem_alloc.c"
+                        "mem_alloc.c",
+                        "lib_multicore.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
-                      addLibraries = [ "mm", "getopt", "elf", "spawn" ],
+                      addLibraries = [
+                        "mm",
+                        "getopt",
+                        "elf",
+                        "spawn"
+                      ],
                       architectures = allArchitectures
                     }
 ]
