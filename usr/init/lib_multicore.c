@@ -23,7 +23,7 @@ static errval_t core_allocate_memory(void) {
     // IV: Allocate space to load the init process.
     struct capref init_frame;
     struct frame_identity init_frame_identity;
-    CHECK(frame_alloc(&init_frame, ARM_CORE_DATA_PAGE * BASE_PAGE_SIZE,
+    CHECK(frame_alloc(&init_frame, ARM_CORE_DATA_PAGES * BASE_PAGE_SIZE,
                       &retsize));
     CHECK(frame_identify(init_frame, &init_frame_identity));
     core_data->memory_base_start = init_frame_identity.base;
