@@ -10,4 +10,6 @@
 errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
                    struct bootinfo *bootinfo);
 
+errval_t create_urpc_frame(void** buf, size_t bytes);
+
 #endif /* LIB_MULTICORE_H */

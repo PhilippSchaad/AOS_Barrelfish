@@ -54,6 +54,18 @@ static void clean_cache(struct frame_identity frame) {
     sys_armv7_cache_clean_poc((void*) (uint32_t)frame.base, (void*) (uint32_t)(frame.base + frame.bytes - 1));
 }
 
+errval_t create_urpc_frame(void** buf, size_t bytes) {
+    size_t retsize;
+    errval_t err;
+    err = frame_alloc(&cap_urpc, bytes, &retsize);
+    // TODO: check the retsize
+    if (err_is_fail(err)){
+        return err;
+    }
+    err = paging_map_frame(get_current_paging_state(), buf, retsize, cap_urpc, NULL, NULL);
+    return err;
+}
+
 // XXX: Note: still untested!
 errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
                    struct bootinfo *bootinfo)
@@ -100,8 +112,8 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
     CHECK(frame_identify(init_frame, &init_frame_identity));
 
     // V: Identify the provided urpc frame (no need to alloc it, yay!)
-    //struct frame_identity urpc_frame_identity;
-    //CHECK(frame_identify(cap_urpc, &urpc_frame_identity));
+    struct frame_identity urpc_frame_identity;
+    CHECK(frame_identify(cap_urpc, &urpc_frame_identity));
 
     // 7.3.2: Load and relocate the CPU driver.
     CHECK(load_and_relocate_driver(bootinfo, core_data));
@@ -130,8 +142,8 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
     core_data->kcb = kcb_frame_identity.base;
     core_data->memory_base_start = init_frame_identity.base;
     core_data->memory_bytes = init_frame_identity.bytes;
-    //core_data->urpc_frame_base = urpc_frame_identity.base;
-    //core_data->urpc_frame_size = urpc_frame_identity.bytes;
+    core_data->urpc_frame_base = urpc_frame_identity.base;
+    core_data->urpc_frame_size = urpc_frame_identity.bytes;
     core_data->dst_core_id = core_id;
     core_data->src_core_id = current_core_id;
 
@@ -142,5 +154,5 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
     CHECK(invoke_monitor_spawn_core(core_id, CPU_ARM7,
                                     (forvaddr_t) core_data_identity.base));
 
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }
