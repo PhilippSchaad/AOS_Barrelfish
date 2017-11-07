@@ -14,7 +14,8 @@
                       cFiles = [
                         "main.c",
                         "mem_alloc.c",
-                        "lib_multicore.c"
+                        "lib_multicore.c",
+                        "lib_rpc.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
                       addLibraries = [
