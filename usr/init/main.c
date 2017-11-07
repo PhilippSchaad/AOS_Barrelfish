@@ -438,6 +438,13 @@ int main(int argc, char *argv[])
                                  MKCLOSURE((void *)general_recv_handler,
                                            &chan)));
 
+    // init urpc channel to 2nd core
+    void* buf;
+    CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
+
+    // wake up 2nd core
+    CHECK(wake_core(1, my_core_id, bi));
+
     // run tests
     struct tester t;
     init_testing(&t);
