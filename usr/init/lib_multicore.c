@@ -15,10 +15,8 @@ static errval_t load_and_relocate_driver(struct bootinfo *bootinfo,
 
     // Identify our cpu-driver memory frame to obtain the size of our driver.
     struct frame_identity cpu_driver_identity;
-    struct capref cpu_driver = {
-        .cnode = cnode_module,
-        .slot = cpu_driver_module->mrmod_slot
-    };
+    struct capref cpu_driver = {.cnode = cnode_module,
+                                .slot = cpu_driver_module->mrmod_slot};
     frame_identify(cpu_driver, &cpu_driver_identity);
 
     // 7.3.1(III): Allocate memory to load coreboot's relocatable segment.
@@ -37,32 +35,38 @@ static errval_t load_and_relocate_driver(struct bootinfo *bootinfo,
                            cpu_driver_identity.bytes, cpu_driver, NULL, NULL));
 
     // Relocate the cpu driver.
-    CHECK(load_cpu_relocatable_segment(elf_addr, relocatable_segment_addr,
-                                       reloc_identity.base,
-                                       core_data->kernel_load_base,
-                                       &core_data->got_base));
+    CHECK(load_cpu_relocatable_segment(
+        elf_addr, relocatable_segment_addr, reloc_identity.base,
+        core_data->kernel_load_base, &core_data->got_base));
 
     return SYS_ERR_OK;
 }
 
-static void clean_cache(struct frame_identity frame) {
+static void clean_cache(struct frame_identity frame)
+{
     // NOTE: errors are checked internally
     // invalidate cache
-    sys_armv7_cache_invalidate((void*) (uint32_t)frame.base, (void*) (uint32_t)(frame.base + frame.bytes - 1));
+    sys_armv7_cache_invalidate(
+        (void *) (uint32_t) frame.base,
+        (void *) (uint32_t)(frame.base + frame.bytes - 1));
     // clean cache
     // NOTE: if I understand it correctly, we want coherency -> Cache POC
-    sys_armv7_cache_clean_poc((void*) (uint32_t)frame.base, (void*) (uint32_t)(frame.base + frame.bytes - 1));
+    sys_armv7_cache_clean_poc(
+        (void *) (uint32_t) frame.base,
+        (void *) (uint32_t)(frame.base + frame.bytes - 1));
 }
 
-errval_t create_urpc_frame(void** buf, size_t bytes) {
+errval_t create_urpc_frame(void **buf, size_t bytes)
+{
     size_t retsize;
     errval_t err;
     err = frame_alloc(&cap_urpc, bytes, &retsize);
     // TODO: check the retsize
-    if (err_is_fail(err)){
+    if (err_is_fail(err)) {
         return err;
     }
-    err = paging_map_frame(get_current_paging_state(), buf, retsize, cap_urpc, NULL, NULL);
+    err = paging_map_frame(get_current_paging_state(), buf, retsize, cap_urpc,
+                           NULL, NULL);
     return err;
 }
 
@@ -74,7 +78,8 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
 
     // If the core id is 0, this core is already up and does not need to be
     // woken up.
-    assert(core_id != 0); // TODO: probably replace assertions with sth more graceful.
+    assert(core_id !=
+           0); // TODO: probably replace assertions with sth more graceful.
 
     // If the core id is our own current core id, we are obviously already
     // awake too.
@@ -125,12 +130,11 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
         return SPAWN_ERR_FIND_MODULE;
     }
     // Information about our monitore-module (the init module), for core_data.
-    struct multiboot_modinfo module_info = {
-        .mod_start = init_module->mr_base,
-        .mod_end = init_module->mr_base + init_module->mrmod_size,
-        .string = init_module->mrmod_data,
-        .reserved = 0
-    };
+    struct multiboot_modinfo module_info = {.mod_start = init_module->mr_base,
+                                            .mod_end = init_module->mr_base +
+                                                       init_module->mrmod_size,
+                                            .string = init_module->mrmod_data,
+                                            .reserved = 0};
 
     // 7.3.3: Fill in the core_data struct.
     core_data->monitor_module = module_info;

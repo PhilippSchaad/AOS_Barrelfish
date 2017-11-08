@@ -81,12 +81,16 @@ int main(int argc, char *argv[])
     // wake up 2nd core
     CHECK(wake_core(1, my_core_id, bi));
 
-    // run tests
-    struct tester t;
-    init_testing(&t);
-    register_memory_tests(&t);
-    register_spawn_tests(&t);
-    tests_run(&t);
+    if (my_core_id == 0) {
+        // run tests
+        struct tester t;
+        init_testing(&t);
+        register_memory_tests(&t);
+        register_spawn_tests(&t);
+        tests_run(&t);
+    } else {
+        debug_printf("I am the other core\n");
+    }
 
     debug_printf("Message handler loop\n");
     // Hang around
