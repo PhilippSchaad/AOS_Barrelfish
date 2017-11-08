@@ -277,6 +277,4 @@ void enable_mmu(lpaddr_t ttbr0, lpaddr_t ttbr1)
     /* Ensure no memory accesses or instruction fetches occur before the MMU
      * is fully enabled. */
     dsb();
-
-    printf("MMU has been enabled\n");
 }

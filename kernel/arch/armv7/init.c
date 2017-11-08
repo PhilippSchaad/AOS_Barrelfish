@@ -253,9 +253,7 @@ arch_init(struct arm_core_data *boot_core_data,
 
     MSG("Parsing command line\n");
     init_cmdargs();
-    MSG("Init_cmdargs passed\n");
     parse_commandline((const char *)core_data->cmdline, cmdargs);
-    MSG("Passed the parse_commandline function\n");
     config_timeslice = min(max(config_timeslice, 1), 20);
 
     errval = serial_debug_init();
