@@ -54,9 +54,11 @@ int main(int argc, char *argv[])
         assert(my_core_id > 0);
     }
 
-    err = initialize_ram_alloc();
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "initialize_ram_alloc");
+    if (my_core_id == 0) {
+        err = initialize_ram_alloc();
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "initialize_ram_alloc");
+        }
     }
 
     // init urpc channel to 2nd core
@@ -81,7 +83,6 @@ int main(int argc, char *argv[])
         &chan, get_default_waitset(),
         MKCLOSURE((void *) general_recv_handler, &chan)));
 
-    /*
     if (my_core_id == 0) {
         // run tests
         struct tester t;
@@ -92,7 +93,6 @@ int main(int argc, char *argv[])
     } else {
         debug_printf("I am the other core\n");
     }
-    */
 
     debug_printf("Message handler loop\n");
     // Hang around

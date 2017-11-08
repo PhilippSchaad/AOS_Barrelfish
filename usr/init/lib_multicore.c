@@ -80,12 +80,13 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
 
     // If the core id is 0, this core is already up and does not need to be
     // woken up.
-    assert(core_id !=
-           0); // TODO: probably replace assertions with sth more graceful.
+    if (core_id == 0)
+        return SYS_ERR_OK;
 
     // If the core id is our own current core id, we are obviously already
     // awake too.
-    assert(core_id != current_core_id); // TODO: dito
+    if (core_id == current_core_id)
+        return SYS_ERR_OK;
 
     // 7.3.1: Allocate memory.
     // I: Allocate a new KCB.
