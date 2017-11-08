@@ -3,6 +3,10 @@
 
 #include <aos/aos.h>
 #include <barrelfish_kpi/init.h>
+#include <spawn/spawn.h>
+#include <mem_alloc.h>
+#include <mm/mm.h>
+#include <aos/paging.h>
 #include <lib_urpc.h>
 
 //look, the proper way to implement this is via interrupts (see inthandler.c and anything mentioning IPI or IRQ in the kernel code)
@@ -129,11 +133,53 @@ static void recv_send_string(__volatile struct urpc_send_string* send_string_obj
 }
 
 static void recv_remote_spawn(__volatile struct urpc_remote_spawn* remote_spawn_obj) {
-    //spawn_load_by_name(remote_spawn_obj->name);
+    //TODO: properly integrate with our process management once that is properly constructed
+    struct spawninfo *si =
+            (struct spawninfo *) malloc(sizeof(struct spawninfo));
+    spawn_load_by_name((char*)remote_spawn_obj->name,si);
+    free(si);
 }
 
+bool already_received_memory = false;
+bool urpc_ram_is_initalized(void) {
+    return already_received_memory;
+}
 static void recv_receive_memory(__volatile struct urpc_receive_memory* receive_memory_obj) {
-    //TODO: do the mem receiving stuff
+    debug_printf("and in the fires of mount doom we forge the one cap to rule them all\n base: %p size: 0x%x \n",receive_memory_obj->base,receive_memory_obj->size);
+    struct capref the_one_cap;
+    slot_alloc(&the_one_cap);
+    ram_forge(the_one_cap,(genpaddr_t)(uint32_t )receive_memory_obj->base,(gensize_t)receive_memory_obj->size,disp_get_core_id());
+    if(!already_received_memory) {
+        static struct slot_prealloc init_slot_alloc;
+        struct capref cnode_cap = {
+                .cnode =
+                        {
+                                .croot = CPTR_ROOTCN,
+                                .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_SLOT_ALLOC0),
+                                .level = CNODE_TYPE_OTHER,
+                        },
+                .slot = 0,
+        };
+        slot_prealloc_init(&init_slot_alloc, cnode_cap, L2_CNODE_SLOTS,
+                                 &aos_mm);
+       errval_t err;
+        // Initialize aos_mm
+        err = mm_init(&aos_mm, ObjType_RAM, NULL, slot_alloc_prealloc,
+                      slot_prealloc_refill, &init_slot_alloc);
+        if (err_is_fail(err)) {
+            USER_PANIC_ERR(err, "Can't initalize the memory manager.");
+        }
+
+        // Give aos_mm a bit of memory for the initialization
+        static char nodebuf[sizeof(struct mmnode) * 64];
+        slab_grow(&aos_mm.slabs, nodebuf, sizeof(nodebuf));
+    }
+    mm_add(&aos_mm, the_one_cap, (genpaddr_t )(uint32_t )receive_memory_obj->base,
+           receive_memory_obj->size);
+    if(!already_received_memory) {
+        ram_alloc_set(aos_ram_alloc_aligned);
+        already_received_memory = true;
+    }
 }
 
 static void recv(__volatile struct urpc* data) {
@@ -229,4 +275,34 @@ void urpc_slave_init_and_run(void) {
 
 void sendstring(char* str) {
     enqueue(send_string_func,str);
+}
+
+static bool sendram_internal(__volatile struct urpc* urpcobj, void* data) {
+    struct urpc_receive_memory *mem = (struct urpc_receive_memory*)data;
+    urpcobj->type = receive_memory;
+    urpcobj->data.receive_memory.base = mem->base;
+    urpcobj->data.receive_memory.size = mem->size;
+    free(mem);
+    return 1;
+}
+
+void sendram(struct capref* cap) {
+    struct frame_identity frame;
+    frame_identify(*cap,&frame);
+    struct urpc_receive_memory *mem = malloc(sizeof(struct urpc_receive_memory));
+    mem->base = (void*)(uint32_t )frame.base;
+    mem->size = frame.bytes;
+    enqueue(sendram_internal,(void*)mem);
+}
+
+static bool spawnprocess_internal(__volatile struct urpc* urpcobj, void* data) {
+    const char* str = (const char*)data;
+    assert(strlen(str) < 2000);
+    urpcobj->type = remote_spawn;
+    memcpy((void*)&urpcobj->data.remote_spawn.name,str,strlen(str)+1);
+    return 1;
+}
+
+void urpc_spawn_process(char* name) {
+    enqueue(spawnprocess_internal,name);
 }
