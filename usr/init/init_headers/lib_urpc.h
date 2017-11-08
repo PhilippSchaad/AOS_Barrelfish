@@ -6,5 +6,7 @@
 #define GROUPD_LIB_URPC_H_H
 
 #endif //GROUPD_LIB_URPC_H_H
-int urpc_master_init_and_run(void* urpc_vaddr);
-int urpc_slave_init_and_run(void* nothing);
+void urpc_master_init_and_run(void* urpc_vaddr);
+void urpc_slave_init_and_run(void);
+//does not delete the string. Todo: version which does?
+void sendstring(char* str);

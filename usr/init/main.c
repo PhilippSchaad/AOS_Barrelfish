@@ -88,16 +88,19 @@ int main(int argc, char *argv[])
         MKCLOSURE((void *) general_recv_handler, &chan)));
 
     if (my_core_id == 0) {
-        thread_create(urpc_master_init_and_run,buf);
+        urpc_master_init_and_run(buf);
+        sendstring("sending the good news to core 1\n");
         // run tests
-/*        struct tester t;
+        struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
-        register_spawn_tests(&t);
-        tests_run(&t);*/
+//        register_spawn_tests(&t);
+        tests_run(&t);
+        sendstring("hey, core 1, we are done with testing now, isn't that great?\n");
     } else {
-        thread_create(urpc_slave_init_and_run,NULL);
+        urpc_slave_init_and_run();
         debug_printf("I am the other core\n");
+        sendstring("hello to core 0, from init/main.c on core 1\n");
     }
 
     debug_printf("Message handler loop\n");

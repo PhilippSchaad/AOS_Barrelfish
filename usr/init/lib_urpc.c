@@ -21,6 +21,11 @@
 #define MEMORY_BARRIER __asm__("dmb")
 //so we just encode the bracket pattern as a macro
 #define with_barrier(x) MEMORY_BARRIER; x; MEMORY_BARRIER;
+#define with_lock(lock,x) thread_mutex_lock(&lock); x; thread_mutex_unlock(&lock);
+
+
+static struct thread_mutex urpc_thread_mutex;
+
 
 enum urpc_state {
     non_initalized = 0,
@@ -72,46 +77,49 @@ struct send_queue *urpc_send_queue = NULL;
 struct send_queue *urpc_send_queue_last = NULL;
 
 static void enqueue(bool (*func)(__volatile struct urpc* addr,void* data), void *data) {
-    //todo: locks
-    struct send_queue* new = malloc(sizeof(struct send_queue));
-    new->func = func;
-    new->data = data;
-    new->next = NULL;
-    if(urpc_send_queue_last == NULL) {
-        assert(urpc_send_queue == NULL);
-        urpc_send_queue = new;
-        urpc_send_queue_last = new;
-    } else {
-        urpc_send_queue_last->next = new;
-        urpc_send_queue_last = new;
-    }
-
+    with_lock(urpc_thread_mutex,
+        struct send_queue* new = malloc(sizeof(struct send_queue));
+        new->func = func;
+        new->data = data;
+        new->next = NULL;
+        if(urpc_send_queue_last == NULL) {
+            assert(urpc_send_queue == NULL);
+            urpc_send_queue = new;
+            urpc_send_queue_last = new;
+        } else {
+            urpc_send_queue_last->next = new;
+            urpc_send_queue_last = new;
+        }
+    );
 }
 
 static void requeue(struct send_queue* sq) {
-    //todo: locks
-    if(urpc_send_queue_last == NULL) {
-        assert(urpc_send_queue == NULL);
-        urpc_send_queue = sq;
-        urpc_send_queue_last = sq;
-    } else {
-        urpc_send_queue_last->next = sq;
-        urpc_send_queue_last = sq;
-    }
+    with_lock(urpc_thread_mutex,
+        if(urpc_send_queue_last == NULL) {
+            assert(urpc_send_queue == NULL);
+            urpc_send_queue = sq;
+            urpc_send_queue_last = sq;
+        } else {
+            urpc_send_queue_last->next = sq;
+            urpc_send_queue_last = sq;
+        }
+    );
 }
 
 static bool queue_empty(void) {
-    //todo: locks
-    return(urpc_send_queue == NULL);
+    bool status;
+    with_lock(urpc_thread_mutex, status = urpc_send_queue == NULL);
+    return status;
 }
 
 static struct send_queue* dequeue(void) {
-    //todo: locks
-    assert(urpc_send_queue != NULL);
-    struct send_queue* fst = urpc_send_queue;
-    urpc_send_queue = fst->next;
-    if(urpc_send_queue == NULL)
-        urpc_send_queue_last = NULL;
+    with_lock(urpc_thread_mutex,
+        assert(urpc_send_queue != NULL);
+        struct send_queue* fst = urpc_send_queue;
+        urpc_send_queue = fst->next;
+        if(urpc_send_queue == NULL)
+            urpc_send_queue_last = NULL;
+    )
     return fst;
 }
 
@@ -142,15 +150,11 @@ static void recv(__volatile struct urpc* data) {
     }
 }
 
-int urpc_master_init_and_run(void* urpc_vaddr) {
-    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
+static int urpc_internal_master(void* urpc_vaddr) {
     __volatile struct urpc_protocol * urpc_protocol = (struct urpc_protocol*)urpc_vaddr;
     with_barrier(urpc_protocol->master_state = available);
     for(;;) {
         with_barrier(
-                while (urpc_protocol->master_state != needs_to_be_read);
-                recv(&urpc_protocol->master_data);
-                urpc_protocol->master_state = available;
                 while (urpc_protocol->master_state != needs_to_be_read && (queue_empty() || urpc_protocol->slave_state != available));
                 if(urpc_protocol->master_state == needs_to_be_read) {
                     recv(&urpc_protocol->master_data);
@@ -172,17 +176,21 @@ int urpc_master_init_and_run(void* urpc_vaddr) {
     return 0;
 }
 
+void urpc_master_init_and_run(void* urpc_vaddr) {
+    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
+    thread_mutex_init(&urpc_thread_mutex);
+    thread_create(urpc_internal_master,urpc_vaddr);
+}
+
 static bool send_string_func(__volatile struct urpc* urpcobj, void* data) {
     const char* str = (const char*)data;
     assert(strlen(str) < 2000);
     urpcobj->type = send_string;
-    debug_printf("called send_string_func\n");
     memcpy((void*)&urpcobj->data.send_string.string,str,strlen(str)+1);
     return 1;
 }
 
-int urpc_slave_init_and_run(void* nothing) {
-    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
+static int urpc_internal_slave(void* nothing) {
     const char* str = "Hello from the other side\n";
     __volatile struct urpc_protocol * urpc_protocol = (struct urpc_protocol*)MON_URPC_VBASE;
     with_barrier(urpc_protocol->slave_state = available);
@@ -211,4 +219,14 @@ int urpc_slave_init_and_run(void* nothing) {
         );
     }
     return 0;
+}
+
+void urpc_slave_init_and_run(void) {
+    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
+    thread_mutex_init(&urpc_thread_mutex);
+    thread_create(urpc_internal_slave,NULL);
+}
+
+void sendstring(char* str) {
+    enqueue(send_string_func,str);
 }
