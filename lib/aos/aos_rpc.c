@@ -318,7 +318,7 @@ static errval_t ram_send_handler(uintptr_t *args)
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
                              struct capref *retcap, size_t *ret_size)
 {
-    //thread_mutex_lock(&chan->mutex);
+    thread_mutex_lock_nested(&chan->mutex);
     DBG(VERBOSE, "rpc_get_ram_cap\n");
 
     struct waitset *ws = get_default_waitset();
@@ -349,7 +349,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     *retcap = *((struct capref *) sendargs[3]);
     *ret_size = *((size_t *) sendargs[4]);
 
-    //thread_mutex_unlock(&chan->mutex);
+    thread_mutex_unlock(&chan->mutex);
     return SYS_ERR_OK;
 }
 
