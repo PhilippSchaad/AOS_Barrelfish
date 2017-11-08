@@ -59,18 +59,16 @@ static void clean_cache(struct frame_identity frame)
 errval_t create_urpc_frame(void **buf, size_t bytes)
 {
     size_t retsize;
-    errval_t err;
-    err = frame_alloc(&cap_urpc, bytes, &retsize);
-    // TODO: check the retsize
-    if (err_is_fail(err)) {
-        return err;
-    }
-    err = paging_map_frame(get_current_paging_state(), buf, retsize, cap_urpc,
-                           NULL, NULL);
-    return err;
+
+    CHECK(frame_alloc(&cap_urpc, bytes, &retsize));
+    if (retsize != bytes)
+        return LIB_ERR_NO_SIZE_MATCH;
+
+    CHECK(paging_map_frame(get_current_paging_state(), buf, retsize, cap_urpc,
+                           NULL, NULL));
+    return SYS_ERR_OK;
 }
 
-// XXX: Note: still untested!
 errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
                    struct bootinfo *bootinfo)
 {

@@ -110,7 +110,8 @@ static errval_t init_dispatcher(struct spawninfo *si)
     struct capref dispatcher_memframe;
     CHECK(frame_alloc(&dispatcher_memframe, DISPATCHER_SIZE, &retsize));
 
-    assert(retsize == DISPATCHER_SIZE);
+    if (retsize != DISPATCHER_SIZE)
+        return LIB_ERR_NO_SIZE_MATCH;
 
     DBG(DETAILED, " Copy the dispatcher into the spawned process's VSpace.\n");
     struct capref spawned_dispatcher = {
@@ -206,7 +207,8 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module)
     size_t retsize;
     CHECK(frame_alloc(&mem_frame, region_size, &retsize));
 
-    assert(retsize == region_size);
+    if (retsize != region_size)
+        return LIB_ERR_NO_SIZE_MATCH;
 
     DBG(DETAILED, " Map the arguments into the current VSpace.\n");
     void *args_addr;
@@ -283,7 +285,8 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
     size_t retsize;
     CHECK(frame_alloc(&frame, size_aligned, &retsize));
 
-    assert(retsize == size_aligned);
+    if (retsize != size_aligned)
+        return LIB_ERR_NO_SIZE_MATCH;
 
     // Map the frame into the spawned process's VSpace.
     CHECK(paging_map_fixed_attr(&((struct spawninfo *) state)->paging_state,
