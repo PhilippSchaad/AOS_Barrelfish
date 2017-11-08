@@ -6,6 +6,31 @@
 #include <mm/mm.h>
 #include <aos/debug.h>
 
+/// Debug printer for the mm structure.
+__attribute__((unused))
+static void mm_print_manager(struct mm *mm){
+    if (DEBUG_LEVEL == RELEASE) return;
+    debug_printf("Dumping Memory Manager nodes:\n");
+    struct mmnode* node = mm->head;
+    int i = 0;
+
+    if (node == NULL)
+        printf("    MM list empty!\n");
+    while(node != NULL){
+        struct frame_identity fi;
+        frame_identify(node->cap.cap, &fi);
+        printf("    Node %d: start: %zx, size: %"PRIu64" KB - Cap says: " \
+               "base: %zx size: %"PRIu64" KB - ",
+                i, node->base, node->size / 1024 , fi.base, fi.bytes / 1024);
+        if (node->type == NodeType_Free)
+            printf("Node free\n");
+        if (node->type == NodeType_Allocated)
+            printf("Node allocated\n");
+        node = node->next;
+        ++i;
+    }
+}
+
 /// Create a new node.
 static struct mmnode* mm_create_node(struct mm *mm, enum nodetype type,
                                      genpaddr_t base, gensize_t size)
@@ -146,6 +171,8 @@ static errval_t mm_mmnode_find(struct mm *mm, size_t size, size_t alignment,
     }
 
     // No matching node found.
+    debug_printf("we wanted to get a node with size %d and alignment %d but couldn't find one\n",size,alignment);
+    mm_print_manager(mm);
     return MM_ERR_NOT_FOUND;
 }
 
@@ -174,30 +201,6 @@ static errval_t mm_slot_alloc(struct mm *mm, uint64_t slots,
     return SYS_ERR_OK;
 }
 
-/// Debug printer for the mm structure.
-__attribute__((unused))
-static void mm_print_manager(struct mm *mm){
-    if (DEBUG_LEVEL == RELEASE) return;
-    debug_printf("Dumping Memory Manager nodes:\n");
-    struct mmnode* node = mm->head;
-    int i = 0;
-
-    if (node == NULL)
-        printf("    MM list empty!\n");
-    while(node != NULL){
-        struct frame_identity fi;
-        frame_identify(node->cap.cap, &fi);
-        printf("    Node %d: start: %zx, size: %"PRIu64" KB - Cap says: " \
-               "base: %zx size: %"PRIu64" KB - ",
-                i, node->base, node->size / 1024 , fi.base, fi.bytes / 1024);
-        if (node->type == NodeType_Free)
-            printf("Node free\n");
-        if (node->type == NodeType_Allocated)
-            printf("Node allocated\n");
-        node = node->next;
-        ++i;
-    }
-}
 
 /**
  * \brief Initialize the memory manager.
@@ -271,7 +274,7 @@ void mm_destroy(struct mm *mm)
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base,
                 gensize_t size)
 {
-    DBG(VERBOSE, "libmm: Adding a capability of size %"PRIu64" MB at %zx \n",
+    DBG(-1, "libmm: Adding a capability of size %"PRIu64" MB at %zx \n",
         size / 1048576, base);
 
     // Create the node.
@@ -488,5 +491,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
     }
 
     DBG(ERR, "Failed to free, node not found\n");
+    debug_printf("we wanted to free a node with base 0x%"PRIxGENPADDR" and size 0x%x but did not find one\n",base,size);
+    mm_print_manager(mm);
     return MM_ERR_MM_FREE;
 }
