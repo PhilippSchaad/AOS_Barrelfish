@@ -1,4 +1,4 @@
-#include "lib_rpc.h"
+#include <lib_rpc.h>
 
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)

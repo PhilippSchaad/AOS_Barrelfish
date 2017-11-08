@@ -3,7 +3,7 @@
  * \brief Local memory allocator for init till mem_serv is ready to use
  */
 
-#include "mem_alloc.h"
+#include <mem_alloc.h>
 #include <mm/mm.h>
 #include <aos/paging.h>
 

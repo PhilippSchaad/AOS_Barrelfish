@@ -7,7 +7,7 @@
 
 #include <spawn/spawn.h>
 
-#include "mem_alloc.h"
+#include <mem_alloc.h>
 
 struct domain {
     struct lmp_chan chan;

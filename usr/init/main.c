@@ -24,9 +24,9 @@
 #include <mm/mm.h>
 #include <spawn/spawn.h>
 
-#include "lib_multicore.h"
-#include "lib_rpc.h"
-#include "mem_alloc.h"
+#include <lib_multicore.h>
+#include <lib_rpc.h>
+#include <mem_alloc.h>
 
 #include "../tests/test.h"
 

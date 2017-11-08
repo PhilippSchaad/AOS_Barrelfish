@@ -1,4 +1,4 @@
-#include "lib_multicore.h"
+#include <lib_multicore.h>
 
 static errval_t load_and_relocate_driver(struct bootinfo *bootinfo,
                                          struct arm_core_data *core_data)

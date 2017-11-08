@@ -24,6 +24,7 @@
                         "elf",
                         "spawn"
                       ],
+                      addIncludes = [ "init_headers" ],
                       architectures = allArchitectures
                     }
 ]
