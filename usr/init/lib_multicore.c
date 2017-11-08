@@ -44,16 +44,14 @@ static errval_t load_and_relocate_driver(struct bootinfo *bootinfo,
 
 static void clean_cache(struct frame_identity frame)
 {
-    // NOTE: errors are checked internally
-    // invalidate cache
-    /*
-    sys_armv7_cache_invalidate(
-        (void *) (uint32_t) frame.base,
-        (void *) (uint32_t)(frame.base + frame.bytes - 1));
-        */
     // clean cache
     // NOTE: if I understand it correctly, we want coherency -> Cache POC
     sys_armv7_cache_clean_poc(
+        (void *) (uint32_t) frame.base,
+        (void *) (uint32_t)(frame.base + frame.bytes - 1));
+    // NOTE: errors are checked internally
+    // invalidate cache
+    sys_armv7_cache_invalidate(
         (void *) (uint32_t) frame.base,
         (void *) (uint32_t)(frame.base + frame.bytes - 1));
 }
