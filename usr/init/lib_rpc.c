@@ -221,7 +221,7 @@ static errval_t spawn_recv_handler(void *args, struct lmp_recv_msg *msg,
     int totalcount = (int) msg->words[1];
 
     if (totalcount > 4 * 6)
-        return -1; // TODO: real error number
+        return LRPC_ERR_WRONG_WORDCOUNT;
 
     char *name = (char *) malloc(sizeof(char) * (4 * 6 + 1));
     for (int i = 0; i < totalcount; i++) {
@@ -278,7 +278,7 @@ static errval_t process_get_name_recv_handler(struct capref *cap,
     sendargs[1] = (uintptr_t) totalcount;
 
     if (totalcount > 4 * 6)
-        return -1; // TODO: Real error message
+        return LRPC_ERR_WRONG_WORDCOUNT;
 
     for (int i = 0; i < totalcount; i++) {
         sendargs[(i >> 2) + 2] =
@@ -346,7 +346,7 @@ errval_t general_recv_handler(void *args)
     case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
     default:
         DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
-        // TODO: Maybe return an error instead of continuing?
+        return LRPC_ERR_UNKNOWN_MSG_TYPE;
     }
 
     return SYS_ERR_OK;

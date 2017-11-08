@@ -477,7 +477,7 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
     sendargs[1] = (uintptr_t)totalcount;
 
     if (totalcount > 6 * 4)
-        return -1; // TODO: Real error message
+        return LRPC_ERR_WRONG_WORDCOUNT;
 
     for (int i = 0; i < totalcount; i++) {
         sendargs[(i >> 2) + 2] = (i % 4 ? sendargs[(i >> 2) + 2] : 0) +
@@ -504,7 +504,7 @@ static errval_t process_get_name_receive_handler(uintptr_t *args) {
     char* temp = malloc(sizeof(char) * (totalcount + 1));
 
     if (totalcount > 4 * 6)
-        return -1; // TODO: Real error number
+        return LRPC_ERR_WRONG_WORDCOUNT;
 
     for (int i = 0; i < totalcount; i++) {
         char *c = (char*) &(msg.words[(i >> 2) + 2]);
