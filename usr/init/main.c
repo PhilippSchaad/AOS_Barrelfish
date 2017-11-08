@@ -26,6 +26,7 @@
 
 #include <lib_multicore.h>
 #include <lib_rpc.h>
+#include <lib_urpc.h>
 #include <mem_alloc.h>
 
 #include "../tests/test.h"
@@ -63,10 +64,13 @@ int main(int argc, char *argv[])
 
     // init urpc channel to 2nd core
     void *buf;
-    CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
+    if(my_core_id == 0) {
+        CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
+        memset(buf, 0, BASE_PAGE_SIZE);
 
-    // wake up 2nd core
-    CHECK(wake_core(1, my_core_id, bi));
+        // wake up 2nd core
+        CHECK(wake_core(1, my_core_id, bi));
+    }
 
     // create the init ep
     CHECK(cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPoint, 0, 1));
@@ -84,13 +88,15 @@ int main(int argc, char *argv[])
         MKCLOSURE((void *) general_recv_handler, &chan)));
 
     if (my_core_id == 0) {
+        thread_create(urpc_master_init_and_run,buf);
         // run tests
-        struct tester t;
+/*        struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
-        tests_run(&t);
+        tests_run(&t);*/
     } else {
+        thread_create(urpc_slave_init_and_run,NULL);
         debug_printf("I am the other core\n");
     }
 
