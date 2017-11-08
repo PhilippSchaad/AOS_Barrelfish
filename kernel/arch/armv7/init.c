@@ -223,14 +223,14 @@ arch_init(struct arm_core_data *boot_core_data,
     }
 
     MSG("Multiboot info:\n");
-    MSG(" info header at 0x%"PRIxLVADDR"\n",       (lvaddr_t)mb);
-    MSG(" mods_addr is P:0x%"PRIxLPADDR"\n",       (lpaddr_t)mb->mods_addr);
-    MSG(" mods_count is 0x%"PRIu32"\n",                      mb->mods_count);
-    MSG(" cmdline is at P:0x%"PRIxLPADDR"\n",      (lpaddr_t)mb->cmdline);
+    MSG(" info header at 0x%" PRIxLVADDR "\n", (lvaddr_t) mb);
+    MSG(" mods_addr is P:0x%" PRIxLPADDR "\n", (lpaddr_t)mb->mods_addr);
+    MSG(" mods_count is 0x%" PRIu32 "\n", mb->mods_count);
+    MSG(" cmdline is at P:0x%" PRIxLPADDR "\n", (lpaddr_t)mb->cmdline);
     MSG(" cmdline reads '%s'\n", local_phys_to_mem((lpaddr_t)mb->cmdline));
-    MSG(" mmap_length is 0x%"PRIu32"\n",                     mb->mmap_length);
-    MSG(" mmap_addr is P:0x%"PRIxLPADDR"\n",       (lpaddr_t)mb->mmap_addr);
-    MSG(" multiboot_flags is 0x%"PRIu32"\n",                 mb->flags);
+    MSG(" mmap_length is 0x%" PRIu32 "\n", mb->mmap_length);
+    MSG(" mmap_addr is P:0x%" PRIxLPADDR "\n", (lpaddr_t)mb->mmap_addr);
+    MSG(" multiboot_flags is 0x%" PRIu32 "\n", mb->flags);
 
 #if 0
     if(cpu_is_bsp()) bsp_init( NULL );
@@ -253,7 +253,9 @@ arch_init(struct arm_core_data *boot_core_data,
 
     MSG("Parsing command line\n");
     init_cmdargs();
+    MSG("Init_cmdargs passed\n");
     parse_commandline((const char *)core_data->cmdline, cmdargs);
+    MSG("Passed the parse_commandline function\n");
     config_timeslice = min(max(config_timeslice, 1), 20);
 
     errval = serial_debug_init();

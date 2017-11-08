@@ -29,17 +29,20 @@ struct tester {
     int num_tests;
 };
 
+__attribute__((unused))
 static void register_test(struct tester *t, int(*test)(void))
 {
     t->tests[t->num_tests] = test;
     t->num_tests += 1;
 }
 
+__attribute__((unused))
 static void init_testing(struct tester *t)
 {
     t->num_tests = 0;
 }
 
+__attribute__((unused))
 static void tests_run(struct tester *t)
 {
     debug_printf("\n");
@@ -62,6 +65,7 @@ static void tests_run(struct tester *t)
     debug_printf("\033[33m ############################ \033[0m\n\n\n");
 }
 
+__attribute__((unused))
 static void register_memory_tests(struct tester *t)
 {
     register_test(t, mm_alloc_300f);
@@ -74,6 +78,7 @@ static void register_memory_tests(struct tester *t)
     register_test(t, mm_paging_alloc_aligned_allignment_test);
 }
 
+__attribute__((unused))
 static void register_spawn_tests(struct tester *t)
 {
     //register_test(t, spawn_hello1);

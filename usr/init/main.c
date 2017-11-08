@@ -59,6 +59,13 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
+    // init urpc channel to 2nd core
+    void *buf;
+    CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
+
+    // wake up 2nd core
+    CHECK(wake_core(1, my_core_id, bi));
+
     // create the init ep
     CHECK(cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPoint, 0, 1));
 
@@ -74,13 +81,7 @@ int main(int argc, char *argv[])
         &chan, get_default_waitset(),
         MKCLOSURE((void *) general_recv_handler, &chan)));
 
-    // init urpc channel to 2nd core
-    void *buf;
-    CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
-
-    // wake up 2nd core
-    CHECK(wake_core(1, my_core_id, bi));
-
+    /*
     if (my_core_id == 0) {
         // run tests
         struct tester t;
@@ -91,6 +92,7 @@ int main(int argc, char *argv[])
     } else {
         debug_printf("I am the other core\n");
     }
+    */
 
     debug_printf("Message handler loop\n");
     // Hang around

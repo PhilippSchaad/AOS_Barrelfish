@@ -46,9 +46,11 @@ static void clean_cache(struct frame_identity frame)
 {
     // NOTE: errors are checked internally
     // invalidate cache
+    /*
     sys_armv7_cache_invalidate(
         (void *) (uint32_t) frame.base,
         (void *) (uint32_t)(frame.base + frame.bytes - 1));
+        */
     // clean cache
     // NOTE: if I understand it correctly, we want coherency -> Cache POC
     sys_armv7_cache_clean_poc(
@@ -150,8 +152,10 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
     core_data->urpc_frame_size = urpc_frame_identity.bytes;
     core_data->dst_core_id = core_id;
     core_data->src_core_id = current_core_id;
+    core_data->cmdline = offsetof(struct arm_core_data, cmdline_buf) +
+        core_data_identity.base;
 
-    // 7.3.4: Clean the cache. TODO
+    // 7.3.4: Clean the cache.
     clean_cache(core_data_identity);
 
     // 7.3.5: Invoke the kernel cap.
