@@ -38,6 +38,7 @@ errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
     DBG(DETAILED,"two_level_alloc beyond the mutex\n");
     assert(ca->space != 0);
     ca->space--;
+
     /* Try allocating from the list of single slot allocators */
     struct slot_allocator_list *walk = mca->head;
     //struct slot_allocator_list *prev = NULL;
