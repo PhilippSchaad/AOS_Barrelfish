@@ -151,8 +151,8 @@ recv_receive_memory(__volatile struct urpc_receive_memory *receive_memory_obj)
 {
     debug_printf("And in the fires of mount doom we forge the one cap to rule "
                  "them all\n");
-    debug_printf("base: %p size: 0x%x \n", receive_memory_obj->base,
-                 receive_memory_obj->size);
+    debug_printf("base: %p size: %"PRIu64" MB\n", receive_memory_obj->base,
+                 (uint64_t) receive_memory_obj->size / 1024 / 1024);
 
     struct capref the_one_cap;
     slot_alloc(&the_one_cap);
