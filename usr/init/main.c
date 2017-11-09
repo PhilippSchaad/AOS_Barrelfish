@@ -57,17 +57,15 @@ int main(int argc, char *argv[])
         }
     }
 
+    debug_printf("Regions size: %zu\n", bi->regions_length);
     if (my_core_id == 0) {
-        err = initialize_ram_alloc();
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "initialize_ram_alloc");
-        }
+        CHECK(initialize_ram_alloc(NULL));
     }
 
     // init urpc channel to 2nd core
     void *buf;
     if (my_core_id == 0) {
-        CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
+        CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE, my_core_id));
         memset(buf, 0, BASE_PAGE_SIZE);
 
         // wake up 2nd core
@@ -92,6 +90,8 @@ int main(int argc, char *argv[])
     if (my_core_id == 0) {
         urpc_master_init_and_run(buf);
 
+        urpc_init_mem_alloc(bi);
+
         urpc_sendstring("Sending the good news to core 1\n");
 
         // run tests
@@ -105,10 +105,12 @@ int main(int argc, char *argv[])
                    "isn't that great?\n");
         */
 
+        /*
         struct capref mem_for_the_other_core;
         // Send 256 MB of ram to the other core
         ram_alloc(&mem_for_the_other_core, (size_t) 1024 * 1024 * 256);
         urpc_sendram(&mem_for_the_other_core);
+        */
 
         // urpc_spawn_process("hello");
     } else {

@@ -66,7 +66,7 @@ errval_t create_urpc_frame(void **buf, size_t bytes)
     if (retsize != bytes)
         return LIB_ERR_NO_SIZE_MATCH;
 
-    CHECK(paging_map_frame(get_current_paging_state(), buf, retsize, cap_urpc,
+    CHECK(paging_map_frame(get_current_paging_state(), buf, bytes, cap_urpc,
                            NULL, NULL));
     return SYS_ERR_OK;
 }

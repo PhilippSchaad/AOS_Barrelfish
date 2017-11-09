@@ -39,7 +39,12 @@ static struct thread_mutex urpc_thread_mutex;
 
 enum urpc_state { non_initalized = 0, needs_to_be_read, available };
 
-enum urpc_type { send_string, remote_spawn, receive_memory };
+enum urpc_type { send_string, remote_spawn, receive_memory, init_mem_alloc };
+
+struct urpc_bootinfo_package {
+    struct bootinfo boot_info;
+    struct mem_region regions[10];
+};
 
 struct urpc_send_string {
     char string[2000];
@@ -60,6 +65,7 @@ struct urpc {
         struct urpc_send_string send_string;
         struct urpc_remote_spawn remote_spawn;
         struct urpc_receive_memory receive_memory;
+        struct urpc_bootinfo_package urpc_bootinfo;
     } data;
 };
 
@@ -79,6 +85,9 @@ struct send_queue {
 
 struct send_queue *urpc_send_queue = NULL;
 struct send_queue *urpc_send_queue_last = NULL;
+
+bool already_received_memory = false;
+bool urpc_ram_is_initalized(void) { return already_received_memory; }
 
 static void enqueue(bool (*func)(__volatile struct urpc *addr, void *data),
                     void *data)
@@ -133,6 +142,18 @@ recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 }
 
 static void
+recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
+{
+    struct bootinfo *n_bi = (struct bootinfo *) &bootinfo_package->boot_info;
+    memcpy((void *) &n_bi->regions,
+           (void *) &bootinfo_package->boot_info.regions,
+           sizeof(struct mem_region) * n_bi->regions_length);
+    debug_printf("We received boot info with: %zu\n", n_bi->regions_length);
+    initialize_ram_alloc(n_bi);
+    already_received_memory = true;
+}
+
+static void
 recv_remote_spawn(__volatile struct urpc_remote_spawn *remote_spawn_obj)
 {
     // TODO: properly integrate with our process management once that is
@@ -142,9 +163,6 @@ recv_remote_spawn(__volatile struct urpc_remote_spawn *remote_spawn_obj)
     spawn_load_by_name((char *) remote_spawn_obj->name, si);
     free(si);
 }
-
-bool already_received_memory = false;
-bool urpc_ram_is_initalized(void) { return already_received_memory; }
 
 static void
 recv_receive_memory(__volatile struct urpc_receive_memory *receive_memory_obj)
@@ -204,9 +222,13 @@ static void recv(__volatile struct urpc *data)
     case receive_memory:
         recv_receive_memory(&data->data.receive_memory);
         break;
+    case init_mem_alloc:
+        recv_init_mem_alloc(&data->data.urpc_bootinfo);
+        break;
     }
 }
 
+__attribute__((unused))
 static int urpc_internal_master(void *urpc_vaddr)
 {
     __volatile struct urpc_protocol *urpc_protocol =
@@ -255,6 +277,17 @@ static bool send_string_func(__volatile struct urpc *urpcobj, void *data)
     return 1;
 }
 
+static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj, void *data)
+{
+    struct bootinfo *p_bi = (struct bootinfo *) data;
+    assert(p_bi->regions_length <= 10);
+    urpcobj->type = init_mem_alloc;
+    memcpy((void *) &urpcobj->data.urpc_bootinfo.boot_info, p_bi, sizeof(struct bootinfo));
+    memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions, sizeof(struct mem_region) * p_bi->regions_length);
+    return 1;
+}
+
+__attribute__((unused))
 static int urpc_internal_slave(void *nothing)
 {
     const char *str = "Hello from the other side\n";
@@ -324,6 +357,11 @@ void urpc_sendram(struct capref *cap)
     mem->base = (void *) (uint32_t) frame.base;
     mem->size = frame.bytes;
     enqueue(sendram_internal, (void *) mem);
+}
+
+void urpc_init_mem_alloc(struct bootinfo *p_bi)
+{
+    enqueue(send_init_mem_alloc_func, p_bi);
 }
 
 static bool spawnprocess_internal(__volatile struct urpc *urpcobj, void *data)
