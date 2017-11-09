@@ -6,6 +6,8 @@
 #include <mm/mm.h>
 #include <aos/debug.h>
 
+static struct thread_mutex mutex;
+
 /// Debug printer for the mm structure.
 __attribute__((unused)) static void mm_print_manager(struct mm *mm)
 {
@@ -303,6 +305,9 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base,
     CHECK(cap_retype(node->cap.cap, mm->ram_cap, 0, mm->objtype,
                      (gensize_t) size, 1));
 
+    // create the mutex
+    thread_mutex_init(&mutex);
+
     return SYS_ERR_OK;
 }
 
@@ -350,6 +355,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
         // Indicate that we are done.
         mm->refilling_slabs = false;
     }
+
+    thread_mutex_lock(&mutex);
 
     // Find a free node in the list.
     CHECK(mm_mmnode_find(mm, size, alignment, &node));
@@ -409,6 +416,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
         new_node->base, new_node->size / 1024);
     // TODO: cleanup
 
+    thread_mutex_unlock(&mutex);
+
     // Create the capability.
     CHECK(mm_slot_alloc(mm, 1, &(new_node->cap.cap)));
 
@@ -461,6 +470,7 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 static errval_t re_search_free(struct mm *mm, struct capref cap,
                               genpaddr_t base, gensize_t size)
 {
+    thread_mutex_lock(&mutex);
     struct mmnode *node = mm->head;
     while (node != NULL) {
         struct frame_identity fi;
@@ -480,10 +490,12 @@ static errval_t re_search_free(struct mm *mm, struct capref cap,
             if (node->prev != NULL && node->prev->type == NodeType_Free) {
                 CHECK(mm_mmnode_merge(mm, node->prev, node));
             }
+            thread_mutex_unlock(&mutex);
             return SYS_ERR_OK;
         }
         node = node->next;
     }
+    thread_mutex_unlock(&mutex);
     return MM_ERR_NOT_FOUND;
 }
 
@@ -500,6 +512,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
                  gensize_t size)
 {
     // Iterate over the list to find the correct node to free.
+    thread_mutex_lock(&mutex);
     struct mmnode *node = mm->head;
     while (node != NULL) {
         // Try matching based on base address and size.
@@ -533,10 +546,12 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
                 // Merge with prev.
                 CHECK(mm_mmnode_merge(mm, node->prev, node));
             }
+            thread_mutex_unlock(&mutex);
             return SYS_ERR_OK;
         }
         node = node->next;
     }
+    thread_mutex_unlock(&mutex);
     DBG(WARN, "Re-searching free, didn't find on loose matching\n");
     errval_t err = re_search_free(mm, cap, base, size);
     if (!err_is_fail(err))
