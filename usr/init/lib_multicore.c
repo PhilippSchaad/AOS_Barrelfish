@@ -149,8 +149,8 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
     core_data->urpc_frame_size = urpc_frame_identity.bytes;
     core_data->dst_core_id = core_id;
     core_data->src_core_id = current_core_id;
-    core_data->cmdline = offsetof(struct arm_core_data, cmdline_buf) +
-        core_data_identity.base;
+    core_data->cmdline =
+        offsetof(struct arm_core_data, cmdline_buf) + core_data_identity.base;
 
     // 7.3.4: Clean the cache.
     clean_cache(core_data_identity);

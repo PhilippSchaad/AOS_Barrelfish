@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     printf("\n");
 
     // First argument contains the bootinfo location, if it's not set.
-    if(my_core_id == 0) {
+    if (my_core_id == 0) {
         bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
         if (!bi) {
             assert(my_core_id > 0);
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     // init urpc channel to 2nd core
     void *buf;
-    if(my_core_id == 0) {
+    if (my_core_id == 0) {
         CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
         memset(buf, 0, BASE_PAGE_SIZE);
 
@@ -91,33 +91,47 @@ int main(int argc, char *argv[])
 
     if (my_core_id == 0) {
         urpc_master_init_and_run(buf);
-        sendstring("sending the good news to core 1\n");
+
+        urpc_sendstring("Sending the good news to core 1\n");
+
         // run tests
-        //struct tester t;
-        //init_testing(&t);
-        //register_memory_tests(&t);
-//        register_spawn_tests(&t);
-        //tests_run(&t);
-        sendstring("hey, core 1, we are done with testing now, isn't that great?\n");
-        struct capref mem_for_the_other_core;
-        ram_alloc(&mem_for_the_other_core,(size_t)1024*1024*256); //256mb
-        sendram(&mem_for_the_other_core);
-        //urpc_spawn_process("hello");
-    } else {
-        urpc_slave_init_and_run();
-        debug_printf("I am the other core\n");
-        sendstring("hello to core 0, from init/main.c on core 1\n");
-        //I think this isn't a concurrency problem? At least, it shouldn't be...
-        while(!urpc_ram_is_initalized());
+        /*
         struct tester t;
-        sendstring("hey core 0, we are about to start memtesting here\n");
         init_testing(&t);
         register_memory_tests(&t);
-//        register_spawn_tests(&t);
+        register_spawn_tests(&t);
         tests_run(&t);
-        sendstring("hey core 0, we are done memtesting here\n");
+        sendstring("Hey, core 1, we are done with testing now, "
+                   "isn't that great?\n");
+        */
+
+        struct capref mem_for_the_other_core;
+        // Send 256 MB of ram to the other core
+        ram_alloc(&mem_for_the_other_core, (size_t) 1024 * 1024 * 256);
+        urpc_sendram(&mem_for_the_other_core);
+
+        // urpc_spawn_process("hello");
+    } else {
+        urpc_slave_init_and_run();
+
+        debug_printf("I am the other core\n");
+
+        urpc_sendstring("Hello core 0, from init/main.c on core 1\n");
+
+        // I think this isn't a concurrency problem? At least, it shouldn't be
+        while (!urpc_ram_is_initalized())
+            ;
+
+        urpc_sendstring("Hey core 0, core 1 is about to run tests\n");
+        struct tester t;
+        init_testing(&t);
+        register_memory_tests(&t);
+        // register_spawn_tests(&t);
+        tests_run(&t);
+        urpc_sendstring("Hey core 0, core 1 is done testing\n");
     }
 
+    printf("\n");
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
