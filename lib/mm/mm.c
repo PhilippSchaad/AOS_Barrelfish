@@ -458,6 +458,35 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
     return mm_alloc_aligned(mm, size, BASE_PAGE_SIZE, retcap);
 }
 
+static errval_t re_search_free(struct mm *mm, struct capref cap,
+                              genpaddr_t base, gensize_t size)
+{
+    struct mmnode *node = mm->head;
+    while (node != NULL) {
+        struct frame_identity fi;
+        frame_identify(node->cap.cap, &fi);
+        if (fi.base == base && fi.bytes - size <= BASE_PAGE_SIZE) {
+            node->type = NodeType_Free;
+            DBG(VERBOSE, "freeing node: base: 0x%" PRIxGENPADDR
+                         " size: %" PRIu64 " KB\n",
+                fi.base, fi.bytes / 1024);
+            cap_revoke(cap);
+            cap_destroy(cap);
+            cap_revoke(node->cap.cap);
+            cap_destroy(node->cap.cap);
+            if (node->next != NULL && node->next->type == NodeType_Free) {
+                CHECK(mm_mmnode_merge(mm, node, node->next));
+            }
+            if (node->prev != NULL && node->prev->type == NodeType_Free) {
+                CHECK(mm_mmnode_merge(mm, node->prev, node));
+            }
+            return SYS_ERR_OK;
+        }
+        node = node->next;
+    }
+    return MM_ERR_NOT_FOUND;
+}
+
 /**
  * \brief Free a certain region (for later re-use).
  *
@@ -474,14 +503,12 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
     struct mmnode *node = mm->head;
     while (node != NULL) {
         // Try matching based on base address and size.
-        struct frame_identity fi;
-        frame_identify(node->cap.cap, &fi);
-        if (fi.base == base && fi.bytes - size <= BASE_PAGE_SIZE) {
+        if (node->base == base && node->size - size <= BASE_PAGE_SIZE) {
             // Free the node.
             node->type = NodeType_Free;
             DBG(VERBOSE, "freeing node: base: 0x%" PRIxGENPADDR
                          " size: %" PRIu64 " KB\n",
-                fi.base, fi.bytes / 1024);
+                node->base, node->size / 1024);
 
             // XXX: What's happening here exactly, why are both calls
             // throwing errors and why are we ok with it?..
@@ -510,6 +537,10 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base,
         }
         node = node->next;
     }
+    DBG(WARN, "Re-searching free, didn't find on loose matching\n");
+    errval_t err = re_search_free(mm, cap, base, size);
+    if (!err_is_fail(err))
+        return SYS_ERR_OK;
 
     DBG(ERR, "Failed to free, node not found\n");
     debug_printf("we wanted to free a node with base 0x%" PRIxGENPADDR
