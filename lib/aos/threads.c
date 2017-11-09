@@ -225,6 +225,7 @@ static errval_t refill_thread_slabs(struct slab_allocator *slabs)
 }
 
 /// Initialise the state of a new thread structure
+unsigned int thread_id_tmp = 0;
 static void thread_init(dispatcher_handle_t disp, struct thread *newthread)
 {
     newthread->self = newthread;
@@ -250,6 +251,7 @@ static void thread_init(dispatcher_handle_t disp, struct thread *newthread)
     newthread->slab = NULL;
     newthread->token = 0;
     newthread->token_number = 1;
+    newthread->id = thread_id_tmp++;
 
     newthread->rpc_in_progress = false;
     newthread->async_error = SYS_ERR_OK;
