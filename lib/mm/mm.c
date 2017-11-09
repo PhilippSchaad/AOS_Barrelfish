@@ -316,6 +316,9 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment,
 {
     assert(retcap != NULL);
 
+    if (alignment == 0)
+        alignment = BASE_PAGE_SIZE;
+
     // TODO: some space is lost here (page tables)
     // Adjust alignment to page size, making sure that the addresses are
     // aligned and not just the size.
