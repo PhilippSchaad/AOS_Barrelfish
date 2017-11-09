@@ -44,16 +44,18 @@ static errval_t load_and_relocate_driver(struct bootinfo *bootinfo,
 
 static void clean_cache(struct frame_identity frame)
 {
-    // clean cache
-    // NOTE: if I understand it correctly, we want coherency -> Cache POC
+    // Memory barrier.
+    __asm volatile ("dmb");
+    // Clean cache.
     sys_armv7_cache_clean_poc(
         (void *) (uint32_t) frame.base,
         (void *) (uint32_t)(frame.base + frame.bytes - 1));
-    // NOTE: errors are checked internally
-    // invalidate cache
+    // Invalidate cache.
     sys_armv7_cache_invalidate(
         (void *) (uint32_t) frame.base,
         (void *) (uint32_t)(frame.base + frame.bytes - 1));
+    // Memory barrier.
+    __asm volatile ("dmb");
 }
 
 errval_t create_urpc_frame(void **buf, size_t bytes)
