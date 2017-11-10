@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     // init urpc channel to 2nd core
     void *buf;
     if (my_core_id == 0) {
-        CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE, my_core_id));
+        CHECK(create_urpc_frame(&buf, BASE_PAGE_SIZE));
         memset(buf, 0, BASE_PAGE_SIZE);
 
         // wake up 2nd core
