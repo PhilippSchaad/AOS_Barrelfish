@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    debug_printf("Regions size: %zu\n", bi->regions_length);
     if (my_core_id == 0) {
         CHECK(initialize_ram_alloc(NULL));
     }
@@ -92,8 +91,6 @@ int main(int argc, char *argv[])
 
         urpc_init_mem_alloc(bi);
 
-        urpc_sendstring("Sending the good news to core 1\n");
-
         /*
         // run tests
         struct tester t;
@@ -103,32 +100,22 @@ int main(int argc, char *argv[])
         tests_run(&t);
         */
 
-        /*
-        struct capref mem_for_the_other_core;
-        // Send 256 MB of ram to the other core
-        ram_alloc(&mem_for_the_other_core, (size_t) 1024 * 1024 * 256);
-        urpc_sendram(&mem_for_the_other_core);
-        */
-
-        //urpc_spawn_process("hello");
+        // urpc_spawn_process("hello");
     } else {
         urpc_slave_init_and_run();
 
-        debug_printf("I am the other core\n");
-
-        urpc_sendstring("Hello core 0, from init/main.c on core 1\n");
-
-        // I think this isn't a concurrency problem? At least, it shouldn't be
+        // Wait until we have received the URPC telling us to initialiize our
+        // ram allocator and have done so successfully.
         while (!urpc_ram_is_initalized())
             ;
 
-        urpc_sendstring("Hey core 0, core 1 is about to run tests\n");
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
-        //register_spawn_tests(&t);
+        // register_spawn_tests(&t);
         tests_run(&t);
-        urpc_sendstring("Hey core 0, core 1 is done testing\n");
+
+        debug_printf("Why does it need this print to complete?\n");
     }
 
     printf("\n");
