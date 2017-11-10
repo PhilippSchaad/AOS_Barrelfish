@@ -17,7 +17,8 @@ static int mm_alloc_300f(void)
 
     for(int i = 0; i<300; ++i){
         size_t bytes = 30 + i*100 ;
-        err = aos_ram_alloc_aligned(&frame[i], bytes, BASE_PAGE_SIZE);
+        size_t frame_size = 0;
+        err = frame_alloc(&frame[i], bytes, &frame_size);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
@@ -49,19 +50,20 @@ static int mm_alloc_and_map_10f(void)
 
     for(int i = 0; i<10; ++i){
         size_t bytes = 30 + i*1000 ;
-        err = aos_ram_alloc_aligned(&frame[i], bytes, 0);
+        size_t frame_size = 0;
+        err = frame_alloc(&frame[i], bytes, &frame_size);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
         void *buf;
         err = paging_map_frame_attr(get_current_paging_state(), &buf,
-                                    bytes, frame[i],
+                                    frame_size, frame[i],
                                     VREGION_FLAGS_READ_WRITE, NULL, NULL);
         char* access = (char*)buf;
-        for(int j = 0; j < bytes; j++) {
+        for(int j = 0; j < frame_size; j++) {
             access[j] = 'i';
         }
-        for(int j = 0; j < bytes; j++) {
+        for(int j = 0; j < frame_size; j++) {
             if(access[j] != 'i') {
                 debug_printf("access[%i]=='i' failed", j);
                 TEST_PRINT_FAIL();
@@ -99,20 +101,21 @@ static int mm_alloc_and_map_large_10f(void)
 
     for(int i = 0; i<10; ++i){
         size_t bytes = 30 + i*(1<<20) ;
-        err = aos_ram_alloc_aligned(&frame[i], bytes, 0);
+        size_t frame_size;
+        err = frame_alloc(&frame[i], bytes, &frame_size);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
         }
         void *buf;
-        err = paging_map_frame_attr(get_current_paging_state(), &buf, bytes,
+        err = paging_map_frame_attr(get_current_paging_state(), &buf, frame_size,
                                     frame[i],VREGION_FLAGS_READ_WRITE, NULL,
                                     NULL);
 
         char* access = (char*)buf;
-        for(int j = 0; j < bytes; j++) {
+        for(int j = 0; j < frame_size; j++) {
             access[j] = 'i';
         }
-        for(int j = 0; j < bytes; j++) {
+        for(int j = 0; j < frame_size; j++) {
             if(access[j] != 'i') {
                 debug_printf("access[%i]=='i' failed", j);
                 TEST_PRINT_FAIL();
@@ -276,8 +279,8 @@ static int mm_paging_map_fixed_attr_cursize_test(void) {
 
     struct capref frame;
     errval_t err;
-    size_t frame_size2=278528;
-    err = aos_ram_alloc_aligned(&frame, frame_size2, 0);
+    size_t frame_size2=0;
+    err = frame_alloc(&frame, (size_t) 278528, &frame_size2);
     if (err_is_fail(err)) {
         TEST_PRINT_FAIL();
     }

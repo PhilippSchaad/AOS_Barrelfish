@@ -99,10 +99,8 @@ int main(int argc, char *argv[])
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
-        register_spawn_tests(&t);
+        //register_spawn_tests(&t);
         tests_run(&t);
-        sendstring("Hey, core 1, we are done with testing now, "
-                   "isn't that great?\n");
         */
 
         /*
