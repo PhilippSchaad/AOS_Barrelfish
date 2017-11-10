@@ -98,8 +98,8 @@ int main(int argc, char *argv[])
         // run tests
         struct tester t;
         init_testing(&t);
-        //register_memory_tests(&t);
-        register_spawn_tests(&t);
+        register_memory_tests(&t);
+        //register_spawn_tests(&t);
         tests_run(&t);
         */
 
@@ -122,14 +122,12 @@ int main(int argc, char *argv[])
         while (!urpc_ram_is_initalized())
             ;
 
-        /*
         urpc_sendstring("Hey core 0, core 1 is about to run tests\n");
         struct tester t;
         init_testing(&t);
-        //register_memory_tests(&t);
-        register_spawn_tests(&t);
+        register_memory_tests(&t);
+        //register_spawn_tests(&t);
         tests_run(&t);
-        */
         urpc_sendstring("Hey core 0, core 1 is done testing\n");
     }
 

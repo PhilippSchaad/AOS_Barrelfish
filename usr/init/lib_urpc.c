@@ -144,11 +144,12 @@ recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 static void
 recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
 {
-    struct bootinfo *n_bi = (struct bootinfo *) &bootinfo_package->boot_info;
-    memcpy((void *) &n_bi->regions,
-           (void *) &bootinfo_package->boot_info.regions,
+    struct bootinfo *n_bi =
+        (struct bootinfo *) malloc(sizeof(struct bootinfo));
+    memcpy((void *) n_bi, (void *) &bootinfo_package->boot_info,
+           sizeof(struct bootinfo));
+    memcpy((void *) &n_bi->regions, (void *) &bootinfo_package->regions,
            sizeof(struct mem_region) * n_bi->regions_length);
-    debug_printf("We received boot info with: %zu\n", n_bi->regions_length);
     initialize_ram_alloc(n_bi);
     already_received_memory = true;
 }
@@ -169,7 +170,7 @@ recv_receive_memory(__volatile struct urpc_receive_memory *receive_memory_obj)
 {
     debug_printf("And in the fires of mount doom we forge the one cap to rule "
                  "them all\n");
-    debug_printf("base: %p size: %"PRIu64" MB\n", receive_memory_obj->base,
+    debug_printf("base: %p size: %" PRIu64 " MB\n", receive_memory_obj->base,
                  (uint64_t) receive_memory_obj->size / 1024 / 1024);
 
     struct capref the_one_cap;
@@ -228,7 +229,6 @@ static void recv(__volatile struct urpc *data)
     }
 }
 
-__attribute__((unused))
 static int urpc_internal_master(void *urpc_vaddr)
 {
     __volatile struct urpc_protocol *urpc_protocol =
@@ -277,17 +277,19 @@ static bool send_string_func(__volatile struct urpc *urpcobj, void *data)
     return 1;
 }
 
-static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj, void *data)
+static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj,
+                                     void *data)
 {
     struct bootinfo *p_bi = (struct bootinfo *) data;
     assert(p_bi->regions_length <= 10);
     urpcobj->type = init_mem_alloc;
-    memcpy((void *) &urpcobj->data.urpc_bootinfo.boot_info, p_bi, sizeof(struct bootinfo));
-    memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions, sizeof(struct mem_region) * p_bi->regions_length);
+    memcpy((void *) &urpcobj->data.urpc_bootinfo.boot_info, p_bi,
+           sizeof(struct bootinfo));
+    memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions,
+           sizeof(struct mem_region) * p_bi->regions_length);
     return 1;
 }
 
-__attribute__((unused))
 static int urpc_internal_slave(void *nothing)
 {
     const char *str = "Hello from the other side\n";
