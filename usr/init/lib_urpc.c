@@ -39,7 +39,7 @@ static struct thread_mutex urpc_thread_mutex;
 
 enum urpc_state { non_initalized = 0, needs_to_be_read, available };
 
-enum urpc_type { send_string, remote_spawn, receive_memory, init_mem_alloc };
+enum urpc_type { send_string, remote_spawn, init_mem_alloc };
 
 struct urpc_bootinfo_package {
     struct bootinfo boot_info;
@@ -54,17 +54,11 @@ struct urpc_remote_spawn {
     char name[2000];
 };
 
-struct urpc_receive_memory {
-    void *base;
-    size_t size;
-};
-
 struct urpc {
     enum urpc_type type;
     union {
         struct urpc_send_string send_string;
         struct urpc_remote_spawn remote_spawn;
-        struct urpc_receive_memory receive_memory;
         struct urpc_bootinfo_package urpc_bootinfo;
     } data;
 };
@@ -137,8 +131,7 @@ static struct send_queue *dequeue(void)
 static void
 recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 {
-    debug_printf("Obtained the following string from the other core:\n");
-    printf("          %s\n", send_string_obj->string);
+    debug_printf("CCM: %s", send_string_obj->string);
 }
 
 static void
@@ -165,52 +158,6 @@ recv_remote_spawn(__volatile struct urpc_remote_spawn *remote_spawn_obj)
     free(si);
 }
 
-static void
-recv_receive_memory(__volatile struct urpc_receive_memory *receive_memory_obj)
-{
-    debug_printf("And in the fires of mount doom we forge the one cap to rule "
-                 "them all\n");
-    debug_printf("base: %p size: %" PRIu64 " MB\n", receive_memory_obj->base,
-                 (uint64_t) receive_memory_obj->size / 1024 / 1024);
-
-    struct capref the_one_cap;
-    slot_alloc(&the_one_cap);
-    ram_forge(the_one_cap, (genpaddr_t)(uint32_t) receive_memory_obj->base,
-              (gensize_t) receive_memory_obj->size, disp_get_core_id());
-    if (!already_received_memory) {
-        static struct slot_prealloc init_slot_alloc;
-        struct capref cnode_cap = {
-            .cnode =
-                {
-                    .croot = CPTR_ROOTCN,
-                    .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_SLOT_ALLOC0),
-                    .level = CNODE_TYPE_OTHER,
-                },
-            .slot = 0,
-        };
-        slot_prealloc_init(&init_slot_alloc, cnode_cap, L2_CNODE_SLOTS,
-                           &aos_mm);
-        errval_t err;
-        // Initialize aos_mm
-        err = mm_init(&aos_mm, ObjType_RAM, NULL, slot_alloc_prealloc,
-                      slot_prealloc_refill, &init_slot_alloc);
-        if (err_is_fail(err)) {
-            USER_PANIC_ERR(err, "Can't initalize the memory manager.");
-        }
-
-        // Give aos_mm a bit of memory for the initialization
-        static char nodebuf[sizeof(struct mmnode) * 64];
-        slab_grow(&aos_mm.slabs, nodebuf, sizeof(nodebuf));
-    }
-    mm_add(&aos_mm, the_one_cap,
-           (genpaddr_t)(uint32_t) receive_memory_obj->base,
-           receive_memory_obj->size);
-    if (!already_received_memory) {
-        ram_alloc_set(aos_ram_alloc_aligned);
-        already_received_memory = true;
-    }
-}
-
 static void recv(__volatile struct urpc *data)
 {
     switch (data->type) {
@@ -219,9 +166,6 @@ static void recv(__volatile struct urpc *data)
         break;
     case remote_spawn:
         recv_remote_spawn(&data->data.remote_spawn);
-        break;
-    case receive_memory:
-        recv_receive_memory(&data->data.receive_memory);
         break;
     case init_mem_alloc:
         recv_init_mem_alloc(&data->data.urpc_bootinfo);
@@ -292,17 +236,9 @@ static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj,
 
 static int urpc_internal_slave(void *nothing)
 {
-    const char *str = "Hello from the other side\n";
     __volatile struct urpc_protocol *urpc_protocol =
         (struct urpc_protocol *) MON_URPC_VBASE;
     with_barrier(urpc_protocol->slave_state = available);
-    enqueue(send_string_func, (void *) str);
-    enqueue(send_string_func,
-            (void *) "Sometimes the other side feels talkactive\n");
-    enqueue(send_string_func,
-            (void *) "and sends way way more than just a single message\n");
-    enqueue(send_string_func,
-            (void *) "it might even send many messages indeed!\n");
     for (;;) {
         with_barrier(while (urpc_protocol->slave_state != needs_to_be_read &&
                             (queue_empty() ||
@@ -339,27 +275,6 @@ void urpc_slave_init_and_run(void)
 }
 
 void urpc_sendstring(char *str) { enqueue(send_string_func, str); }
-
-static bool sendram_internal(__volatile struct urpc *urpcobj, void *data)
-{
-    struct urpc_receive_memory *mem = (struct urpc_receive_memory *) data;
-    urpcobj->type = receive_memory;
-    urpcobj->data.receive_memory.base = mem->base;
-    urpcobj->data.receive_memory.size = mem->size;
-    free(mem);
-    return 1;
-}
-
-void urpc_sendram(struct capref *cap)
-{
-    struct frame_identity frame;
-    frame_identify(*cap, &frame);
-    struct urpc_receive_memory *mem =
-        malloc(sizeof(struct urpc_receive_memory));
-    mem->base = (void *) (uint32_t) frame.base;
-    mem->size = frame.bytes;
-    enqueue(sendram_internal, (void *) mem);
-}
 
 void urpc_init_mem_alloc(struct bootinfo *p_bi)
 {

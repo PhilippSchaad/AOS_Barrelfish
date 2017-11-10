@@ -79,11 +79,9 @@ errval_t initialize_ram_alloc(struct bootinfo *bi_override)
 
     int used_regions = 0;
     for (int i = 0; i < bi->regions_length; i++) {
-            debug_printf("a region empty\n");
         if (bi->regions[i].mr_type == RegionType_Empty) {
-            debug_printf("a region empty\n");
             if (used_regions == disp_get_core_id()) {
-                if (disp_get_core_id() == 1) {
+                if (disp_get_core_id() != 0) {
                     CHECK(ram_forge(mem_cap, bi->regions[i].mr_base,
                                     bi->regions[i].mr_bytes, disp_get_core_id()));
                 }
