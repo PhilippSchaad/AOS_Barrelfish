@@ -44,6 +44,8 @@ enum urpc_type { send_string, remote_spawn, init_mem_alloc };
 struct urpc_bootinfo_package {
     struct bootinfo boot_info;
     struct mem_region regions[10];
+    genpaddr_t mmstrings_base;
+    gensize_t mmstrings_size;
 };
 
 struct urpc_send_string {
@@ -144,6 +146,31 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
     memcpy((void *) &n_bi->regions, (void *) &bootinfo_package->regions,
            sizeof(struct mem_region) * n_bi->regions_length);
     initialize_ram_alloc(n_bi);
+
+    // Set up the modules from the boot info for spawning.
+    struct capref mmstrings_cap = {
+        .cnode = cnode_module,
+        .slot = 0,
+    };
+    struct capref l1_cnode = {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_ROOTCN,
+    };
+    CHECK(cnode_create_foreign_l2(l1_cnode, ROOTCN_SLOT_MODULECN, &cnode_module));
+    CHECK(frame_forge(mmstrings_cap, bootinfo_package->mmstrings_base,
+                bootinfo_package->mmstrings_size, disp_get_core_id()));
+    for (int i = 0; i < n_bi->regions_length; i++) {
+        struct mem_region reg = n_bi->regions[i];
+        if (reg.mr_type == RegionType_Module) {
+            struct capref module_cap = {
+                .cnode = cnode_module,
+                .slot = reg.mrmod_slot,
+            };
+            CHECK(frame_forge(module_cap, reg.mr_base, reg.mrmod_size,
+                        disp_get_core_id()));
+        }
+    }
+
     already_received_memory = true;
 }
 
@@ -231,6 +258,14 @@ static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj,
            sizeof(struct bootinfo));
     memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions,
            sizeof(struct mem_region) * p_bi->regions_length);
+    struct capref mmstrings_cap = {
+        .cnode = cnode_module,
+        .slot = 0,
+    };
+    struct frame_identity mmstrings_id;
+    CHECK(frame_identify(mmstrings_cap, &mmstrings_id));
+    urpcobj->data.urpc_bootinfo.mmstrings_base = mmstrings_id.base;
+    urpcobj->data.urpc_bootinfo.mmstrings_size = mmstrings_id.bytes;
     return 1;
 }
 
