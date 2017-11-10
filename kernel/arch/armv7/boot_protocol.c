@@ -38,6 +38,7 @@ errval_t platform_boot_aps(hwid_t target, genpaddr_t gen_entry, genpaddr_t conte
     /* XXX - we're abusing the gen_entry pointer here.  Change the interface
      * to make this arch-specific. */
     lpaddr_t new_core_data_ptr= (lpaddr_t)gen_entry;
+    printf("I\n");
 
     /* This mailbox is in the boot driver's BSS. */
     struct armv7_boot_record *br=
@@ -45,6 +46,7 @@ errval_t platform_boot_aps(hwid_t target, genpaddr_t gen_entry, genpaddr_t conte
 
     /* Acquire the lock on the boot record. */
     spinlock_acquire(&br->lock);
+    printf("II\n");
 
     /* Pass the core data pointer. */
     br->core_data= new_core_data_ptr;
@@ -59,24 +61,36 @@ errval_t platform_boot_aps(hwid_t target, genpaddr_t gen_entry, genpaddr_t conte
 
     /* The boot driver will read this value with its MMU and caches disabled,
      * so we need to make sure it's visible. */
+    printf("III\n");
     dmb(); isb();
+    printf("IV\n");
     clean_invalidate_to_poc(&br->core_data);
+    printf("V\n");
     clean_invalidate_to_poc(&br->done);
+    printf("VI\n");
     clean_invalidate_to_poc(&br->target_mpid);
+    printf("VII\n");
 
     /* We need to ensure that the clean has finished before we wake them. */
     dmb(); isb();
+    printf("VIII\n");
 
     /* Wake all sleeping cores. */
     sev();
+    printf("IX\n");
 
     /* The target core will let us know that it's exited the boot driver by
      * setting done to one *with its MMU, and hence coherency, enabled*. */
     volatile uint32_t *mailbox= &br->done;
-    while(!*mailbox) wfe();
+    while(!*mailbox) {
+        wfe();
+        printf("x");
+    }
+    printf("\n");
 
     /* Release the lock on the boot record. */
     spinlock_release(&br->lock);
+    printf("X\n");
 
     return 0;
 }

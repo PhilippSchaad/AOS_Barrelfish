@@ -772,16 +772,20 @@ struct sysret sys_monitor_spawn_core(hwid_t target, enum cpu_type cpu_type,
         return SYSRET(SYS_ERR_ARCHITECTURE_NOT_SUPPORTED);
     }
 
+    printf("a\n");
     coreboot_start_fn_t start_fn = coreboot_get_spawn_handler(cpu_type);
+    printf("b\n");
 
     if (start_fn == NULL) {
         return SYSRET(SYS_ERR_ARCHITECTURE_NOT_SUPPORTED);
     }
 
+    printf("c\n");
     err = start_fn(target, entry, context);
     if(err_is_fail(err)) {
         err = err_push(err, SYS_ERR_CORE_NOT_FOUND);
     }
+    printf("d\n");
     return SYSRET(err);
 }
 

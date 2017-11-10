@@ -94,12 +94,12 @@ int main(int argc, char *argv[])
 
         urpc_sendstring("Sending the good news to core 1\n");
 
-        // run tests
         /*
+        // run tests
         struct tester t;
         init_testing(&t);
-        register_memory_tests(&t);
-        //register_spawn_tests(&t);
+        //register_memory_tests(&t);
+        register_spawn_tests(&t);
         tests_run(&t);
         */
 
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
         urpc_sendram(&mem_for_the_other_core);
         */
 
-        // urpc_spawn_process("hello");
+        //urpc_spawn_process("hello");
     } else {
         urpc_slave_init_and_run();
 
@@ -122,12 +122,14 @@ int main(int argc, char *argv[])
         while (!urpc_ram_is_initalized())
             ;
 
+        /*
         urpc_sendstring("Hey core 0, core 1 is about to run tests\n");
         struct tester t;
         init_testing(&t);
-        register_memory_tests(&t);
-        // register_spawn_tests(&t);
+        //register_memory_tests(&t);
+        register_spawn_tests(&t);
         tests_run(&t);
+        */
         urpc_sendstring("Hey core 0, core 1 is done testing\n");
     }
 
