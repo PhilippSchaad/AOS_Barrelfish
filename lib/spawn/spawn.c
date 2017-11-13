@@ -77,9 +77,7 @@ static errval_t init_vspace(struct spawninfo *si)
     CHECK(cap_copy(si->process_l1_pt, l1_pt));
 
     // Set the spawned process's paging state.
-    // XXX: The (1<<25) is a magic constant at this point. TODO: Find a valid
-    // explanation and make it clear here.
-    CHECK(paging_init_state(&si->paging_state, (1 << 25), l1_pt,
+    CHECK(paging_init_state(&si->paging_state, PAGING_VADDR_START, l1_pt,
                             get_default_slot_allocator()));
 
     // Add the callback function for slot allocation.

@@ -178,9 +178,7 @@ errval_t paging_init(void)
         .slot = 0,
     };
 
-    // XXX: (1<<25) is the same magic constant that appears in the spawn code.
-    // Dito! (plus maybe define it in header?)
-    paging_init_state(&current, (1<<25), l1_pagetable,
+    paging_init_state(&current, PAGING_VADDR_START, l1_pagetable,
                       get_default_slot_allocator());
 
     thread_mutex_init(&mutex);

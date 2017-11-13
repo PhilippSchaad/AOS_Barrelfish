@@ -54,6 +54,7 @@
 #include <aos/lmp_endpoints.h>
 
 #define PAGING_STATE_PADDR      0x1000
+#define PAGING_VADDR_START      (1 << 25) //< = 0x2000000
 
 #define MEMORY_BARRIER          __asm volatile("dmb");__asm volatile("isb")
 
