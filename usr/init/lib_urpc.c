@@ -20,6 +20,10 @@
 #define INIT_DISPATCHER_VBASE (INIT_ARGS_VBASE + ARGS_SIZE)
 #define MON_URPC_VBASE (INIT_DISPATCHER_VBASE + DISPATCHER_SIZE)
 
+// XXX: WARNING! USE THIS WITH CAUTION. Preliminary returns will NOT return
+// the lock, control flow with 'continue' and 'break' might work differently
+// than expected inside of synchronized blocks, and nested synchronized blocks
+// can cause massive trouble. Be aware of that when using synchronized here!
 #define synchronized(_mut)                                                     \
     for (struct thread_mutex *_mutx = &_mut; _mutx != NULL; _mutx = NULL)     \
         for (thread_mutex_lock(&_mut); _mutx != NULL; _mutx = NULL,           \
