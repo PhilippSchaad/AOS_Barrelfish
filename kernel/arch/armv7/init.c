@@ -264,7 +264,6 @@ arch_init(struct arm_core_data *boot_core_data,
 
     MSG("Initializing the GIC\n");
     gic_init();
-    MSG("gic_init done\n");
 
     if (cpu_is_bsp()) {
         platform_revision_init();

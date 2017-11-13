@@ -73,6 +73,8 @@ void user_panic_fn(const char *file, const char *func, int line,
                    const char *msg, ...)
     __attribute__((noreturn));
 
+void dump_bootinfo(struct bootinfo *bi, coreid_t my_core_id);
+
 #ifdef NDEBUG
 # define DEBUG_ERR(err, msg...) ((void)0)
 # define HERE ((void)0)

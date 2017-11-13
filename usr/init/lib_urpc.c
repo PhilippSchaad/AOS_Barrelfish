@@ -20,20 +20,10 @@
 #define INIT_DISPATCHER_VBASE (INIT_ARGS_VBASE + ARGS_SIZE)
 #define MON_URPC_VBASE (INIT_DISPATCHER_VBASE + DISPATCHER_SIZE)
 
-// according to the spec we need to use dbm after aquiring a resource and
-// before we use it
-// as well as before releasing the resource
-// this means this is a typical case of the bracket pattern
-#define MEMORY_BARRIER __asm__("dmb")
-// so we just encode the bracket pattern as a macro
-#define with_barrier(x)                                                       \
-    MEMORY_BARRIER;                                                           \
-    x;                                                                        \
-    MEMORY_BARRIER;
-#define with_lock(lock, x)                                                    \
-    thread_mutex_lock(&lock);                                                 \
-    x;                                                                        \
-    thread_mutex_unlock(&lock);
+#define synchronized(_mut)                                                     \
+    for (struct thread_mutex *_mutx = &_mut; _mutx != NULL; _mutx = NULL)     \
+        for (thread_mutex_lock(&_mut); _mutx != NULL; _mutx = NULL,           \
+                thread_mutex_unlock(&_mut))
 
 static struct thread_mutex urpc_thread_mutex;
 
@@ -88,10 +78,13 @@ bool urpc_ram_is_initalized(void) { return already_received_memory; }
 static void enqueue(bool (*func)(__volatile struct urpc *addr, void *data),
                     void *data)
 {
-    with_lock(
-        urpc_thread_mutex,
+    synchronized(urpc_thread_mutex) {
         struct send_queue *new = malloc(sizeof(struct send_queue));
-        new->func = func; new->data = data; new->next = NULL;
+
+        new->func = func;
+        new->data = data;
+        new->next = NULL;
+
         if (urpc_send_queue_last == NULL) {
             assert(urpc_send_queue == NULL);
             urpc_send_queue = new;
@@ -99,35 +92,45 @@ static void enqueue(bool (*func)(__volatile struct urpc *addr, void *data),
         } else {
             urpc_send_queue_last->next = new;
             urpc_send_queue_last = new;
-        });
+        }
+    }
 }
 
 static void requeue(struct send_queue *sq)
 {
-    with_lock(urpc_thread_mutex,
-              if (urpc_send_queue_last == NULL) {
-                  assert(urpc_send_queue == NULL);
-                  urpc_send_queue = sq;
-                  urpc_send_queue_last = sq;
-              } else {
-                  urpc_send_queue_last->next = sq;
-                  urpc_send_queue_last = sq;
-              });
+    synchronized(urpc_thread_mutex) {
+        if (urpc_send_queue_last == NULL) {
+            assert(urpc_send_queue == NULL);
+            urpc_send_queue = sq;
+            urpc_send_queue_last = sq;
+        } else {
+            urpc_send_queue_last->next = sq;
+            urpc_send_queue_last = sq;
+        }
+    }
 }
 
 static bool queue_empty(void)
 {
     bool status;
-    with_lock(urpc_thread_mutex, status = urpc_send_queue == NULL);
+    synchronized(urpc_thread_mutex)
+        status = urpc_send_queue == NULL;
     return status;
 }
 
 static struct send_queue *dequeue(void)
 {
-    with_lock(
-        urpc_thread_mutex, assert(urpc_send_queue != NULL);
-        struct send_queue *fst = urpc_send_queue; urpc_send_queue = fst->next;
-        if (urpc_send_queue == NULL) urpc_send_queue_last = NULL;) return fst;
+    struct send_queue *fst;
+    synchronized(urpc_thread_mutex) {
+        assert(urpc_send_queue != NULL);
+
+        fst = urpc_send_queue;
+        urpc_send_queue = fst->next;
+
+        if (urpc_send_queue == NULL)
+            urpc_send_queue_last = NULL;
+    }
+    return fst;
 }
 
 static void
@@ -202,8 +205,9 @@ static int urpc_internal_master(void *urpc_vaddr)
 {
     __volatile struct urpc_protocol *urpc_protocol =
         (struct urpc_protocol *) urpc_vaddr;
-    with_barrier(urpc_protocol->master_state = available);
-    for (;;) {
+    MEMORY_BARRIER;
+    urpc_protocol->master_state = available;
+    while (true) {
         MEMORY_BARRIER;
         if (urpc_protocol->master_state != needs_to_be_read &&
             (queue_empty() || urpc_protocol->slave_state != available)) {
@@ -260,7 +264,7 @@ static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj,
     memcpy((void *) &urpcobj->data.urpc_bootinfo.boot_info, p_bi,
            sizeof(struct bootinfo));
     memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions,
-           sizeof(struct mem_region) * p_bi->regions_length);
+           sizeof(struct mem_region) *p_bi->regions_length);
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
     };
@@ -275,8 +279,9 @@ static int urpc_internal_slave(void *nothing)
 {
     __volatile struct urpc_protocol *urpc_protocol =
         (struct urpc_protocol *) MON_URPC_VBASE;
-    with_barrier(urpc_protocol->slave_state = available);
-    for (;;) {
+    MEMORY_BARRIER;
+    urpc_protocol->slave_state = available;
+    while (true) {
         MEMORY_BARRIER;
         if (urpc_protocol->slave_state != needs_to_be_read &&
             (queue_empty() || urpc_protocol->master_state != available)) {

@@ -55,6 +55,8 @@
 
 #define PAGING_STATE_PADDR      0x1000
 
+#define MEMORY_BARRIER          __asm volatile("dmb");__asm volatile("isb")
+
 /* Duplicate memory */
 static inline void * memdup(const void *ptr, size_t size) {
     void *res = malloc(size);
