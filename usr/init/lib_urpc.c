@@ -206,9 +206,12 @@ static int urpc_internal_master(void *urpc_vaddr)
         (struct urpc_protocol *) urpc_vaddr;
     with_barrier(urpc_protocol->master_state = available);
     for (;;) {
-        with_barrier(
-            while (urpc_protocol->master_state != needs_to_be_read &&
-                   (queue_empty() || urpc_protocol->slave_state != available));
+        MEMORY_BARRIER;
+        if (urpc_protocol->master_state != needs_to_be_read &&
+                (queue_empty() || urpc_protocol->slave_state != available)) {
+            MEMORY_BARRIER;
+            thread_yield();
+        } else {
             if (urpc_protocol->master_state == needs_to_be_read) {
                 recv(&urpc_protocol->master_data);
                 urpc_protocol->master_state = available;
@@ -227,7 +230,9 @@ static int urpc_internal_master(void *urpc_vaddr)
                     free(sendobj);
                 }
                 urpc_protocol->slave_state = needs_to_be_read;
-            });
+            }
+            MEMORY_BARRIER;
+        }
     }
     return 0;
 }
@@ -275,29 +280,34 @@ static int urpc_internal_slave(void *nothing)
         (struct urpc_protocol *) MON_URPC_VBASE;
     with_barrier(urpc_protocol->slave_state = available);
     for (;;) {
-        with_barrier(while (urpc_protocol->slave_state != needs_to_be_read &&
-                            (queue_empty() ||
-                             urpc_protocol->master_state != available));
-                     if (urpc_protocol->slave_state == needs_to_be_read) {
-                         recv(&urpc_protocol->slave_data);
-                         urpc_protocol->slave_state = available;
-                     } else {
-                         // we can only get into this case if we have something
-                         // to send and can send right now
-                         struct send_queue *sendobj = dequeue();
-                         if (!sendobj->func(&urpc_protocol->master_data,
-                                            sendobj->data)) {
-                             // we are not done yet with this one, so we
-                             // requeue it
-                             requeue(sendobj);
-                         } else {
-                             // note: this is fine and can't memleak so long as
-                             // the func that was passed to us via sendobj
-                             // cleans its own data up after it's done using it
-                             free(sendobj);
-                         }
-                         urpc_protocol->master_state = needs_to_be_read;
-                     });
+        MEMORY_BARRIER;
+        if (urpc_protocol->slave_state != needs_to_be_read &&
+                (queue_empty() || urpc_protocol->master_state != available)) {
+            MEMORY_BARRIER;
+            thread_yield();
+        } else {
+            if (urpc_protocol->slave_state == needs_to_be_read) {
+                recv(&urpc_protocol->slave_data);
+                urpc_protocol->slave_state = available;
+            } else {
+                // we can only get into this case if we have something
+                // to send and can send right now
+                struct send_queue *sendobj = dequeue();
+                if (!sendobj->func(&urpc_protocol->master_data,
+                                   sendobj->data)) {
+                    // we are not done yet with this one, so we
+                    // requeue it
+                    requeue(sendobj);
+                } else {
+                    // note: this is fine and can't memleak so long as
+                    // the func that was passed to us via sendobj
+                    // cleans its own data up after it's done using it
+                    free(sendobj);
+                }
+                urpc_protocol->master_state = needs_to_be_read;
+            }
+            MEMORY_BARRIER;
+        }
     }
     return 0;
 }
