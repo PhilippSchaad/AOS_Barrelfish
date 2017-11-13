@@ -38,6 +38,7 @@ static errval_t load_and_relocate_driver(struct bootinfo *bootinfo,
     CHECK(load_cpu_relocatable_segment(
         elf_addr, relocatable_segment_addr, reloc_identity.base,
         core_data->kernel_load_base, &core_data->got_base));
+    debug_printf("hi\n");
 
     return SYS_ERR_OK;
 }
@@ -46,6 +47,7 @@ static void clean_cache(struct frame_identity frame)
 {
     // Memory barrier.
     __asm volatile ("dmb");
+    __asm volatile ("isb");
     // Clean cache.
     sys_armv7_cache_clean_poc(
         (void *) (uint32_t) frame.base,
@@ -56,6 +58,7 @@ static void clean_cache(struct frame_identity frame)
         (void *) (uint32_t)(frame.base + frame.bytes - 1));
     // Memory barrier.
     __asm volatile ("dmb");
+    __asm volatile ("isb");
 }
 
 errval_t create_urpc_frame(void **buf, size_t bytes)
@@ -66,7 +69,7 @@ errval_t create_urpc_frame(void **buf, size_t bytes)
     if (retsize != bytes)
         return LIB_ERR_NO_SIZE_MATCH;
 
-    CHECK(paging_map_frame(get_current_paging_state(), buf, retsize, cap_urpc,
+    CHECK(paging_map_frame(get_current_paging_state(), buf, bytes, cap_urpc,
                            NULL, NULL));
     return SYS_ERR_OK;
 }
@@ -123,6 +126,7 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
 
     // 7.3.2: Load and relocate the CPU driver.
     CHECK(load_and_relocate_driver(bootinfo, core_data));
+    debug_printf("1\n");
 
     // Load the init module for the core_data->monitor_module.
     struct mem_region *init_module = multiboot_find_module(bootinfo, "init");
@@ -130,6 +134,7 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
         DBG(ERR, "Failed to load init module\n");
         return SPAWN_ERR_FIND_MODULE;
     }
+    debug_printf("2\n");
     // Information about our monitore-module (the init module), for core_data.
     struct multiboot_modinfo module_info = {.mod_start = init_module->mr_base,
                                             .mod_end = init_module->mr_base +
@@ -153,13 +158,19 @@ errval_t wake_core(coreid_t core_id, coreid_t current_core_id,
     core_data->src_core_id = current_core_id;
     core_data->cmdline =
         offsetof(struct arm_core_data, cmdline_buf) + core_data_identity.base;
+    debug_printf("3\n");
 
     // 7.3.4: Clean the cache.
+    clean_cache(kcb_frame_identity);
     clean_cache(core_data_identity);
+    clean_cache(init_frame_identity);
+    clean_cache(urpc_frame_identity);
+    debug_printf("4\n");
 
     // 7.3.5: Invoke the kernel cap.
     CHECK(invoke_monitor_spawn_core(core_id, CPU_ARM7,
                                     (forvaddr_t) core_data_identity.base));
 
+    debug_printf("5\n");
     return SYS_ERR_OK;
 }

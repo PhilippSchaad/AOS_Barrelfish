@@ -35,9 +35,12 @@ errval_t aos_ram_free(struct capref cap, size_t bytes)
  * server
  * is ready to be used.
  */
-errval_t initialize_ram_alloc(void)
+errval_t initialize_ram_alloc(struct bootinfo *bi_override)
 {
     errval_t err;
+
+    if (bi_override != NULL)
+        bi = bi_override;
 
     // Init slot allocator
     static struct slot_prealloc init_slot_alloc;
@@ -74,25 +77,33 @@ errval_t initialize_ram_alloc(void)
         .cnode = cnode_super, .slot = 0,
     };
 
+    int used_regions = 0;
     for (int i = 0; i < bi->regions_length; i++) {
         if (bi->regions[i].mr_type == RegionType_Empty) {
-            err = mm_add(&aos_mm, mem_cap, bi->regions[i].mr_base,
-                         bi->regions[i].mr_bytes);
-            if (err_is_ok(err)) {
-                mem_avail += bi->regions[i].mr_bytes;
-            } else {
-                DEBUG_ERR(err, "Warning: adding RAM region %d (%p/%zu) FAILED",
-                          i, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
-            }
+            if (used_regions == disp_get_core_id()) {
+                if (disp_get_core_id() != 0) {
+                    CHECK(ram_forge(mem_cap, bi->regions[i].mr_base,
+                                    bi->regions[i].mr_bytes, disp_get_core_id()));
+                }
+                err = mm_add(&aos_mm, mem_cap, bi->regions[i].mr_base,
+                             bi->regions[i].mr_bytes);
+                if (err_is_ok(err)) {
+                    mem_avail += bi->regions[i].mr_bytes;
+                } else {
+                    DEBUG_ERR(err, "Warning: adding RAM region %d (%p/%zu) FAILED",
+                              i, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
+                }
 
-            err = slot_prealloc_refill(aos_mm.slot_alloc_inst);
-            if (err_is_fail(err) && err_no(err) != MM_ERR_SLOT_MM_ALLOC) {
-                DEBUG_ERR(err, "in slot_prealloc_refill() while initialising"
-                               " memory allocator");
-                abort();
-            }
+                err = slot_prealloc_refill(aos_mm.slot_alloc_inst);
+                if (err_is_fail(err) && err_no(err) != MM_ERR_SLOT_MM_ALLOC) {
+                    DEBUG_ERR(err, "in slot_prealloc_refill() while initialising"
+                                   " memory allocator");
+                    abort();
+                }
 
-            mem_cap.slot++;
+                mem_cap.slot++;
+            }
+            used_regions++;
         }
     }
     debug_printf("Added %" PRIu64 " MB of physical memory.\n",

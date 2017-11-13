@@ -34,6 +34,71 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
+__attribute__((unused))
+static void dump_bootinfo(void)
+{
+    assert(bi != NULL);
+    debug_printf("We are dumping the bootinfo of core %d:\n", my_core_id);
+    debug_printf("Host MSG val:  %"PRIu64"\n", bi->host_msg);
+    debug_printf("Host MSG bits: %"PRIu8"\n", bi->host_msg_bits);
+    debug_printf("Regions length: %zu\n", bi->regions_length);
+    debug_printf("Spawn core: %zu\n", bi->mem_spawn_core);
+    debug_printf("Dumping regions:\n");
+    for (int i = 0; i < bi->regions_length; i++) {
+        struct mem_region reg = bi->regions[i];
+        debug_printf("  Region Nr %d:\n", i);
+        debug_printf("    MR_Base: %"PRIxGENPADDR"\n", reg.mr_base);
+        debug_printf("    MR_Bytes: %"PRIuGENSIZE" KB\n", reg.mr_bytes / 1024);
+        debug_printf("    Type: ");
+        switch (reg.mr_type) {
+            case RegionType_Empty:
+                printf("Empty\n");
+                break;
+            case RegionType_RootTask:
+                printf("RootTask\n");
+                break;
+            case RegionType_PhyAddr:
+                printf("PhyAddr\n");
+                break;
+            case RegionType_PlatformData:
+                printf("PlatformData\n");
+                break;
+            case RegionType_Module:
+                printf("Module\n");
+                break;
+            case RegionType_ACPI_TABLE:
+                printf("ACPI_TABLE\n");
+                break;
+            case RegionType_Max:
+                printf("MAX\n");
+                break;
+            default:
+                printf("UNKNOWN\n");
+                break;
+        }
+        debug_printf("    Consumed: ");
+        if (reg.mr_consumed)
+            printf("True\n");
+        else
+            printf("False\n");
+        debug_printf("    MRMOD_Size: %zu\n", reg.mrmod_size);
+        debug_printf("    MRMOD_Data: %td\n", reg.mrmod_data);
+        debug_printf("    MRMOD_Slot: %d\n", reg.mrmod_slot);
+        if (reg.mr_type == RegionType_Module && my_core_id == 0) {
+            debug_printf("    Module, printing frame identity:\n");
+            struct frame_identity mod_id;
+            struct capref mod = {
+                .cnode = cnode_module,
+                .slot = reg.mrmod_slot,
+            };
+            CHECK(frame_identify(mod, &mod_id));
+            debug_printf("      Base: %"PRIxGENPADDR"\n", mod_id.base);
+            debug_printf("      Size: %"PRIuGENSIZE"\n", mod_id.bytes);
+        }
+    }
+    debug_printf("Dumping bootinfo done..\n");
+}
+
 int main(int argc, char *argv[])
 {
     errval_t err;
@@ -58,10 +123,8 @@ int main(int argc, char *argv[])
     }
 
     if (my_core_id == 0) {
-        err = initialize_ram_alloc();
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "initialize_ram_alloc");
-        }
+        CHECK(initialize_ram_alloc(NULL));
+        //dump_bootinfo();
     }
 
     // init urpc channel to 2nd core
@@ -92,43 +155,34 @@ int main(int argc, char *argv[])
     if (my_core_id == 0) {
         urpc_master_init_and_run(buf);
 
-        urpc_sendstring("Sending the good news to core 1\n");
+        urpc_init_mem_alloc(bi);
 
         // run tests
-        /*
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
-        sendstring("Hey, core 1, we are done with testing now, "
-                   "isn't that great?\n");
-        */
-
-        struct capref mem_for_the_other_core;
-        // Send 256 MB of ram to the other core
-        ram_alloc(&mem_for_the_other_core, (size_t) 1024 * 1024 * 256);
-        urpc_sendram(&mem_for_the_other_core);
 
         // urpc_spawn_process("hello");
     } else {
         urpc_slave_init_and_run();
 
-        debug_printf("I am the other core\n");
-
-        urpc_sendstring("Hello core 0, from init/main.c on core 1\n");
-
-        // I think this isn't a concurrency problem? At least, it shouldn't be
+        // Wait until we have received the URPC telling us to initialiize our
+        // ram allocator and have done so successfully.
         while (!urpc_ram_is_initalized())
             ;
+        //dump_bootinfo();
 
-        urpc_sendstring("Hey core 0, core 1 is about to run tests\n");
+        /*
         struct tester t;
         init_testing(&t);
-        register_memory_tests(&t);
-        // register_spawn_tests(&t);
+        //register_memory_tests(&t);
+        register_spawn_tests(&t);
         tests_run(&t);
-        urpc_sendstring("Hey core 0, core 1 is done testing\n");
+        */
+
+        debug_printf("Why does it need this print to complete?\n");
     }
 
     printf("\n");

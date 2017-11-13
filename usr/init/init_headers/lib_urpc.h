@@ -6,8 +6,8 @@ void urpc_slave_init_and_run(void);
 
 // Does not delete the string. TODO: version which does?
 void urpc_sendstring(char *str);
-void urpc_sendram(struct capref *cap);
 void urpc_spawn_process(char *name);
+void urpc_init_mem_alloc(struct bootinfo *p_bi);
 bool urpc_ram_is_initalized(void);
 
 #endif /* LIB_URPC_H */
