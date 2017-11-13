@@ -46,8 +46,8 @@ static errval_t load_and_relocate_driver(struct bootinfo *bootinfo,
 static void clean_cache(struct frame_identity frame)
 {
     // Memory barrier.
-    __asm volatile ("dmb");
-    __asm volatile ("isb");
+    __asm volatile("dmb");
+    __asm volatile("isb");
     // Clean cache.
     sys_armv7_cache_clean_poc(
         (void *) (uint32_t) frame.base,
@@ -57,8 +57,8 @@ static void clean_cache(struct frame_identity frame)
         (void *) (uint32_t) frame.base,
         (void *) (uint32_t)(frame.base + frame.bytes - 1));
     // Memory barrier.
-    __asm volatile ("dmb");
-    __asm volatile ("isb");
+    __asm volatile("dmb");
+    __asm volatile("isb");
 }
 
 errval_t create_urpc_frame(void **buf, size_t bytes)

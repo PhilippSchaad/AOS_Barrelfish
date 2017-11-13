@@ -149,25 +149,23 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
 
     // Set up the modules from the boot info for spawning.
     struct capref mmstrings_cap = {
-        .cnode = cnode_module,
-        .slot = 0,
+        .cnode = cnode_module, .slot = 0,
     };
     struct capref l1_cnode = {
-        .cnode = cnode_task,
-        .slot = TASKCN_SLOT_ROOTCN,
+        .cnode = cnode_task, .slot = TASKCN_SLOT_ROOTCN,
     };
-    CHECK(cnode_create_foreign_l2(l1_cnode, ROOTCN_SLOT_MODULECN, &cnode_module));
+    CHECK(cnode_create_foreign_l2(l1_cnode, ROOTCN_SLOT_MODULECN,
+                                  &cnode_module));
     CHECK(frame_forge(mmstrings_cap, bootinfo_package->mmstrings_base,
-                bootinfo_package->mmstrings_size, disp_get_core_id()));
+                      bootinfo_package->mmstrings_size, disp_get_core_id()));
     for (int i = 0; i < n_bi->regions_length; i++) {
         struct mem_region reg = n_bi->regions[i];
         if (reg.mr_type == RegionType_Module) {
             struct capref module_cap = {
-                .cnode = cnode_module,
-                .slot = reg.mrmod_slot,
+                .cnode = cnode_module, .slot = reg.mrmod_slot,
             };
             CHECK(frame_forge(module_cap, reg.mr_base, reg.mrmod_size,
-                        disp_get_core_id()));
+                              disp_get_core_id()));
         }
     }
 
@@ -208,7 +206,7 @@ static int urpc_internal_master(void *urpc_vaddr)
     for (;;) {
         MEMORY_BARRIER;
         if (urpc_protocol->master_state != needs_to_be_read &&
-                (queue_empty() || urpc_protocol->slave_state != available)) {
+            (queue_empty() || urpc_protocol->slave_state != available)) {
             MEMORY_BARRIER;
             thread_yield();
         } else {
@@ -264,8 +262,7 @@ static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj,
     memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions,
            sizeof(struct mem_region) * p_bi->regions_length);
     struct capref mmstrings_cap = {
-        .cnode = cnode_module,
-        .slot = 0,
+        .cnode = cnode_module, .slot = 0,
     };
     struct frame_identity mmstrings_id;
     CHECK(frame_identify(mmstrings_cap, &mmstrings_id));
@@ -282,7 +279,7 @@ static int urpc_internal_slave(void *nothing)
     for (;;) {
         MEMORY_BARRIER;
         if (urpc_protocol->slave_state != needs_to_be_read &&
-                (queue_empty() || urpc_protocol->master_state != available)) {
+            (queue_empty() || urpc_protocol->master_state != available)) {
             MEMORY_BARRIER;
             thread_yield();
         } else {

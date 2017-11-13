@@ -34,47 +34,47 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
-__attribute__((unused))
-static void dump_bootinfo(void)
+__attribute__((unused)) static void dump_bootinfo(void)
 {
     assert(bi != NULL);
     debug_printf("We are dumping the bootinfo of core %d:\n", my_core_id);
-    debug_printf("Host MSG val:  %"PRIu64"\n", bi->host_msg);
-    debug_printf("Host MSG bits: %"PRIu8"\n", bi->host_msg_bits);
+    debug_printf("Host MSG val:  %" PRIu64 "\n", bi->host_msg);
+    debug_printf("Host MSG bits: %" PRIu8 "\n", bi->host_msg_bits);
     debug_printf("Regions length: %zu\n", bi->regions_length);
     debug_printf("Spawn core: %zu\n", bi->mem_spawn_core);
     debug_printf("Dumping regions:\n");
     for (int i = 0; i < bi->regions_length; i++) {
         struct mem_region reg = bi->regions[i];
         debug_printf("  Region Nr %d:\n", i);
-        debug_printf("    MR_Base: %"PRIxGENPADDR"\n", reg.mr_base);
-        debug_printf("    MR_Bytes: %"PRIuGENSIZE" KB\n", reg.mr_bytes / 1024);
+        debug_printf("    MR_Base: %" PRIxGENPADDR "\n", reg.mr_base);
+        debug_printf("    MR_Bytes: %" PRIuGENSIZE " KB\n",
+                     reg.mr_bytes / 1024);
         debug_printf("    Type: ");
         switch (reg.mr_type) {
-            case RegionType_Empty:
-                printf("Empty\n");
-                break;
-            case RegionType_RootTask:
-                printf("RootTask\n");
-                break;
-            case RegionType_PhyAddr:
-                printf("PhyAddr\n");
-                break;
-            case RegionType_PlatformData:
-                printf("PlatformData\n");
-                break;
-            case RegionType_Module:
-                printf("Module\n");
-                break;
-            case RegionType_ACPI_TABLE:
-                printf("ACPI_TABLE\n");
-                break;
-            case RegionType_Max:
-                printf("MAX\n");
-                break;
-            default:
-                printf("UNKNOWN\n");
-                break;
+        case RegionType_Empty:
+            printf("Empty\n");
+            break;
+        case RegionType_RootTask:
+            printf("RootTask\n");
+            break;
+        case RegionType_PhyAddr:
+            printf("PhyAddr\n");
+            break;
+        case RegionType_PlatformData:
+            printf("PlatformData\n");
+            break;
+        case RegionType_Module:
+            printf("Module\n");
+            break;
+        case RegionType_ACPI_TABLE:
+            printf("ACPI_TABLE\n");
+            break;
+        case RegionType_Max:
+            printf("MAX\n");
+            break;
+        default:
+            printf("UNKNOWN\n");
+            break;
         }
         debug_printf("    Consumed: ");
         if (reg.mr_consumed)
@@ -88,12 +88,11 @@ static void dump_bootinfo(void)
             debug_printf("    Module, printing frame identity:\n");
             struct frame_identity mod_id;
             struct capref mod = {
-                .cnode = cnode_module,
-                .slot = reg.mrmod_slot,
+                .cnode = cnode_module, .slot = reg.mrmod_slot,
             };
             CHECK(frame_identify(mod, &mod_id));
-            debug_printf("      Base: %"PRIxGENPADDR"\n", mod_id.base);
-            debug_printf("      Size: %"PRIuGENSIZE"\n", mod_id.bytes);
+            debug_printf("      Base: %" PRIxGENPADDR "\n", mod_id.base);
+            debug_printf("      Size: %" PRIuGENSIZE "\n", mod_id.bytes);
         }
     }
     debug_printf("Dumping bootinfo done..\n");
@@ -124,7 +123,7 @@ int main(int argc, char *argv[])
 
     if (my_core_id == 0) {
         CHECK(initialize_ram_alloc(NULL));
-        //dump_bootinfo();
+        // dump_bootinfo();
     }
 
     // init urpc channel to 2nd core
@@ -172,7 +171,7 @@ int main(int argc, char *argv[])
         // ram allocator and have done so successfully.
         while (!urpc_ram_is_initalized())
             ;
-        //dump_bootinfo();
+        // dump_bootinfo();
 
         /*
         struct tester t;
