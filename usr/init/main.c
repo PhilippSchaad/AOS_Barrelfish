@@ -78,14 +78,7 @@ int main(int argc, char *argv[])
     // Structure to keep track of domains.
     active_domains = malloc(sizeof(struct domain_list));
 
-    // create channel to receive child eps
-    struct lmp_chan chan;
-    CHECK(lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
-    CHECK(lmp_chan_alloc_recv_slot(&chan));
-    CHECK(cap_copy(cap_initep, chan.local_cap));
-    CHECK(lmp_chan_register_recv(
-        &chan, get_default_waitset(),
-        MKCLOSURE((void *) general_recv_handler, &chan)));
+    init_rpc();
 
     if (my_core_id == 0) {
         urpc_master_init_and_run(buf);

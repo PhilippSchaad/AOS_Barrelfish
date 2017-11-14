@@ -7,44 +7,6 @@
 #include <aos/aos_rpc_shared.h>
 
 
-static void recv_deal_with_msg(struct recv_list *data) {
-    // Check the message type and handle it accordingly.
-    switch (data->type) {
-        case RPC_MESSAGE(RPC_TYPE_NUMBER):
-            CHECK(number_recv_handler(args, &msg, &cap));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_STRING):
-            CHECK(string_recv_handler(args, &msg, &cap));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
-            CHECK(string_recv_handler(args, &msg, &cap));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_RAM):
-            CHECK(ram_recv_handler(args, &msg, &cap));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
-            CHECK(putchar_recv_handler(args, &msg, &cap));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
-            CHECK(handshake_recv_handler(args, &cap));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
-            CHECK(process_get_name_recv_handler(&cap, &msg));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
-            CHECK(spawn_recv_handler(args, &msg, &cap));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
-            CHECK(kill_me_recv_handler(&cap, &msg));
-            break;
-        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
-        default:
-            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
-            return;// LRPC_ERR_UNKNOWN_MSG_TYPE;
-    }
-
-}
-
 
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
@@ -344,7 +306,7 @@ static errval_t process_get_name_recv_handler(struct capref *cap,
     return SYS_ERR_OK;
 }
 
-errval_t general_recv_handler(void *args)
+static errval_t general_recv_handler(void *args)
 {
 
     struct lmp_chan *chan = (struct lmp_chan *) args;
@@ -396,4 +358,53 @@ errval_t general_recv_handler(void *args)
     }
 
     return SYS_ERR_OK;
+}
+/*
+static void recv_deal_with_msg(struct recv_list *data) {
+    // Check the message type and handle it accordingly.
+    switch (data->type) {
+        case RPC_MESSAGE(RPC_TYPE_NUMBER):
+            CHECK(number_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_STRING):
+            CHECK(string_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
+            CHECK(string_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_RAM):
+            CHECK(ram_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
+            CHECK(putchar_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
+            CHECK(handshake_recv_handler(args, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
+            CHECK(process_get_name_recv_handler(&cap, &msg));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
+            CHECK(spawn_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
+            CHECK(kill_me_recv_handler(&cap, &msg));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
+        default:
+            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
+            return;// LRPC_ERR_UNKNOWN_MSG_TYPE;
+    }
+
+}
+*/
+struct lmp_chan init_chan;
+void init_rpc(void) {
+    // create channel to receive child eps
+    CHECK(lmp_chan_accept(&init_chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
+    CHECK(lmp_chan_alloc_recv_slot(&init_chan));
+    CHECK(cap_copy(cap_initep, init_chan.local_cap));
+    CHECK(lmp_chan_register_recv(
+            &init_chan, get_default_waitset(),
+            MKCLOSURE((void *) general_recv_handler, &init_chan)));
 }

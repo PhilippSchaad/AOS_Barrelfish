@@ -23,6 +23,6 @@ struct domain_list {
 
 struct domain_list *active_domains;
 
-errval_t general_recv_handler(void *args);
+void init_rpc(void);
 
 #endif /* LIB_RPC_H */

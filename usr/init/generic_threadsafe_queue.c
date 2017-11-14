@@ -50,15 +50,16 @@ void requeue(struct generic_queue_obj* obj, struct generic_queue *sq)
 
 bool queue_empty(struct generic_queue_obj* obj)
 {
-    bool status;
-    synchronized(obj->thread_mutex)
-    status = obj->fst == NULL;
+    bool status = false;
+    synchronized(obj->thread_mutex) {
+        status = obj->fst == NULL;
+    }
     return status;
 }
 
 struct generic_queue *dequeue(struct generic_queue_obj* obj)
 {
-    struct generic_queue *fst;
+    struct generic_queue *fst = NULL;
     synchronized(obj->thread_mutex) {
         assert(obj->fst != NULL);
 
