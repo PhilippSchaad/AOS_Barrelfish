@@ -1,4 +1,50 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <aos/aos.h>
 #include <lib_rpc.h>
+#include <aos/waitset.h>
+#include <aos/aos_rpc_shared.h>
+
+
+static void recv_deal_with_msg(struct recv_list *data) {
+    // Check the message type and handle it accordingly.
+    switch (data->type) {
+        case RPC_MESSAGE(RPC_TYPE_NUMBER):
+            CHECK(number_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_STRING):
+            CHECK(string_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
+            CHECK(string_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_RAM):
+            CHECK(ram_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
+            CHECK(putchar_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
+            CHECK(handshake_recv_handler(args, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
+            CHECK(process_get_name_recv_handler(&cap, &msg));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
+            CHECK(spawn_recv_handler(args, &msg, &cap));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
+            CHECK(kill_me_recv_handler(&cap, &msg));
+            break;
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
+        default:
+            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
+            return;// LRPC_ERR_UNKNOWN_MSG_TYPE;
+    }
+
+}
+
 
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)

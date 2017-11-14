@@ -14,28 +14,7 @@
 
 #ifndef _LIB_BARRELFISH_AOS_MESSAGES_H
 #define _LIB_BARRELFISH_AOS_MESSAGES_H
-
-#include <aos/aos.h>
-
-// the message type is structured as follows:
-// Bits 31-2    Message type
-// Bit  1       Error if set
-// Bit  0       ACK if set
-
-#define RPC_MESSAGE(message_type) (message_type << 2)
-#define RPC_ACK_MESSAGE(message_type) ((message_type << 2 ) + 0x1)
-#define RPC_FAIL_MESSAGE(message_type) ((message_type << 2 ) + 0x10)
-
-#define RPC_TYPE_NUMBER             0x2
-#define RPC_TYPE_STRING             0x3
-#define RPC_TYPE_STRING_DATA        0x4
-#define RPC_TYPE_RAM                0x5
-#define RPC_TYPE_PUTCHAR            0x6
-#define RPC_TYPE_HANDSHAKE          0x7
-#define RPC_TYPE_PROCESS_SPAWN      0x8
-#define RPC_TYPE_PROCESS_GET_NAME   0x9
-#define RPC_TYPE_PROCESS_GET_PIDS   0x10
-#define RPC_TYPE_PROCESS_KILL_ME    0x11
+#include <aos/aos_rpc_shared.h>
 
 struct aos_rpc {
     struct lmp_chan chan;
