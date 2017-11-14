@@ -79,6 +79,7 @@ static errval_t send_loop(void * args) {
             CHECK(event_dispatch(get_default_waitset()));
         }
         else{
+            // TODO: shouldn't there be a check for 0<remaining<=8 ?
             if(sq->callback_when_done.handler != NULL)
                 sq->callback_when_done.handler(sq->callback_when_done.arg);
             bool done = true;
@@ -155,31 +156,6 @@ errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, siz
     return SYS_ERR_OK;
 }
 
-struct send_chars_cleanup_struct {
-    void *data;
-    struct event_closure callback;
-};
-static void* send_chars_cleanup(void * data){
-    struct send_chars_cleanup_struct* sccs = (struct send_chars_cleanup_struct*)data;
-    free(sccs->data);
-    if(sccs->callback.handler != NULL)
-        sccs->callback.handler(sccs->callback.arg);
-    free(data);
-}
-
-errval_t send_chars(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, char* payload, struct event_closure callback_when_done) {
-    size_t payloadsize2 = (payloadsize + (payloadsize % 4 != 0 ? 4 - (payloadsize %4) : 0)) /4;
-    int* payload2 = malloc(payloadsize2);
-    memcpy(payload2,payload,payloadsize);
-    struct send_chars_cleanup_struct* sccs = malloc(sizeof(struct send_chars_cleanup_struct));
-    sccs->data = payload2;
-    sccs->callback = callback_when_done;
-    struct event_closure callback2 = MKCLOSURE(send_chars_cleanup,sccs);
-    send(chan,cap,type,payloadsize2,payload2,callback2);
-}
-
-
-
 static struct recv_list *rpc_recv_lookup(struct recv_list *head, unsigned char type, unsigned char id) {
     while(head!= NULL) {
         if(head->type == type && head->id == id)
@@ -207,6 +183,55 @@ static void rpc_recv_list_remove(struct recv_list **rl_head, struct recv_list* r
 }
 
 
+struct send_cleanup_struct {
+    void *data;
+    struct event_closure callback;
+};
+static void* send_chars_cleanup(void * data){
+    struct send_cleanup_struct* scs = (struct send_cleanup_struct*)data;
+    free(scs->data);
+    if(scs->callback.handler != NULL)
+        scs->callback.handler(scs->callback.arg);
+    free(data);
+}
+
+// this function persists the payload during the call and initiates the after-call cleanup
+errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done) {
+    int* payload2 = malloc(payloadsize);
+    memcpy(payload2,payload,payloadsize);
+    struct send_chars_cleanup_struct* scs = malloc(sizeof(struct send_cleanup_struct));
+    scs->data = payload2;
+    scs->callback = callback_when_done;
+    struct event_closure callback2 = MKCLOSURE(send_cleanup,scs);
+    return send(chan,cap,type,payloadsize,payload2,callback2);
+}
+
+struct send_response_struct {
+    void *data;
+    struct event_closure callback;
+};
+
+// conveniance function for creating responses
+errval_t send_response(struct recv_list *rl, struct lmp_chan *chan, struct capref cap, size_t payloadsize, void* payload){
+    // ACKs should not generate ACKs
+    assert(rl->type & 0x1 == 0);
+
+    // add the id to the data
+    // round to 32 bit
+    // ( we are assuming here that the id is smaller than an int)
+    size_t payloadsize2 = payloadsize + sizeof(int);
+    int* payload2 = malloc(payloadsize2);
+    memcpy(&payload2[1],payload,payloadsize);
+    payload2[0] = (int) rl->id;
+    struct send_chars_cleanup_struct* scs = malloc(sizeof(struct send_cleanup_struct));
+    scs->data = payload2;
+    scs->callback = NULL;
+    struct event_closure callback = MKCLOSURE(send_cleanup,scs);
+    return send(chan,cap,rl->type + 1,payloadsize2,payload2,callback);
+
+    return persist_send_cleanup_wrapper(chan, cap, rl->type + 1, payloadsize2, payload2, callback);
+}
+
 //todo: error handling
 static void recv_handling(void* args) {
 
@@ -216,6 +241,8 @@ static void recv_handling(void* args) {
 
     lmp_chan_recv(rc->chan, &msg, &cap);
 //    if(cap != NULL_CAP) //todo: figure out if this if check would be a good idea or not when properly implemented
+//    -> you mean, to ensure that ram RPCs send a cap, for example? not all rpcs need to send caps.
+//    we should consider freeing the slot again when not used anymore.
     lmp_chan_alloc_recv_slot(rc->chan);
     lmp_chan_register_recv(
             rc->chan, get_default_waitset(),
@@ -226,6 +253,7 @@ static void recv_handling(void* args) {
     unsigned char type = msg.words[0] >> 24;
     unsigned char id = (msg.words[0] >> 16) & 0xFF;
     size_t size = msg.words[0] & 0xFFFF;
+
     if(size < 9) //fast path for small messages
     {
         struct recv_list rl;

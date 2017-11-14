@@ -56,7 +56,8 @@ struct recv_chan {
 };
 
 errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, int* payload, struct event_closure callback_when_done);
-errval_t send_chars(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, char* payload, struct event_closure callback_when_done);
+errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done);
+errval_t send_response(struct recv_list *rl, struct lmp_chan *chan, struct capref cap, size_t payloadsize, void* payload);
 
 #define NULL_EVENT_CLOSURE (struct event_closure){ NULL, NULL }
 
