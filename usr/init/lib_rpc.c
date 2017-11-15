@@ -29,7 +29,6 @@ static struct domain *find_domain(struct capref *cap)
     return NULL;
 }
 
-
 static int pid;
 
 struct adhoc_process_table {
@@ -113,9 +112,10 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
         name = "No Such Id, Sorry.";
     debug_printf("found process with name %s for id %d\n", name, id);
     size_t tempsize = strlen(name);
-    uintptr_t  *payload2;
+    uintptr_t *payload2;
     size_t payloadsize2;
-    convert_charptr_to_uintptr_with_padding_and_copy(name,tempsize,&payload2,&payloadsize2);
+    convert_charptr_to_uintptr_with_padding_and_copy(name, tempsize, &payload2,
+                                                     &payloadsize2);
     send_response(data, chan, NULL_CAP, payloadsize2, payload2);
     free(payload2);
     return SYS_ERR_OK;
@@ -160,7 +160,8 @@ static void recv_deal_with_msg(struct recv_list *data)
         CHECK(new_spawn_recv_handler(data, chan));
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
-        // TODO: Does this have to remove something in the adhoc_process_table?..
+        // TODO: Does this have to remove something in the
+        // adhoc_process_table?..
         DBG(DETAILED, "kill_me_recv_handler\n");
         errval_t err = cap_delete(data->cap);
         if (err_is_fail(err)) {

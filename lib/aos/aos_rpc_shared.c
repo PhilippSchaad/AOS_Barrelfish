@@ -409,10 +409,14 @@ errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
     return SYS_ERR_OK;
 }
 
-void convert_charptr_to_uintptr_with_padding_and_copy(const char* in, size_t charsize, uintptr_t** out, size_t *outsize) {
+void convert_charptr_to_uintptr_with_padding_and_copy(const char *in,
+                                                      size_t charsize,
+                                                      uintptr_t **out,
+                                                      size_t *outsize)
+{
     size_t trailing = (charsize % 4 != 0 ? 4 - (charsize % 4) : 0);
     *outsize = (charsize + trailing) / 4;
-    *out = malloc((*outsize)*sizeof(uintptr_t));
+    *out = malloc((*outsize) * sizeof(uintptr_t));
 
     memcpy(*out, in, charsize);
 
