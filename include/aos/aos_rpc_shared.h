@@ -96,4 +96,6 @@ errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
 errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
                          struct lmp_chan *chan);
 
+void convert_charptr_to_uintptr_with_padding_and_copy(const char* in, size_t charsize, uintptr_t** out, size_t *outsize);
+
 #endif /* AOS_RPC_SHARED_H */

@@ -408,3 +408,14 @@ errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
                            MKCLOSURE(recv_handling, rc));
     return SYS_ERR_OK;
 }
+
+void convert_charptr_to_uintptr_with_padding_and_copy(const char* in, size_t charsize, uintptr_t** out, size_t *outsize) {
+    size_t trailing = (charsize % 4 != 0 ? 4 - (charsize % 4) : 0);
+    *outsize = (charsize + trailing) / 4;
+    *out = malloc((*outsize)*sizeof(uintptr_t));
+
+    memcpy(*out, in, charsize);
+
+    if (trailing != 0)
+        memset(&((char *) *out)[charsize], 0, trailing);
+}

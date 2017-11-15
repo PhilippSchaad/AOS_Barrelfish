@@ -112,7 +112,12 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
     if (!found)
         name = "No Such Id, Sorry.";
     debug_printf("found process with name %s for id %d\n", name, id);
-    send_response(data, chan, NULL_CAP, strlen(name) / 4, name);
+    size_t tempsize = strlen(name);
+    uintptr_t  *payload2;
+    size_t payloadsize2;
+    convert_charptr_to_uintptr_with_padding_and_copy(name,tempsize,&payload2,&payloadsize2);
+    send_response(data, chan, NULL_CAP, payloadsize2, payload2);
+    free(payload2);
     return SYS_ERR_OK;
 }
 
