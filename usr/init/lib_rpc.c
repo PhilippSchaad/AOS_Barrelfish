@@ -7,8 +7,8 @@
 #include <aos/aos_rpc_shared.h>
 #include "init_headers/lib_rpc.h"
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL 100
+//#undef DEBUG_LEVEL
+//#define DEBUG_LEVEL 100
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
 {
@@ -388,7 +388,7 @@ static errval_t new_ram_recv_handler(struct recv_list* data, struct lmp_chan* ch
 
 static void recv_deal_with_msg(struct recv_list *data) {
     // Check the message type and handle it accordingly.
-    debug_printf("recv msg...\n");
+    DBG(VERBOSE,"recv msg...\n");
     struct lmp_chan *chan = data->chan;
     switch (data->type) {
         case RPC_MESSAGE(RPC_TYPE_NUMBER):
@@ -404,7 +404,6 @@ static void recv_deal_with_msg(struct recv_list *data) {
             send_response(data,chan,NULL_CAP,0,NULL);
             break;
         case RPC_MESSAGE(RPC_TYPE_RAM):
-            debug_printf("RPC_TYPE_RAM is missing\n");
             CHECK(new_ram_recv_handler(data,chan));
             break;
         case RPC_MESSAGE(RPC_TYPE_PUTCHAR):

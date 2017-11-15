@@ -7,7 +7,7 @@
 // can cause massive trouble. Be aware of that when using synchronized here!
 #define synchronized(_mut)                                                     \
     for (struct thread_mutex *_mutx = &_mut; _mutx != NULL; _mutx = NULL)     \
-        for (thread_mutex_lock(&_mut); _mutx != NULL; _mutx = NULL,           \
+        for (thread_mutex_lock_nested(&_mut); _mutx != NULL; _mutx = NULL,           \
                 thread_mutex_unlock(&_mut))
 
 struct generic_queue {
