@@ -152,6 +152,7 @@ errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, siz
     assert(payloadsize < 65536); //otherwise we can't encode the size in 16 bits
     HERE;
     bool need_to_start = false;
+    DBG(DETAILED,"Sending message with: type %u id %u\n",type,id);
     synchronized(rpc_send_queue.thread_mutex) {
         struct send_queue* sq = malloc(sizeof(struct send_queue));
             HERE;
@@ -263,9 +264,9 @@ errval_t send_response(struct recv_list *rl, struct lmp_chan *chan, struct capre
     // round to 32 bit
     // ( we are assuming here that the id is smaller than an int)
     size_t payloadsize2 = payloadsize + 1;
-    uintptr_t * payload2 = malloc(payloadsize2);
+    uintptr_t * payload2 = malloc(payloadsize2*sizeof(uintptr_t));
     if(payloadsize2 > 1)
-        memcpy(&payload2[1],payload,payloadsize);
+        memcpy(&payload2[1],payload,payloadsize*sizeof(uintptr_t));
     payload2[0] = (int) rl->id;
     struct send_cleanup_struct* scs = malloc(sizeof(struct send_cleanup_struct));
     scs->data = payload2;
@@ -298,6 +299,7 @@ void recv_handling(void* args) {
     unsigned char type = msg.words[0] >> 24;
     unsigned char id = (msg.words[0] >> 16) & 0xFF;
     size_t size = msg.words[0] & 0xFFFF;
+    DBG(DETAILED,"Received message with: type %u id %u\n",type,id);
 
     if(size < 9) //fast path for small messages
     {
@@ -334,6 +336,7 @@ void recv_handling(void* args) {
             //done transferring this msg, we can now do whatever we should do with this
             rpc_recv_list_remove(&rc->rpc_recv_list,rl);
             rc->recv_deal_with_msg(rl);
+            free(rl->payload);
             free(rl);
         }
     }

@@ -385,6 +385,53 @@ static errval_t new_ram_recv_handler(struct recv_list* data, struct lmp_chan* ch
 }
 
 
+static errval_t new_spawn_recv_handler(struct recv_list* data, struct lmp_chan* chan)
+{
+    char* recv_name = (char*)data->payload;
+    size_t length = strlen(recv_name); //todo: consider that this could be made much faster by doing data->size * 4 - padding
+    char* name = malloc(length+1);
+    strcpy(name,recv_name);
+    name[length] = '\0';
+    struct spawninfo *si =
+            (struct spawninfo *) malloc(sizeof(struct spawninfo));
+    errval_t err;
+    err = spawn_load_by_name(name, si);
+    size_t ret_id = si->paging_state.debug_paging_state_index;
+    struct adhoc_process_table *apt = (struct adhoc_process_table *) malloc(
+            sizeof(struct adhoc_process_table));
+
+    apt->id = ret_id;
+    apt->name = name;
+    apt->si = si;
+    apt->next = adhoc_process_table;
+    adhoc_process_table = apt;
+    debug_printf("Spawned process %s with id %u\n",name,ret_id);
+    send_response(data,chan,NULL_CAP,1,(unsigned int*)&apt->id);
+
+    return SYS_ERR_OK;
+}
+
+static errval_t new_process_get_name_recv_handler(struct recv_list* data, struct lmp_chan* chan)
+{
+    int id = (int) data->payload[0];
+    struct adhoc_process_table *apt = adhoc_process_table;
+    char *name;
+    bool found = false;
+    while (apt) {
+        if (apt->id == id) {
+            name = apt->name;
+            found = true;
+            break;
+        }
+        apt = apt->next;
+    }
+    if (!found)
+        name = "No Such Id, Sorry.";
+debug_printf("found process with name %s for id %d\n",name,id);
+send_response(data,chan,NULL_CAP,strlen(name)/4,name);
+    return SYS_ERR_OK;
+}
+
 
 static void recv_deal_with_msg(struct recv_list *data) {
     // Check the message type and handle it accordingly.
@@ -415,15 +462,16 @@ static void recv_deal_with_msg(struct recv_list *data) {
             DBG(ERR,"Non handshake handler got handshake RPC. This should never happen\n");
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
-            debug_printf("RPC_TYPE_PROCESS_GET_NAME is missing\n");
+            //debug_printf("RPC_TYPE_PROCESS_GET_NAME is missing\n");
+            CHECK(new_process_get_name_recv_handler(data,chan));
 //            CHECK(process_get_name_recv_handler(&cap, &msg));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
-            debug_printf("RPC_TYPE_PROCESS_SPAWN is missing\n");
-//            CHECK(spawn_recv_handler(args, &msg, &cap));
+            CHECK(new_spawn_recv_handler(data,chan));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
             debug_printf("RPC_TYPE_PROCESS_KILL_ME is missing\n");
+            send_response(data,chan,NULL_CAP,0,NULL);
 //            CHECK(kill_me_recv_handler(&cap, &msg));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
