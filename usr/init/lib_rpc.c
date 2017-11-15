@@ -219,7 +219,7 @@ static errval_t new_handshake_recv_handler(struct capref *child_cap)
 static void recv_handshake_handler(struct recv_list *data)
 {
     // Check the message type and handle it accordingly.
-    debug_printf("recv handshake...\n");
+    DBG(VERBOSE, "recv handshake...\n");
     switch (data->type) {
     case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
         new_handshake_recv_handler(&data->cap);
