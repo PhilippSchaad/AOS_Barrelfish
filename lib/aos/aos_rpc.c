@@ -31,7 +31,6 @@ struct rpc_call *rpc_call_buffer_head = NULL;
 bool rpc_type_ram_call_buffer_in_use[10];
 struct rpc_call rpc_type_ram_call_buffer[10];
 
-
 static void register_recv(unsigned char id, unsigned char type, bool *done,
                           void (*inst_recv_handling)(void *arg1,
                                                      struct recv_list *data),
@@ -104,12 +103,12 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
     size_t tempsize = strlen(string);
-    uintptr_t  *payload2;
+    uintptr_t *payload2;
     size_t payloadsize2;
-    convert_charptr_to_uintptr_with_padding_and_copy(string,tempsize,&payload2,&payloadsize2);
+    convert_charptr_to_uintptr_with_padding_and_copy(string, tempsize,
+                                                     &payload2, &payloadsize2);
     rpc_framework(NULL, NULL, RPC_TYPE_STRING, &rpc->chan, NULL_CAP,
-                  payloadsize2, payload2,
-                  NULL_EVENT_CLOSURE);
+                  payloadsize2, payload2, NULL_EVENT_CLOSURE);
     free(payload2);
     DBG(DETAILED, "ACK Receied (string)\n");
     return SYS_ERR_OK;
@@ -246,9 +245,10 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
     // this has the same issue like string sending, so we just manually solve
     // it for now. TODO: make this nicer and consistent with string sending
     size_t tempsize = strlen(name);
-    uintptr_t  *payload2;
+    uintptr_t *payload2;
     size_t payloadsize2;
-    convert_charptr_to_uintptr_with_padding_and_copy(name,tempsize,&payload2,&payloadsize2);
+    convert_charptr_to_uintptr_with_padding_and_copy(name, tempsize, &payload2,
+                                                     &payloadsize2);
     rpc_framework(aos_rpc_process_spawn_recv, newpid, RPC_TYPE_PROCESS_SPAWN,
                   &chan->chan, NULL_CAP, payloadsize2, payload2,
                   NULL_EVENT_CLOSURE);
