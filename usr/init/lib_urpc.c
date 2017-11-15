@@ -188,6 +188,7 @@ recv_remote_spawn(__volatile struct urpc_remote_spawn *remote_spawn_obj)
     // properly constructed
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
+    DBG(DETAILED, "receive request to spawn %s\n", remote_spawn_obj->name);
     spawn_load_by_name((char *) remote_spawn_obj->name, si);
     free(si);
 }
@@ -343,4 +344,7 @@ static bool spawnprocess_internal(__volatile struct urpc *urpcobj, void *data)
     return 1;
 }
 
-void urpc_spawn_process(char *name) { enqueue(spawnprocess_internal, name); }
+void urpc_spawn_process(char *name) {
+    DBG(DETAILED, "send request to spawn %s\n", name);
+    enqueue(spawnprocess_internal, name);
+}

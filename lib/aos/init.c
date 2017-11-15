@@ -185,6 +185,10 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Register ourselves with init
     aos_rpc_init(&init_rpc);
     ram_alloc_set(NULL);
+
+    //register self
+    //aos_rpc_process_register(aos_rpc_get_process_channel(), "something" /*TODO: replace me*/);
+    
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;

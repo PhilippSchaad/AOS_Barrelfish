@@ -73,15 +73,27 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
 
     coreid_t core = atoi(recv_name+last_occurence+1);
     recv_name[last_occurence] = '\0';
-
-    DBG(DETAILED, "receive spawn request: name: %s, core %d", recv_name, core);
-
     length = last_occurence;  // TODO: consider that this could be
                                        // made much faster by doing data->size
                                        // * 4 - padding
     char *name = malloc(length + 1);
     strcpy(name, recv_name);
     name[length] = '\0';
+
+    DBG(DETAILED, "receive spawn request: name: %s, core %d\n", recv_name, core);
+
+    // check if we are on the right core, else send cross core request
+    if (disp_get_core_id() != core){
+        // have to send cross core request
+        DBG(DETAILED, "spawn %s on other core\n", name);
+        urpc_spawn_process(name);
+        //free(name);
+        //TODO: we need to get the ID of the created process.
+        // we should create a urpc call for that (or create a response for the spawn call)
+        //send_response(data, chan, NULL_CAP, 1, (unsigned int *) 42 /*TODO: changeme */ );
+        return SYS_ERR_OK;
+    }
+
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
@@ -116,6 +128,20 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
     send_response(data, chan, NULL_CAP, payloadsize2, payload2);
     free(payload2);
     return SYS_ERR_OK;
+}
+
+static void process_register_recv_handler(struct recv_list *data,
+                                                  struct lmp_chan *chan){
+        // TODO: do we need the spawninfo?
+        // TODO: think first: how should we handle process management? who is in charge of giving process ids? 
+        // TODO: register process
+        // send back core id and pid
+        uint32_t combinedArg[2];
+
+        combinedArg[0] = 42 /*TODO: replace me*/;
+        combinedArg[1] = disp_get_core_id();
+        DBG(DETAILED, "process_register_recv_handler: respond with core %d pid %d", combinedArg[1], combinedArg[0]);
+        send_response(data, chan, NULL_CAP, 8, (void*) combinedArg);
 }
 
 static void recv_deal_with_msg(struct recv_list *data)
@@ -168,6 +194,9 @@ static void recv_deal_with_msg(struct recv_list *data)
             DBG(WARN, "We failed to delete the dispatcher in init..\n");
         }
         send_response(data, chan, NULL_CAP, 0, NULL);
+        break;
+    case RPC_MESSAGE(RPC_TYPE_PROCESS_REGISTER):
+        process_register_recv_handler(data,chan);
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
     default:

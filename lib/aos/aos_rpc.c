@@ -233,10 +233,12 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan, struct capref disp)
 
 static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 {
+    // TODO: find out why this gets never called and blocks....
     domainid_t *newpid = (domainid_t *) arg1;
     debug_printf("spawned new process with id %d (payload size: %u)\n",
                  data->payload[1], data->size);
     *newpid = data->payload[1];
+    USER_PANIC("finally");
 }
 
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
@@ -263,6 +265,37 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
                   NULL_EVENT_CLOSURE);
     free(payload2);
     free(new_name);
+    return SYS_ERR_OK;
+}
+
+static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
+{
+    
+    uint32_t *combinedArg = (uint32_t*) data->payload;
+    DBG(DETAILED, "registered self. received %d\n", combinedArg[1]);
+    // TODO: store somewhere
+    //domainid_t pid = combinedArg[0];
+    coreid_t coreid = combinedArg[1];
+
+    disp_set_core_id(coreid);
+    debug_printf("test it");
+}
+
+errval_t aos_rpc_process_register(struct aos_rpc *chan, char *name)
+{
+    DBG(DETAILED, "rpc call: register self\n");
+    size_t tempsize = strlen(name);
+
+    // convert
+    uintptr_t *payload2;
+    size_t payloadsize2;
+    convert_charptr_to_uintptr_with_padding_and_copy(name, tempsize, &payload2,
+                                                     &payloadsize2);
+
+    rpc_framework(aos_rpc_process_register_recv, chan, RPC_TYPE_PROCESS_REGISTER,
+                  &chan->chan, NULL_CAP, payloadsize2, payload2,
+                  NULL_EVENT_CLOSURE);
+    free(payload2);
     return SYS_ERR_OK;
 }
 
