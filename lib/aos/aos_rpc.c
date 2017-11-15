@@ -178,7 +178,7 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
     sendargs[0] = (uintptr_t) val;
     int unused_id;
     CHECK(send(&chan->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_NUMBER),1,sendargs,MKCLOSURE(free,sendargs),&unused_id));
-
+    CHECK(event_dispatch(get_default_waitset()));
     return SYS_ERR_OK;
 }
 
@@ -206,7 +206,9 @@ static errval_t string_send_handler(uintptr_t *args)
 errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
     int unused_id;
-    return persist_send_cleanup_wrapper(&rpc->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_STRING),strlen(string),(void*)string,NULL_EVENT_CLOSURE,&unused_id);
+    CHECK(persist_send_cleanup_wrapper(&rpc->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_STRING),strlen(string),(void*)string,NULL_EVENT_CLOSURE,&unused_id));
+    CHECK(event_dispatch(get_default_waitset()));
+    return SYS_ERR_OK;
 
     thread_mutex_lock(&rpc->mutex);
     assert(rpc != NULL);
