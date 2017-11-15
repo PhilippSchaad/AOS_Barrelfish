@@ -14,28 +14,7 @@
 
 #ifndef _LIB_BARRELFISH_AOS_MESSAGES_H
 #define _LIB_BARRELFISH_AOS_MESSAGES_H
-
-#include <aos/aos.h>
-
-// the message type is structured as follows:
-// Bits 31-2    Message type
-// Bit  1       Error if set
-// Bit  0       ACK if set
-
-#define RPC_MESSAGE(message_type) (message_type << 2)
-#define RPC_ACK_MESSAGE(message_type) ((message_type << 2 ) + 0x1)
-#define RPC_FAIL_MESSAGE(message_type) ((message_type << 2 ) + 0x10)
-
-#define RPC_TYPE_NUMBER             0x2
-#define RPC_TYPE_STRING             0x3
-#define RPC_TYPE_STRING_DATA        0x4
-#define RPC_TYPE_RAM                0x5
-#define RPC_TYPE_PUTCHAR            0x6
-#define RPC_TYPE_HANDSHAKE          0x7
-#define RPC_TYPE_PROCESS_SPAWN      0x8
-#define RPC_TYPE_PROCESS_GET_NAME   0x9
-#define RPC_TYPE_PROCESS_GET_PIDS   0x10
-#define RPC_TYPE_PROCESS_KILL_ME    0x11
+#include <aos/aos_rpc_shared.h>
 
 struct aos_rpc {
     struct lmp_chan chan;
@@ -82,8 +61,8 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan, struct capref disp);
  *           path prefix)
  * \arg newpid the process id of the newly spawned process
  */
-errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
-                               coreid_t core, domainid_t *newpid);
+errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
+                               domainid_t *newpid);
 
 /**
  * \brief Get name of process with id pid.
@@ -102,8 +81,8 @@ errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
  * caller's  responsibility.
  * \arg pid_count The number of entries in `pids' if the call was successful
  */
-errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
-                                      domainid_t **pids, size_t *pid_count);
+errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
+                                      size_t *pid_count);
 
 /**
  * \brief Gets a capability to device registers
@@ -112,15 +91,12 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
  * \param bytes number of bytes of the device memory
  * \param frame returned devframe
  */
-errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr, size_t bytes,
-                                struct capref *frame);
+errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
+                                size_t bytes, struct capref *frame);
 /**
  * \brief Initialize given rpc channel.
- * TODO: you may want to change the inteface of your init function, depending
- * on how you design your message passing code.
  */
 errval_t aos_rpc_init(struct aos_rpc *rpc);
-
 
 /**
  * \brief Returns the RPC channel to init.

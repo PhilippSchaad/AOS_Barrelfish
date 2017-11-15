@@ -165,11 +165,13 @@ int main(int argc, char *argv[])
     debug_printf("memeater started....\n");
 
     debug_printf("Domain ID: %d\n", disp_get_domain_id());
-
+    /*
     err = aos_rpc_init(&init_rpc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "\033[31mcould not initialize RPC\033[0m\n");
     }
+    */
+    init_rpc = *get_init_rpc();
 
     err = test_basic_rpc();
     if (err_is_fail(err)) {
@@ -204,11 +206,6 @@ int main(int argc, char *argv[])
         if (err_is_fail(err)) {
             return err_push(err, LIB_ERR_SLOT_ALLOC);
         }
-        /*
-        if (i%20==0){
-            debug_printf("Created %d slots\n", i);
-        }
-        */
     }
     debug_printf("\033[33mCreated them all\n\033[0m");
     for (int i = 1; i <= 2000; ++i) {

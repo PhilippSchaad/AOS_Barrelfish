@@ -59,7 +59,6 @@ int main(int argc, char *argv[])
 
     if (my_core_id == 0) {
         CHECK(initialize_ram_alloc(NULL));
-        // dump_bootinfo(bi, my_core_id);
     }
 
     // init urpc channel to 2nd core
@@ -78,30 +77,18 @@ int main(int argc, char *argv[])
     // Structure to keep track of domains.
     active_domains = malloc(sizeof(struct domain_list));
 
-    // create channel to receive child eps
-    struct lmp_chan chan;
-    CHECK(lmp_chan_accept(&chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
-    CHECK(lmp_chan_alloc_recv_slot(&chan));
-    CHECK(cap_copy(cap_initep, chan.local_cap));
-    CHECK(lmp_chan_register_recv(
-        &chan, get_default_waitset(),
-        MKCLOSURE((void *) general_recv_handler, &chan)));
+    init_rpc();
 
     if (my_core_id == 0) {
         urpc_master_init_and_run(buf);
 
         urpc_init_mem_alloc(bi);
 
-        // run tests
-        /*
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
-        */
-
-        // urpc_spawn_process("hello");
     } else {
         urpc_slave_init_and_run();
 
@@ -109,13 +96,14 @@ int main(int argc, char *argv[])
         // ram allocator and have done so successfully.
         while (!urpc_ram_is_initalized())
             ;
-        // dump_bootinfo(bi, my_core_id);
 
+        /*
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
+        */
     }
 
     debug_printf("Message handler loop\n");

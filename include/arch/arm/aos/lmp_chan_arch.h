@@ -56,7 +56,7 @@ lmp_ep_send(
     capaddr_t send_cptr = get_cap_addr(send_cap);
 
     assert(length_words <= LMP_MSG_LENGTH);
-
+    //debug_printf("invoke_level %u, invoke_cptr %u, send_level %u, send_cptr %u\n",(uint32_t)invoke_level,invoke_cptr,(uint32_t)send_level,send_cptr);
     return syscall12((length_words << 28) | ((flags & 0xf) << 24) |
                      (invoke_level << 16) | (send_level << 8) | SYSCALL_INVOKE,
                      invoke_cptr, send_cptr,
