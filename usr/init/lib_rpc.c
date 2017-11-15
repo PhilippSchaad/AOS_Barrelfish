@@ -31,15 +31,6 @@ static struct domain *find_domain(struct capref *cap)
 
 static int pid;
 
-struct adhoc_process_table {
-    int id;
-    char *name;
-    struct spawninfo *si;
-    struct adhoc_process_table *next;
-};
-
-static struct adhoc_process_table *adhoc_process_table = NULL;
-
 static errval_t new_ram_recv_handler(struct recv_list *data,
                                      struct lmp_chan *chan)
 {
@@ -78,17 +69,17 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
     err = spawn_load_by_name(name, si);
-    size_t ret_id = si->paging_state.debug_paging_state_index;
-    struct adhoc_process_table *apt = (struct adhoc_process_table *) malloc(
-        sizeof(struct adhoc_process_table));
 
-    apt->id = ret_id;
-    apt->name = name;
-    apt->si = si;
-    apt->next = adhoc_process_table;
-    adhoc_process_table = apt;
+    // XXX: 0 here is the core-id, we want to replace this with the actual
+    // core in the future once we have that implemented.
+    domainid_t ret_id = procman_register_process(name, si, 0);
+
+#if DEBUG_LEVEL == DETAILED
+    procman_print_proc_list();
+#endif
+
     debug_printf("Spawned process %s with id %u\n", name, ret_id);
-    send_response(data, chan, NULL_CAP, 1, (unsigned int *) &apt->id);
+    send_response(data, chan, NULL_CAP, 1, (unsigned int *) &ret_id);
 
     return SYS_ERR_OK;
 }
@@ -97,19 +88,8 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
                                                   struct lmp_chan *chan)
 {
     int id = (int) data->payload[0];
-    struct adhoc_process_table *apt = adhoc_process_table;
-    char *name;
-    bool found = false;
-    while (apt) {
-        if (apt->id == id) {
-            name = apt->name;
-            found = true;
-            break;
-        }
-        apt = apt->next;
-    }
-    if (!found)
-        name = "No Such Id, Sorry.";
+    char *name = procman_lookup_name_by_id(id);
+
     debug_printf("found process with name %s for id %d\n", name, id);
     size_t tempsize = strlen(name);
     uintptr_t *payload2;
@@ -160,6 +140,9 @@ static void recv_deal_with_msg(struct recv_list *data)
         CHECK(new_spawn_recv_handler(data, chan));
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
+        // TODO: Add a mechanism to kill a remote process
+        // TODO: Find a way to get the PID which gets deleted and remove it
+        //       from the procman
         // TODO: Does this have to remove something in the
         // adhoc_process_table?..
         DBG(DETAILED, "kill_me_recv_handler\n");

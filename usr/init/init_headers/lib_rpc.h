@@ -8,6 +8,7 @@
 #include <spawn/spawn.h>
 
 #include <mem_alloc.h>
+#include <lib_procman.h>
 
 struct domain {
     struct lmp_chan chan;

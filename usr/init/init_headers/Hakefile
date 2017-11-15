@@ -14,5 +14,7 @@
 [ includeFile [
    "lib_multicore.h",
    "lib_rpc.h",
+   "lib_urpc.h",
+   "lib_procman.h",
    "mem_alloc.h"
   ] ]

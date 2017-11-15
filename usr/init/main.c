@@ -27,6 +27,7 @@
 #include <lib_multicore.h>
 #include <lib_rpc.h>
 #include <lib_urpc.h>
+#include <lib_procman.h>
 #include <mem_alloc.h>
 
 #include "../tests/test.h"
@@ -80,6 +81,8 @@ int main(int argc, char *argv[])
     init_rpc();
 
     if (my_core_id == 0) {
+        CHECK(procman_init());
+
         urpc_master_init_and_run(buf);
 
         urpc_init_mem_alloc(bi);
@@ -89,6 +92,8 @@ int main(int argc, char *argv[])
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
+
+        procman_print_proc_list();
     } else {
         urpc_slave_init_and_run();
 

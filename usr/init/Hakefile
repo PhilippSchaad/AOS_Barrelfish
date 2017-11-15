@@ -16,7 +16,8 @@
                         "mem_alloc.c",
                         "lib_multicore.c",
                         "lib_rpc.c",
-                        "lib_urpc.c"
+                        "lib_urpc.c",
+                        "lib_procman.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
                       addLibraries = [
