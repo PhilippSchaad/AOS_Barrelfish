@@ -16,8 +16,7 @@
                         "mem_alloc.c",
                         "lib_multicore.c",
                         "lib_rpc.c",
-                        "lib_urpc.c",
-                        "generic_threadsafe_queue.c"
+                        "lib_urpc.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
                       addLibraries = [

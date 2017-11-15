@@ -160,40 +160,45 @@ static void derference_kernel(void)
 
 int main(int argc, char *argv[])
 {
+    debug_printf("a\n");
     errval_t err;
 
     debug_printf("memeater started....\n");
 
     debug_printf("Domain ID: %d\n", disp_get_domain_id());
-
-    err = aos_rpc_init(&init_rpc);
+    debug_printf("b\n");
+/*    err = aos_rpc_init(&init_rpc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "\033[31mcould not initialize RPC\033[0m\n");
-    }
+    }*/
+    init_rpc = *get_init_rpc();
+    debug_printf("c\n");
 
     err = test_basic_rpc();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "\033[31mfailure in testing basic RPC\033[0m\n");
     }
+    debug_printf("d\n");
 
     err = request_and_map_memory();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err,
                        "\033[31mcould not request and map memory\033[0m\n");
     }
+    debug_printf("e\n");
 
     /* test printf functionality */
     debug_printf("\033[33mtesting terminal printf function...\033[0m\n");
 
     printf("Hello world using terminal service\n");
 
-    domainid_t ret;
+/*    domainid_t ret;
     aos_rpc_process_spawn(&init_rpc, "hello", 1, &ret);
     char *name;
     aos_rpc_process_get_name(&init_rpc, ret, &name);
     debug_printf("\033[33mWe spawned 'hello' and then requested the name of "
                  "the process with its idea, result: %s\n\033[0m",
-                 name);
+                 name);*/
     // disabled because it gets ugly, as the name would indicate
     // aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
 

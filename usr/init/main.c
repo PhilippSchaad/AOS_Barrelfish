@@ -86,13 +86,13 @@ int main(int argc, char *argv[])
         urpc_init_mem_alloc(bi);
 
         // run tests
-        /*
+
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
-        */
+
 
         // urpc_spawn_process("hello");
     } else {
@@ -103,12 +103,13 @@ int main(int argc, char *argv[])
         while (!urpc_ram_is_initalized())
             ;
         // dump_bootinfo(bi, my_core_id);
-
+/*
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
+*/
     }
 
     debug_printf("Message handler loop\n");

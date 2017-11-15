@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
-#include <generic_threadsafe_queue.h>
+#include <aos/generic_threadsafe_queue.h>
 
 //copy from lib_urpc.c because we basically need to do the same here
 

@@ -14,6 +14,9 @@
 
 #include <aos/aos_rpc.h>
 
+//#undef DEBUG_LEVEL
+//#define DEBUG_LEVEL 100
+
 #define send_handler_core(name, asserts, sendline)                            \
     static errval_t name(uintptr_t *args)                                     \
     {                                                                         \
@@ -123,7 +126,7 @@ static errval_t ram_receive_handler(void *args)
 
     return SYS_ERR_OK;
 }
-
+/*
 static errval_t rpc_receive_handler(void *args)
 {
     DBG(DETAILED, "rpc_receive_handler\n");
@@ -164,45 +167,17 @@ static errval_t rpc_receive_handler(void *args)
     return SYS_ERR_OK;
 
 }
-
-static errval_t number_send_handler(void *args)
-{
-    uintptr_t *uargs = (uintptr_t *) args;
-
-    struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
-    uintptr_t val = uargs[1];
-
-    errval_t err;
-    err = lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
-                         RPC_MESSAGE(RPC_TYPE_NUMBER), val);
-    if (err_is_fail(err)){
-        // Reregister if failed.
-        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
-                                     MKCLOSURE((void *) number_send_handler,
-                                               args)));
-    }
-    thread_mutex_unlock(&rpc->mutex);
-
-    return SYS_ERR_OK;
-}
+*/
 
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
-    thread_mutex_lock(&chan->mutex);
     DBG(VERBOSE, "rpc_send_number\n");
 
-    struct waitset *ws = get_default_waitset();
+    uintptr_t *sendargs =malloc(1* sizeof(uintptr_t));
 
-    uintptr_t sendargs[2];
-
-    sendargs[0] = (uintptr_t) chan;
-    sendargs[1] = (uintptr_t) val;
-
-    CHECK(lmp_chan_register_send(&chan->chan, ws,
-                                 MKCLOSURE((void *) number_send_handler,
-                                           sendargs)));
-
-    CHECK(event_dispatch(ws));
+    sendargs[0] = (uintptr_t) val;
+    int unused_id;
+    CHECK(send(&chan->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_NUMBER),1,sendargs,MKCLOSURE(free,sendargs),&unused_id));
 
     return SYS_ERR_OK;
 }
@@ -230,6 +205,9 @@ static errval_t string_send_handler(uintptr_t *args)
 
 errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
+    int unused_id;
+    return persist_send_cleanup_wrapper(&rpc->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_STRING),strlen(string),(void*)string,NULL_EVENT_CLOSURE,&unused_id);
+
     thread_mutex_lock(&rpc->mutex);
     assert(rpc != NULL);
     // We probably have to split the string into smaller pieces.
@@ -302,52 +280,75 @@ static errval_t ram_send_handler(uintptr_t *args)
     size_t align = *((size_t *) args[2]);
 
     DBG(DETAILED, "The size is %zu and alignment is %zu\n", size, align);
-
+    //dirty hacks
+    unsigned int first_byte = (RPC_MESSAGE(RPC_TYPE_RAM) << 24) + (0 << 16) + 2;
+    //end dirty hacks
     errval_t err;
     do {
         DBG(DETAILED, "calling lmp_chan_send3 in rpc_ram_send_handler\n");
         // Check if sender is currently busy
         // TODO: could we implement some kind of buffer for this?
-        err = lmp_chan_send3(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
-                             RPC_MESSAGE(RPC_TYPE_RAM), size, align);
+        err = lmp_chan_send3(&rpc->chan, LMP_FLAG_SYNC, NULL_CAP,
+                             first_byte, size, align);
     } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+    if(!err_is_ok(err))
+        debug_printf("tried to send ram request, ran into issue: %s\n",err_getstring(err));
 
     return SYS_ERR_OK;
 }
+//ugly hack until we have a proper system for associating sends with recvs
+static struct capref ram_cap;
+static size_t ram_size;
+//end ugly hack until we have a proper system for associating sends with recvs
 
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
                              struct capref *retcap, size_t *ret_size)
 {
     thread_mutex_lock_nested(&chan->mutex);
-    DBG(VERBOSE, "rpc_get_ram_cap\n");
+    DBG(-1, "rpc_get_ram_cap\n");
 
     struct waitset *ws = get_default_waitset();
 
     uintptr_t sendargs[5];
+    DBG(VERBOSE, "rpc_get_ram_cap 2\n");
 
     sendargs[0] = (uintptr_t) chan;
     sendargs[1] = (uintptr_t) &size;
     sendargs[2] = (uintptr_t) &align;
     sendargs[3] = (uintptr_t) retcap;
     sendargs[4] = (uintptr_t) ret_size;
-    CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
+    DBG(VERBOSE, "rpc_get_ram_cap 3\n");
 
-    CHECK(lmp_chan_register_send(&chan->chan, ws,
+//    CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
+    DBG(-1, "rpc_get_ram_cap 4\n");
+    ram_size = 0;
+
+    errval_t err = lmp_chan_register_send(&chan->chan, ws,
                                  MKCLOSURE((void *) ram_send_handler,
-                                           sendargs)));
+                                           sendargs));
+    while(err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
+        CHECK(event_dispatch(ws));
+        err = lmp_chan_register_send(&chan->chan, ws,
+                                     MKCLOSURE((void *) ram_send_handler,
+                                               sendargs));
+    }
+    DBG(-1, "rpc_get_ram_cap 5\n");
+    CHECK(err);
 
-    CHECK(lmp_chan_register_recv(&chan->chan, ws,
-                                 MKCLOSURE((void *) ram_receive_handler,
-                                           sendargs)));
 
-    DBG(DETAILED,"get_ram_cap event dispatch 1\n");
+    DBG(-1, "rpc_get_ram_cap 6\n");
+
+
+/*    DBG(-1,"get_ram_cap event dispatch 1\n");
     CHECK(event_dispatch(ws));
-    DBG(DETAILED,"get_ram_cap event dispatch 2\n");
+    DBG(-1,"get_ram_cap event dispatch 2\n");
     CHECK(event_dispatch(ws));
-    DBG(DETAILED,"get_ram_cap event dispatch done\n");
-
-    *retcap = *((struct capref *) sendargs[3]);
-    *ret_size = *((size_t *) sendargs[4]);
+    DBG(-1,"get_ram_cap event dispatch done\n");*/
+    while(ram_size == 0) event_dispatch(ws);
+//        DBG(ERR,"we did not receive ram!\n");
+    *retcap = ram_cap;
+    *ret_size = ram_size;
+    ram_size = 0;
 
     thread_mutex_unlock(&chan->mutex);
     return SYS_ERR_OK;
@@ -467,6 +468,7 @@ send_handler_8(process_spawn_send_handler, RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN),
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
                                coreid_t core, domainid_t *newpid)
 {
+    return SYS_ERR_OK; //todo: implement this;
     struct waitset *ws = get_default_waitset();
 
     uintptr_t sendargs[9]; // 1+1
@@ -561,7 +563,7 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
 }
 
 
-
+/*
 static errval_t handshake_send_handler(void* args)
 {
     DBG(DETAILED, "handshake_send_handler\n");
@@ -578,46 +580,60 @@ static errval_t handshake_send_handler(void* args)
     }
     return SYS_ERR_OK;
 }
-
-static errval_t rpc_handshake_helper(struct aos_rpc *rpc, struct capref dest)
-{
-    // this does not need to be locked here. no threads so far
-    assert(rpc != NULL);
-    rpc->init = false;
-    struct waitset *ws = get_default_waitset();
-
-    // Allocate lmp channel structure.
-    // Create local endpoint.
-    // Set remote endpoint to dest's endpoint.
-    CHECK(lmp_chan_accept(&rpc->chan, DEFAULT_LMP_BUF_WORDS, cap_initep));
-
-    // Set receive handler.
-    CHECK(lmp_chan_register_recv(&rpc->chan, ws,
-                                 MKCLOSURE((void*) rpc_receive_handler,
-                                           rpc)));
-
-    // Send local ep to init and wait for init to acknowledge receiving
-    // the endpoint.
-    // Set send handler.
-    CHECK(lmp_chan_register_send(&rpc->chan, ws,
-                                 MKCLOSURE((void *)handshake_send_handler,
-                                           rpc)));
-
-    // Wait for ACK.
-    while (!rpc->init) {
-        CHECK(event_dispatch(ws));
+*/
+static void aos_rpc_recv_handler(struct recv_list* data) {
+    // do actions depending on the message type
+    // Check the message type and handle it accordingly.
+    switch (data->type) {
+        case RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE):
+            DBG(-1, "ACK Received (handshake) \n");
+            data->chan->remote_cap = data->cap;
+            get_init_rpc()->init = true;
+            break;
+        case RPC_ACK_MESSAGE(RPC_TYPE_PUTCHAR):
+            DBG(DETAILED, "ACK Received (putchar) \n");
+            break;
+        case RPC_ACK_MESSAGE(RPC_TYPE_RAM):
+//            DBG(WARN, "RAM RPC received, but with standard handler\n"
+//                    "This is not intended. Expect badness.\n");
+            // TODO: Handle?
+            ram_cap = data->cap;
+            ram_size = data->size;
+            break;
+        case RPC_ACK_MESSAGE(RPC_TYPE_NUMBER):
+            DBG(DETAILED, "ACK Received (number)\n");
+            break;
+        case RPC_ACK_MESSAGE(RPC_TYPE_STRING):
+            DBG(DETAILED, "ACK Receied (string)\n");
+            break;
+        default:
+            debug_printf("got message type %d\n", data->type);
+            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
+            //assert(!"NOT IMPLEMENTED");
     }
-
-    return SYS_ERR_OK;
 }
 
 unsigned int id = 1337;
 errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
-    CHECK(rpc_handshake_helper(rpc, cap_initep));
+    assert(rpc != NULL);
+    rpc->init = false;
+    CHECK(init_rpc_client(aos_rpc_recv_handler,&rpc->chan, cap_initep));
+    // Send local ep to init and wait for init to acknowledge receiving
+    // the endpoint.
+    // Set send handler.
+    struct waitset* ws = get_default_waitset();
+    int unused_id;
+    CHECK(send(&rpc->chan,rpc->chan.local_cap,RPC_MESSAGE(RPC_TYPE_HANDSHAKE),0,NULL,NULL_EVENT_CLOSURE,&unused_id));
     rpc->id = id;
     id++;
     set_init_rpc(rpc);
+    // Wait for ACK.
+    while (!rpc->init) {
+        CHECK(event_dispatch(ws));
+    }
+    debug_printf("yes\n");
+
     return SYS_ERR_OK;
 }
 

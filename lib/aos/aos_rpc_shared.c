@@ -3,12 +3,17 @@
 
 #include <aos/aos.h>
 #include <aos/aos_rpc_shared.h>
-#include <generic_threadsafe_queue.h>
-#include "../../usr/init/init_headers/generic_threadsafe_queue.h"
+#include <aos/generic_threadsafe_queue.h>
+
+#undef HERE
+//#define HERE debug_printf("Here: %s %s %u\n",__FILE__, __func__, __LINE__)
+#define HERE
 
 //todo: make properly platform independent and stuff
 
-static errval_t actual_sending(struct lmp_chan * chan, struct capref cap, int first_byte, size_t payloadcount, int* payload) {
+static errval_t actual_sending(struct lmp_chan * chan, struct capref cap, int first_byte, size_t payloadcount, uintptr_t* payload) {
+    HERE;
+    //debug_printf("actual sending dump: chan %p, first byte %d, payloadcount %u, payload %p\n",chan,first_byte,payloadcount,payload);
     switch(payloadcount) {
         case 0:
             return (lmp_chan_send1(chan, LMP_FLAG_SYNC, cap, first_byte));
@@ -51,71 +56,87 @@ struct generic_queue_obj rpc_send_queue;
 
 //todo: proper error handling
 static errval_t send_loop(void * args) {
+    HERE;
     struct send_queue *sq = (struct send_queue *) args;
     struct capref cap;
     size_t remaining = (sq->size-sq->index);
-    int first_byte = sq->type << 24 + sq->id << 16 + sq->size;
-    if(index == 0) {
+    int first_byte = (sq->type << 24) + (sq->id << 16) + sq->size;
+    if(sq->index == 0) {
         cap = sq->cap;
     }
     else {
         cap = NULL_CAP;
     }
     errval_t err;
-    err = actual_sending(sq->chan,cap,first_byte,remaining > 8 ? 8 : remaining,&sq->payload[index]);
+    //debug_printf("send_loop chan %p, endpoint %p, cnode something %d\n",sq->chan,sq->chan->endpoint,(int)sq->chan->remote_cap.cnode.cnode);
+    err = actual_sending(sq->chan,cap,first_byte,remaining > 8 ? 8 : remaining,&sq->payload[sq->index]);
+    HERE;
     if (err_is_fail(err)){
+        debug_printf("we had an error: %s\n",err_getstring(err));
         // Reregister if failed.
-        CHECK(lmp_chan_register_send(&sq->chan, get_default_waitset(),
+        CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                      MKCLOSURE((void *) send_loop,
                                                args)));
+        HERE;
         CHECK(event_dispatch(get_default_waitset()));
     }else{
         if(remaining > 8) {
             //we still have data to send, so we adjust and resend
+            HERE;
             sq->index += 8;
-            CHECK(lmp_chan_register_send(&sq->chan, get_default_waitset(),
+            CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                          MKCLOSURE((void *) send_loop,
                                                    args)));
+            HERE;
             CHECK(event_dispatch(get_default_waitset()));
         }
         else{
-            // TODO: shouldn't there be a check for 0<remaining<=8 ?
+            HERE;
             if(sq->callback_when_done.handler != NULL)
                 sq->callback_when_done.handler(sq->callback_when_done.arg);
             bool done = true;
-            synchronized(rpc_queue) {
-                assert(rpc_queue.fst->data == args);
-                struct generic_queue_obj *temp = rpc_queue.fst; //dequeue the one we just got done with and delete it
-                rpc_queue.fst = rpc_queue.fst->next;
+            HERE;
+            synchronized(rpc_send_queue.thread_mutex) {
+                assert(rpc_send_queue.fst->data == args);
+                struct generic_queue *temp = rpc_send_queue.fst; //dequeue the one we just got done with and delete it
+                HERE;
+                rpc_send_queue.fst = rpc_send_queue.fst->next;
                 if(rpc_type_min_id[sq->type] == sq->id) {
                     //todo: make proper
                     rpc_type_min_id[sq->type]++;
                 }
-                free(rpc_queue.fst->data);
+                HERE;
+                free(temp->data);
+                    HERE;
                 free(temp);
-                if(rpc_queue.fst != NULL) {//more to be ran
+                    HERE;
+                if(rpc_send_queue.fst != NULL) {//more to be ran
                     done = false;
 
                 }else{
-                    rpc_queue.last = NULL;
+                    rpc_send_queue.last = NULL;
                 }
             }
             if(!done) {
-                CHECK(lmp_chan_register_send(&((struct send_queue*)rpc_queue.fst->data)->chan, get_default_waitset(),
+                CHECK(lmp_chan_register_send(((struct send_queue*)rpc_send_queue.fst->data)->chan, get_default_waitset(),
                                              MKCLOSURE((void *) send_loop,
-                                                       rpc_queue.fst->data)));
+                                                       rpc_send_queue.fst->data)));
+                HERE;
                 CHECK(event_dispatch(get_default_waitset()));
             }
+            HERE;
             return SYS_ERR_OK;
         }
     }
+    HERE;
     return SYS_ERR_OK;
 }
 
-errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, int* payload, struct event_closure callback_when_done) {
+errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, uintptr_t* payload, struct event_closure callback_when_done, int* id) {
     //obtain fresh ID for type
     //then enqueue message into sending loop
     assert(payloadsize < 65536); //otherwise we can't encode the size in 16 bits
+    HERE;
     bool need_to_start = false;
     synchronized(rpc_send_queue.thread_mutex) {
         unsigned char min_id = rpc_type_min_id[type];
@@ -124,6 +145,9 @@ errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, siz
             USER_PANIC("we ran out of message slots\n"); //todo: turn this into a proper error msg that gets returned and is expected to be handled by the caller
         rpc_type_max_id[type] = max_id+1 % 256;
         struct send_queue* sq = malloc(sizeof(struct send_queue));
+            HERE;
+        *id = max_id;
+            HERE;
         sq->type = type;
         sq->id = max_id;
         sq->index = 0;
@@ -132,7 +156,9 @@ errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, siz
         sq->cap = cap;
         sq->chan = chan;
         sq->callback_when_done = callback_when_done;
+        HERE;
         struct generic_queue *new = malloc(sizeof(struct generic_queue));
+        HERE;
 
         new->data = (void*)sq;
         new->next = NULL;
@@ -146,17 +172,22 @@ errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, siz
             rpc_send_queue.last->next = new;
             rpc_send_queue.last = new;
         }
+            HERE;
     }
     if(need_to_start) {
-        CHECK(lmp_chan_register_send(&((struct send_queue*)rpc_send_queue.fst->data)->chan, get_default_waitset(),
+        HERE;
+        CHECK(lmp_chan_register_send(((struct send_queue*)rpc_send_queue.fst->data)->chan, get_default_waitset(),
                                      MKCLOSURE((void *) send_loop,
-                                               rpc_queue.fst->data)));
+                                               rpc_send_queue.fst->data)));
+        HERE;
         CHECK(event_dispatch(get_default_waitset()));
+        HERE;
     }
     return SYS_ERR_OK;
 }
 
 static struct recv_list *rpc_recv_lookup(struct recv_list *head, unsigned char type, unsigned char id) {
+    HERE;
     while(head!= NULL) {
         if(head->type == type && head->id == id)
             return head;
@@ -167,6 +198,7 @@ static struct recv_list *rpc_recv_lookup(struct recv_list *head, unsigned char t
 
 static void rpc_recv_list_remove(struct recv_list **rl_head, struct recv_list* rl) {
     assert(rl != NULL);
+    HERE;
     struct recv_list *prev =NULL;
     struct recv_list *cur = *rl_head;
     while(true) {
@@ -187,7 +219,8 @@ struct send_cleanup_struct {
     void *data;
     struct event_closure callback;
 };
-static void* send_chars_cleanup(void * data){
+static void send_cleanup(void * data){
+    HERE;
     struct send_cleanup_struct* scs = (struct send_cleanup_struct*)data;
     free(scs->data);
     if(scs->callback.handler != NULL)
@@ -196,44 +229,50 @@ static void* send_chars_cleanup(void * data){
 }
 
 // this function persists the payload during the call and initiates the after-call cleanup
-errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done) {
-    int* payload2 = malloc(payloadsize);
+errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done, int* id) {
+    HERE;
+    debug_printf("pscw 1\n");
+    size_t trailing = (payloadsize % 4 != 0 ? 4 - (payloadsize %4) : 0);
+    size_t payloadsize2 = (payloadsize + trailing) /4;
+    uintptr_t* payload2 = malloc(payloadsize2);
     memcpy(payload2,payload,payloadsize);
-    struct send_chars_cleanup_struct* scs = malloc(sizeof(struct send_cleanup_struct));
+    if(trailing != 0)
+        memset(&((char*)payload2)[payloadsize],0,trailing);
+    struct send_cleanup_struct* scs = malloc(sizeof(struct send_cleanup_struct));
     scs->data = payload2;
     scs->callback = callback_when_done;
     struct event_closure callback2 = MKCLOSURE(send_cleanup,scs);
-    return send(chan,cap,type,payloadsize,payload2,callback2);
+    debug_printf("pscw 2\n");
+    return send(chan,cap,type,payloadsize2,payload2,callback2,id);
 }
-
-struct send_response_struct {
-    void *data;
-    struct event_closure callback;
-};
 
 // conveniance function for creating responses
 errval_t send_response(struct recv_list *rl, struct lmp_chan *chan, struct capref cap, size_t payloadsize, void* payload){
     // ACKs should not generate ACKs
-    assert(rl->type & 0x1 == 0);
-
+    assert((rl->type & 0x1) == 0);
+    HERE;
     // add the id to the data
     // round to 32 bit
     // ( we are assuming here that the id is smaller than an int)
-    size_t payloadsize2 = payloadsize + sizeof(int);
-    int* payload2 = malloc(payloadsize2);
-    memcpy(&payload2[1],payload,payloadsize);
+    size_t payloadsize2 = payloadsize + 1;
+    uintptr_t * payload2 = malloc(payloadsize2);
+    if(payloadsize2 > 1)
+        memcpy(&payload2[1],payload,payloadsize);
     payload2[0] = (int) rl->id;
-    struct send_chars_cleanup_struct* scs = malloc(sizeof(struct send_cleanup_struct));
+    struct send_cleanup_struct* scs = malloc(sizeof(struct send_cleanup_struct));
     scs->data = payload2;
-    scs->callback = NULL;
+    scs->callback = NULL_EVENT_CLOSURE;
     struct event_closure callback = MKCLOSURE(send_cleanup,scs);
-    return send(chan,cap,rl->type + 1,payloadsize2,payload2,callback);
+    int ignored_id;
+    return send(chan,cap,rl->type + 1,payloadsize2,payload2,callback,&ignored_id);
 
-    return persist_send_cleanup_wrapper(chan, cap, rl->type + 1, payloadsize2, payload2, callback);
+    return persist_send_cleanup_wrapper(chan, cap, rl->type + 1, payloadsize2, payload2, callback,&ignored_id);
 }
 
 //todo: error handling
-static void recv_handling(void* args) {
+void recv_handling(void* args) {
+    debug_printf("received a msg...\n");
+    HERE;
 
     struct recv_chan *rc = (struct recv_chan *) args;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
@@ -264,6 +303,7 @@ static void recv_handling(void* args) {
         rl.cap = cap;
         rl.index = size;
         rl.next = NULL;
+        rl.chan = rc->chan;
         rc->recv_deal_with_msg(&rl);
     }else {
         struct recv_list *rl = rpc_recv_lookup(rc->rpc_recv_list, type, id);
@@ -275,17 +315,18 @@ static void recv_handling(void* args) {
             rl->type = type;
             rl->cap = cap;
             rl->index = 0;
+            rl->chan = rc->chan;
             rl->next = rc->rpc_recv_list;
             rc->rpc_recv_list = rl;
         }
         size_t rem = rl->size - rl->index;
         size_t count = (rem > 8 ? 8 : rem);
-        memset(rl->payload[rl->index],&msg.words[1],count*4);
+        memcpy(&rl->payload[rl->index],&msg.words[1],count*4);
         rl->index+=count;
-        assert(rl->index <= rl->payload);
-        if(rl->index == rl->payload) {
+        assert(rl->index <= rl->size);
+        if(rl->index == rl->size) {
             //done transferring this msg, we can now do whatever we should do with this
-            rpc_recv_list_remove(rc,rl);
+            rpc_recv_list_remove(&rc->rpc_recv_list,rl);
             rc->recv_deal_with_msg(rl);
             free(rl);
         }
@@ -298,6 +339,7 @@ errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *), struct 
     // Create local endpoint.
     // Set remote endpoint to dest's endpoint.
     CHECK(lmp_chan_accept(chan, DEFAULT_LMP_BUF_WORDS, dest));
+    lmp_chan_alloc_recv_slot(chan);
     struct recv_chan *rc = malloc(sizeof(struct recv_chan));
     rc->chan = chan;
     rc->recv_deal_with_msg = recv_deal_with_msg;

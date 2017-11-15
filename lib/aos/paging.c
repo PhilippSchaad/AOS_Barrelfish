@@ -36,6 +36,7 @@ static void pagefault_handler(enum exception_type type, int subtype,
                               void *addr, arch_registers_state_t *regs,
                               arch_registers_fpu_state_t *fpuregs)
 {
+    //debug_printf("pagefault at %p\n",addr);
     thread_mutex_lock(&mutex);
     struct paging_state *st = get_current_paging_state();
 

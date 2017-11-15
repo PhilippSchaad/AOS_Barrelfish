@@ -5,9 +5,10 @@
 #include <lib_rpc.h>
 #include <aos/waitset.h>
 #include <aos/aos_rpc_shared.h>
+#include "init_headers/lib_rpc.h"
 
-
-
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL 100
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
 {
@@ -15,7 +16,6 @@ static struct domain *find_domain(struct capref *cap)
     CHECK(debug_cap_identify(*cap, &identification_cap));
 
     assert(active_domains != NULL);
-
     struct domain *current = active_domains->head;
     while (current != NULL) {
         if (current->identification_cap.u.endpoint.epoffset ==
@@ -306,6 +306,7 @@ static errval_t process_get_name_recv_handler(struct capref *cap,
     return SYS_ERR_OK;
 }
 
+__unused
 static errval_t general_recv_handler(void *args)
 {
 
@@ -359,52 +360,144 @@ static errval_t general_recv_handler(void *args)
 
     return SYS_ERR_OK;
 }
-/*
+
+static errval_t new_ram_recv_handler(struct recv_list* data, struct lmp_chan* chan)
+{
+    DBG(VERBOSE, "ram request received\n");
+
+    assert(data->size == 2);
+
+    size_t size = (size_t) data->payload[0];
+    size_t align = (size_t) data->payload[1];
+
+    struct capref ram_cap;
+    CHECK(aos_ram_alloc_aligned(&ram_cap, size, align));
+
+    // Fix size based on BASE_PAGE_SIZE, the way we're retrieving it.
+    if (size % BASE_PAGE_SIZE != 0) {
+        size += (size_t) BASE_PAGE_SIZE - (size % BASE_PAGE_SIZE);
+    }
+    DBG(DETAILED, "We got ram with size %zu\n", size);
+
+    CHECK(send_response(data,chan,ram_cap,1,&size));
+
+    return SYS_ERR_OK;
+}
+
+
+
 static void recv_deal_with_msg(struct recv_list *data) {
     // Check the message type and handle it accordingly.
+    debug_printf("recv msg...\n");
+    struct lmp_chan *chan = data->chan;
     switch (data->type) {
         case RPC_MESSAGE(RPC_TYPE_NUMBER):
-            CHECK(number_recv_handler(args, &msg, &cap));
+            printf("Received number: %u\n",data->payload[0]);
+            send_response(data,chan,NULL_CAP,0,NULL);
             break;
         case RPC_MESSAGE(RPC_TYPE_STRING):
-            CHECK(string_recv_handler(args, &msg, &cap));
+            printf("Terminal: %s\n", (char*)data->payload);
+            send_response(data,chan,NULL_CAP,0,NULL);
             break;
         case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
-            CHECK(string_recv_handler(args, &msg, &cap));
+            debug_printf("RPC_TYPE_STRING_DATA is deprecated\n");
+            send_response(data,chan,NULL_CAP,0,NULL);
             break;
         case RPC_MESSAGE(RPC_TYPE_RAM):
-            CHECK(ram_recv_handler(args, &msg, &cap));
+            debug_printf("RPC_TYPE_RAM is missing\n");
+            CHECK(new_ram_recv_handler(data,chan));
             break;
         case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
-            CHECK(putchar_recv_handler(args, &msg, &cap));
+            debug_printf("RPC_TYPE_PUTCHAR is missing\n");
+            send_response(data,chan,NULL_CAP,0,NULL);
+//            CHECK(putchar_recv_handler(args, &msg, &cap));
             break;
         case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
-            CHECK(handshake_recv_handler(args, &cap));
+            DBG(ERR,"Non handshake handler got handshake RPC. This should never happen\n");
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_NAME):
-            CHECK(process_get_name_recv_handler(&cap, &msg));
+            debug_printf("RPC_TYPE_PROCESS_GET_NAME is missing\n");
+//            CHECK(process_get_name_recv_handler(&cap, &msg));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
-            CHECK(spawn_recv_handler(args, &msg, &cap));
+            debug_printf("RPC_TYPE_PROCESS_SPAWN is missing\n");
+//            CHECK(spawn_recv_handler(args, &msg, &cap));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
-            CHECK(kill_me_recv_handler(&cap, &msg));
+            debug_printf("RPC_TYPE_PROCESS_KILL_ME is missing\n");
+//            CHECK(kill_me_recv_handler(&cap, &msg));
             break;
         case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
         default:
-            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
+            DBG(WARN, "Unable to handle RPC-receipt, expect badness! type: %u\n",(unsigned int)data->type);
             return;// LRPC_ERR_UNKNOWN_MSG_TYPE;
     }
 
 }
-*/
+static errval_t new_handshake_recv_handler(struct capref *child_cap)
+{
+    DBG(DETAILED, "init received cap\n");
+
+    // Check if the domain/channel already exists. If so, no need to create one
+    struct domain *dom = find_domain(child_cap);
+    if (dom == NULL) {
+        dom = (struct domain *) malloc(sizeof(struct domain));
+        dom->id = pid++;
+        dom->next = active_domains->head;
+        active_domains->head = dom;
+
+        struct capability identification_cap;
+        CHECK(debug_cap_identify(*child_cap, &identification_cap));
+        dom->identification_cap = identification_cap;
+
+        CHECK(lmp_chan_accept(&dom->chan, DEFAULT_LMP_BUF_WORDS, *child_cap));
+
+        DBG(DETAILED, "Created new channel\n");
+        //we register recv on new channel
+        struct recv_chan *rc = malloc(sizeof(struct recv_chan));
+        rc->chan = &dom->chan;
+        rc->recv_deal_with_msg = recv_deal_with_msg;
+        rc->rpc_recv_list = NULL;
+        lmp_chan_alloc_recv_slot(rc->chan);
+
+        CHECK(lmp_chan_register_recv(
+                rc->chan, get_default_waitset(),
+                MKCLOSURE(recv_handling, rc)));
+        DBG(DETAILED, "Set up receive handler for channel\n");
+    }
+
+
+    // Send ACK to the child including new cap to bind to
+    int unused_id;
+    send(&dom->chan,dom->chan.local_cap,RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE),0,NULL,NULL_EVENT_CLOSURE,&unused_id);
+
+    DBG(DETAILED, "successfully received cap\n");
+    return SYS_ERR_OK;
+}
+
+static void recv_handshake_handler(struct recv_list *data) {
+    // Check the message type and handle it accordingly.
+    debug_printf("recv handshake...\n");
+    switch (data->type) {
+        case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
+            new_handshake_recv_handler(&data->cap);
+            break;
+        default:
+            DBG(ERR, "Received non-handshake RPC with handshake handler. This means the sender is sending wrong!\n");
+            return;// LRPC_ERR_UNKNOWN_MSG_TYPE;
+    }
+
+}
+
+
 struct lmp_chan init_chan;
 void init_rpc(void) {
     // create channel to receive child eps
-    CHECK(lmp_chan_accept(&init_chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
+    init_rpc_server(recv_handshake_handler,&init_chan);
+/*    CHECK(lmp_chan_accept(&init_chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
     CHECK(lmp_chan_alloc_recv_slot(&init_chan));
     CHECK(cap_copy(cap_initep, init_chan.local_cap));
     CHECK(lmp_chan_register_recv(
             &init_chan, get_default_waitset(),
-            MKCLOSURE((void *) general_recv_handler, &init_chan)));
+            MKCLOSURE((void *) general_recv_handler, &init_chan)));*/
 }

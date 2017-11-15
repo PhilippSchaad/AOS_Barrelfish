@@ -45,7 +45,8 @@ struct recv_list {
     struct capref cap;
     size_t index;
     size_t size;
-    unsigned int* payload;
+    struct lmp_chan *chan;
+    uintptr_t* payload;
     struct recv_list* next;
 };
 
@@ -54,14 +55,14 @@ struct recv_chan {
     void (*recv_deal_with_msg)(struct recv_list *);
     struct recv_list* rpc_recv_list; //todo: instead of having 1 list which shares type+id, split this off into a list of types which each has a list of ids, thereby drastically speeding up lookup
 };
-
-errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, int* payload, struct event_closure callback_when_done);
-errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done);
+//id is an out parameter
+errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, uintptr_t* payload, struct event_closure callback_when_done, int* id);
+errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done, int* id);
 errval_t send_response(struct recv_list *rl, struct lmp_chan *chan, struct capref cap, size_t payloadsize, void* payload);
 
 #define NULL_EVENT_CLOSURE (struct event_closure){ NULL, NULL }
-
-
+//almost definitely not something that belongs into shared
+void recv_handling(void* args);
 //possibly does not belong into shared. Inits mutex, opens the channel to dest and sets recv.
         errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *), struct lmp_chan* chan, struct capref dest);
 
