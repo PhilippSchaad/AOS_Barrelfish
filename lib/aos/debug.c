@@ -543,6 +543,8 @@ void debug_err(const char *file, const char *func, int line, errval_t err,
     }
     sys_print("\n", 1);
 
+    sys_print(err_getstring(err),strlen(err_getstring(err)));
+    sys_print("\n",1);
     if (err != 0) {
         err_print_calltrace(err);
     }
@@ -557,7 +559,7 @@ void check_err(errval_t err, const char *file, const char *fun, int line,
         va_start(ap, msg);
         vsprintf(str, msg, ap);
         va_end(ap);
-        DEBUG_ERR(err, str);
+        debug_err(file,fun,line,err, str);
         printf("Location: %s:%d (%s)\n", file, line, fun);
         abort();
     }
