@@ -81,7 +81,7 @@ static errval_t send_loop(void *args)
         actual_sending(sq->chan, cap, first_byte,
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);
     if (err_is_fail(err)) {
-        debug_printf("we had an error: %s\n", err_getstring(err));
+        //silence - debug_printf("we had an error: %s\n", err_getstring(err));
 
         // Reregister if failed.
         CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
