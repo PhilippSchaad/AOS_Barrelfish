@@ -242,17 +242,27 @@ static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
                                domainid_t *newpid)
 {
+    DBG(DETAILED, "rpc call: spawn new process %s on core %d\n", name, core);
     // this has the same issue like string sending, so we just manually solve
     // it for now. TODO: make this nicer and consistent with string sending
     size_t tempsize = strlen(name);
+
+    // add core to the sendstring
+    char* new_name = malloc((tempsize + 5)*4);
+    sprintf(new_name, "%s_%d", name, core);
+    tempsize = strlen(new_name);
+
+    // convert
     uintptr_t *payload2;
     size_t payloadsize2;
-    convert_charptr_to_uintptr_with_padding_and_copy(name, tempsize, &payload2,
+    convert_charptr_to_uintptr_with_padding_and_copy(new_name, tempsize, &payload2,
                                                      &payloadsize2);
+
     rpc_framework(aos_rpc_process_spawn_recv, newpid, RPC_TYPE_PROCESS_SPAWN,
                   &chan->chan, NULL_CAP, payloadsize2, payload2,
                   NULL_EVENT_CLOSURE);
     free(payload2);
+    free(new_name);
     return SYS_ERR_OK;
 }
 

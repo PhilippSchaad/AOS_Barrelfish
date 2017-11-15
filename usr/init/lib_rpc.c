@@ -68,7 +68,24 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
                                        struct lmp_chan *chan)
 {
     char *recv_name = (char *) data->payload;
-    size_t length = strlen(recv_name); // TODO: consider that this could be
+
+    // separate core and name
+    // find the last occurence of the "_" char
+    int last_occurence;
+    size_t length = strlen(recv_name);
+    for (last_occurence=length-1; last_occurence>=0; --last_occurence){
+        if(recv_name[last_occurence] == '_'){
+            // found it
+            break;
+        }
+    }
+
+    coreid_t core = atoi(recv_name+last_occurence+1);
+    recv_name[last_occurence] = '\0';
+
+    DBG(DETAILED, "receive spawn request: name: %s, core %d", recv_name, core);
+
+    length = last_occurence;  // TODO: consider that this could be
                                        // made much faster by doing data->size
                                        // * 4 - padding
     char *name = malloc(length + 1);
