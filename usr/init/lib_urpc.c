@@ -24,10 +24,10 @@
 // the lock, control flow with 'continue' and 'break' might work differently
 // than expected inside of synchronized blocks, and nested synchronized blocks
 // can cause massive trouble. Be aware of that when using synchronized here!
-#define synchronized(_mut)                                                     \
+#define synchronized(_mut)                                                    \
     for (struct thread_mutex *_mutx = &_mut; _mutx != NULL; _mutx = NULL)     \
-        for (thread_mutex_lock(&_mut); _mutx != NULL; _mutx = NULL,           \
-                thread_mutex_unlock(&_mut))
+        for (thread_mutex_lock(&_mut); _mutx != NULL;                         \
+             _mutx = NULL, thread_mutex_unlock(&_mut))
 
 static struct thread_mutex urpc_thread_mutex;
 
@@ -82,7 +82,8 @@ bool urpc_ram_is_initalized(void) { return already_received_memory; }
 static void enqueue(bool (*func)(__volatile struct urpc *addr, void *data),
                     void *data)
 {
-    synchronized(urpc_thread_mutex) {
+    synchronized(urpc_thread_mutex)
+    {
         struct send_queue *new = malloc(sizeof(struct send_queue));
 
         new->func = func;
@@ -102,7 +103,8 @@ static void enqueue(bool (*func)(__volatile struct urpc *addr, void *data),
 
 static void requeue(struct send_queue *sq)
 {
-    synchronized(urpc_thread_mutex) {
+    synchronized(urpc_thread_mutex)
+    {
         if (urpc_send_queue_last == NULL) {
             assert(urpc_send_queue == NULL);
             urpc_send_queue = sq;
@@ -117,15 +119,15 @@ static void requeue(struct send_queue *sq)
 static bool queue_empty(void)
 {
     bool status;
-    synchronized(urpc_thread_mutex)
-        status = urpc_send_queue == NULL;
+    synchronized(urpc_thread_mutex) status = urpc_send_queue == NULL;
     return status;
 }
 
 static struct send_queue *dequeue(void)
 {
     struct send_queue *fst;
-    synchronized(urpc_thread_mutex) {
+    synchronized(urpc_thread_mutex)
+    {
         assert(urpc_send_queue != NULL);
 
         fst = urpc_send_queue;
@@ -268,7 +270,7 @@ static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj,
     memcpy((void *) &urpcobj->data.urpc_bootinfo.boot_info, p_bi,
            sizeof(struct bootinfo));
     memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions,
-           sizeof(struct mem_region) *p_bi->regions_length);
+           sizeof(struct mem_region) * p_bi->regions_length);
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
     };

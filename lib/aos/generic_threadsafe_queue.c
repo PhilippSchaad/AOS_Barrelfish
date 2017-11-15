@@ -4,20 +4,17 @@
 #include <aos/aos.h>
 #include <aos/generic_threadsafe_queue.h>
 
-//copy from lib_urpc.c because we basically need to do the same here
-
-
-
-
-void queue_init(struct generic_queue_obj* obj) {
+void queue_init(struct generic_queue_obj *obj)
+{
     obj->fst = NULL;
     obj->last = NULL;
     thread_mutex_init(&obj->thread_mutex);
 }
 
-void enqueue(struct generic_queue_obj* obj, void *data)
+void enqueue(struct generic_queue_obj *obj, void *data)
 {
-    synchronized(obj->thread_mutex) {
+    synchronized(obj->thread_mutex)
+    {
         struct generic_queue *new = malloc(sizeof(struct generic_queue));
 
         new->data = data;
@@ -34,9 +31,10 @@ void enqueue(struct generic_queue_obj* obj, void *data)
     }
 }
 
-void requeue(struct generic_queue_obj* obj, struct generic_queue *sq)
+void requeue(struct generic_queue_obj *obj, struct generic_queue *sq)
 {
-    synchronized(obj->thread_mutex) {
+    synchronized(obj->thread_mutex)
+    {
         if (obj->last == NULL) {
             assert(obj->fst == NULL);
             obj->fst = sq;
@@ -48,19 +46,18 @@ void requeue(struct generic_queue_obj* obj, struct generic_queue *sq)
     }
 }
 
-bool queue_empty(struct generic_queue_obj* obj)
+bool queue_empty(struct generic_queue_obj *obj)
 {
     bool status = false;
-    synchronized(obj->thread_mutex) {
-        status = obj->fst == NULL;
-    }
+    synchronized(obj->thread_mutex) { status = obj->fst == NULL; }
     return status;
 }
 
-struct generic_queue *dequeue(struct generic_queue_obj* obj)
+struct generic_queue *dequeue(struct generic_queue_obj *obj)
 {
     struct generic_queue *fst = NULL;
-    synchronized(obj->thread_mutex) {
+    synchronized(obj->thread_mutex)
+    {
         assert(obj->fst != NULL);
 
         fst = obj->fst;

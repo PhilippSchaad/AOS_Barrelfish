@@ -160,32 +160,29 @@ static void derference_kernel(void)
 
 int main(int argc, char *argv[])
 {
-    debug_printf("a\n");
     errval_t err;
 
     debug_printf("memeater started....\n");
 
     debug_printf("Domain ID: %d\n", disp_get_domain_id());
-    debug_printf("b\n");
-/*    err = aos_rpc_init(&init_rpc);
+    /*
+    err = aos_rpc_init(&init_rpc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "\033[31mcould not initialize RPC\033[0m\n");
-    }*/
+    }
+    */
     init_rpc = *get_init_rpc();
-    debug_printf("c\n");
 
     err = test_basic_rpc();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "\033[31mfailure in testing basic RPC\033[0m\n");
     }
-    debug_printf("d\n");
 
     err = request_and_map_memory();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err,
                        "\033[31mcould not request and map memory\033[0m\n");
     }
-    debug_printf("e\n");
 
     /* test printf functionality */
     debug_printf("\033[33mtesting terminal printf function...\033[0m\n");
@@ -209,11 +206,6 @@ int main(int argc, char *argv[])
         if (err_is_fail(err)) {
             return err_push(err, LIB_ERR_SLOT_ALLOC);
         }
-        /*
-        if (i%20==0){
-            debug_printf("Created %d slots\n", i);
-        }
-        */
     }
     debug_printf("\033[33mCreated them all\n\033[0m");
     for (int i = 1; i <= 2000; ++i) {
