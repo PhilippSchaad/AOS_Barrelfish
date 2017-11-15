@@ -468,8 +468,7 @@ static errval_t new_handshake_recv_handler(struct capref *child_cap)
 
 
     // Send ACK to the child including new cap to bind to
-    int unused_id;
-    send(&dom->chan,dom->chan.local_cap,RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE),0,NULL,NULL_EVENT_CLOSURE,&unused_id);
+    send(&dom->chan,dom->chan.local_cap,RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE),0,NULL,NULL_EVENT_CLOSURE,request_fresh_id(RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
 
     DBG(DETAILED, "successfully received cap\n");
     return SYS_ERR_OK;

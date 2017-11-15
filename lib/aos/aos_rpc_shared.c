@@ -103,7 +103,7 @@ static errval_t send_loop(void * args) {
                 rpc_send_queue.fst = rpc_send_queue.fst->next;
                 if(rpc_type_min_id[sq->type] == sq->id) {
                     //todo: make proper
-                    rpc_type_min_id[sq->type]++;
+                    rpc_type_min_id[sq->type] = (rpc_type_min_id[sq->type] +1) % 256;
                 }
                 HERE;
                 free(temp->data);
@@ -132,24 +132,32 @@ static errval_t send_loop(void * args) {
     return SYS_ERR_OK;
 }
 
-errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, uintptr_t* payload, struct event_closure callback_when_done, int* id) {
+//consider using a bitfield instead of this fairly brittle thing
+unsigned char request_fresh_id(unsigned char type) {
+    unsigned char id;
+synchronized(rpc_send_queue.thread_mutex) {
+        unsigned char min_id = rpc_type_min_id[type];
+        unsigned char max_id = rpc_type_max_id[type];
+        if((max_id+1) % 256 == min_id)
+            USER_PANIC("we ran out of message slots\n"); //todo: turn this into a proper error msg that gets returned and is expected to be handled by the caller
+        rpc_type_max_id[type] = (max_id+1) % 256;
+        id = max_id;
+    }
+    return id;
+}
+
+errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, uintptr_t* payload, struct event_closure callback_when_done, unsigned char id) {
     //obtain fresh ID for type
     //then enqueue message into sending loop
     assert(payloadsize < 65536); //otherwise we can't encode the size in 16 bits
     HERE;
     bool need_to_start = false;
     synchronized(rpc_send_queue.thread_mutex) {
-        unsigned char min_id = rpc_type_min_id[type];
-        unsigned char max_id = rpc_type_max_id[type];
-        if(max_id+1 % 256 == min_id)
-            USER_PANIC("we ran out of message slots\n"); //todo: turn this into a proper error msg that gets returned and is expected to be handled by the caller
-        rpc_type_max_id[type] = max_id+1 % 256;
         struct send_queue* sq = malloc(sizeof(struct send_queue));
             HERE;
-        *id = max_id;
             HERE;
         sq->type = type;
-        sq->id = max_id;
+        sq->id = id;
         sq->index = 0;
         sq->size = payloadsize;
         sq->payload = payload;
@@ -229,7 +237,7 @@ static void send_cleanup(void * data){
 }
 
 // this function persists the payload during the call and initiates the after-call cleanup
-errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done, int* id) {
+errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done, unsigned char id) {
     HERE;
     debug_printf("pscw 1\n");
     size_t trailing = (payloadsize % 4 != 0 ? 4 - (payloadsize %4) : 0);
@@ -263,15 +271,13 @@ errval_t send_response(struct recv_list *rl, struct lmp_chan *chan, struct capre
     scs->data = payload2;
     scs->callback = NULL_EVENT_CLOSURE;
     struct event_closure callback = MKCLOSURE(send_cleanup,scs);
-    int ignored_id;
-    return send(chan,cap,rl->type + 1,payloadsize2,payload2,callback,&ignored_id);
-
-    return persist_send_cleanup_wrapper(chan, cap, rl->type + 1, payloadsize2, payload2, callback,&ignored_id);
+    return send(chan,cap,rl->type + 1,payloadsize2,payload2,callback,request_fresh_id(rl->type+1));
+    //return persist_send_cleanup_wrapper(chan, cap, rl->type + 1, payloadsize2, payload2, callback,&ignored_id);
 }
 
 //todo: error handling
 void recv_handling(void* args) {
-    debug_printf("received a msg...\n");
+    //debug_printf("received a msg...\n");
     HERE;
 
     struct recv_chan *rc = (struct recv_chan *) args;

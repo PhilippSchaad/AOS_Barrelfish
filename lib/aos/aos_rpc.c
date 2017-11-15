@@ -17,158 +17,6 @@
 //#undef DEBUG_LEVEL
 //#define DEBUG_LEVEL 100
 
-#define send_handler_core(name, asserts, sendline)                            \
-    static errval_t name(uintptr_t *args)                                     \
-    {                                                                         \
-        DBG(VERBOSE, #name"\n")                                               \
-        asserts;                                                              \
-        struct aos_rpc *rpc = (struct aos_rpc *) args[0];                     \
-        errval_t err;                                                         \
-        err = sendline;                                                       \
-        if (err_is_fail(err)) {                                               \
-            /* Reregister if failed. */                                       \
-            CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),   \
-                                         MKCLOSURE((void *) putchar_send_handler,\
-                                                   args)));                   \
-        }                                                                     \
-        return SYS_ERR_OK;                                                    \
-    }
-
-#define send_handler_0(name, type)                                            \
-    send_handler_core(name, , lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC,       \
-                                           rpc->chan. local_cap, type));
-#define send_handler_1(name, type, arg)                                       \
-    send_handler_core(name, , lmp_chan_send2(&rpc->chan, LMP_FLAG_SYNC,       \
-                                             rpc->chan.local_cap, type, arg));
-#define send_handler_8(name, type, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) \
-    send_handler_core(name, , lmp_chan_send9(&rpc->chan, LMP_FLAG_SYNC,       \
-                                             rpc->chan.local_cap, type, arg1, \
-                                             arg2, arg3, arg4, arg5, arg6,    \
-                                             arg7,arg8));
-
-#define impl(send_handler, receive_handler, recvslot)                         \
-    thread_mutex_lock(&chan->mutex);                                          \
-    if (recvslot == true) CHECK(lmp_chan_alloc_recv_slot(&chan->chan));       \
-    CHECK(lmp_chan_register_send(&chan->chan, ws, MKCLOSURE((void *) send_handler, \
-                                                            sendargs)));      \
-    CHECK(lmp_chan_register_recv(&chan->chan, ws, MKCLOSURE((void *) receive_handler, \
-                                                            sendargs)));      \
-    CHECK(event_dispatch(ws));                                                \
-    CHECK(event_dispatch(ws));                                                \
-    thread_mutex_unlock(&chan->mutex);
-
-#define recv_handler_fleshy_bits(name,capindex,type)                          \
-    DBG(VERBOSE,#name"\n");                                                   \
-    struct aos_rpc *rpc = (struct aos_rpc *) args[0];                         \
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;                              \
-    errval_t err;                                                             \
-    if (capindex != -1) {                                                     \
-        struct capref *retcap = (struct capref *) args[capindex];             \
-        err = lmp_chan_recv(&rpc->chan, &msg, retcap);                        \
-    } else {                                                                  \
-        err = lmp_chan_recv(&rpc->chan, &msg, NULL);                          \
-    }                                                                         \
-    if (err_is_fail(err) && lmp_err_is_transient(err)) {                      \
-        DBG(DETAILED,"rereg "#name"\n");                                      \
-        CHECK(lmp_chan_register_recv(&rpc->chan, get_default_waitset(),       \
-                                     MKCLOSURE((void *) name, args)));        \
-        return err;                                                           \
-    }                                                                         \
-    if (err_is_fail(err)) {                                                   \
-        DBG(ERR, #name"'s call to lmp_chan_recv failed non-transiently\n");   \
-        return err;                                                           \
-    }                                                                         \
-    if (msg.words[0] != RPC_ACK_MESSAGE(type)) {                              \
-        DBG(ERR, "This is bad, we got msg type (raw, aka shifted to the left): %p\n", \
-            msg.words[0]);                                                    \
-        /* TODO: handle? */                                                   \
-    }
-
-__attribute__((unused))
-static errval_t ram_receive_handler(void *args)
-{
-    uintptr_t *uargs = (uintptr_t *) args;
-    struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
-    struct capref *retcap = (struct capref *) uargs[3];
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-
-    errval_t err = lmp_chan_recv(&rpc->chan, &msg, retcap);
-    // Re-register if failed.
-    if (err_is_fail(err) && lmp_err_is_transient(err)) {
-        DBG(DETAILED,"rereg ram_receive_handler\n");
-        CHECK(lmp_chan_register_recv(&rpc->chan, get_default_waitset(),
-                                     MKCLOSURE((void *) ram_receive_handler,
-                                               args)));
-        return err;
-    }
-    if (err_is_fail(err)) {
-        DBG(ERR, "ram_receive_handler's call to lmp_chan_recv failed non-transiently\n");
-        return err;
-    }
-
-    assert(msg.buf.msglen >= 2);
-
-    if (msg.words[0] != RPC_ACK_MESSAGE(RPC_TYPE_RAM)) {
-        DBG(ERR, "This is bad, we got msg type (raw, aka shifted to the left): %p\n",
-            msg.words[0]);
-        // TODO: handle?
-    }
-
-    if (retcap->cnode.cnode == NULL_CAP.cnode.cnode &&
-            retcap->cnode.level == NULL_CAP.cnode.level &&
-            retcap->cnode.croot == NULL_CAP.cnode.croot &&
-            retcap->slot == NULL_CAP.slot) {
-        DBG(ERR, "Got null cap back :(\n");
-    }
-
-    size_t *retsize = (size_t *) uargs[4];
-    *retsize = msg.words[1];
-
-    return SYS_ERR_OK;
-}
-/*
-static errval_t rpc_receive_handler(void *args)
-{
-    DBG(DETAILED, "rpc_receive_handler\n");
-
-    struct aos_rpc *rpc = (struct aos_rpc *) args;
-    // Get the message from the child.
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    struct capref child_cap;
-    errval_t err = lmp_chan_recv(&rpc->chan, &msg, &child_cap);
-    if (err_is_fail(err)) {
-        return err;
-    }
-    // do actions depending on the message type
-    // Check the message type and handle it accordingly.
-    switch (msg.words[0]) {
-        case RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE):
-            DBG(DETAILED, "ACK Received (handshake) \n");
-            rpc->init = true;
-            break;
-        case RPC_ACK_MESSAGE(RPC_TYPE_PUTCHAR):
-            DBG(DETAILED, "ACK Received (putchar) \n");
-            break;
-        case RPC_ACK_MESSAGE(RPC_TYPE_RAM):
-            DBG(WARN, "RAM RPC received, but with standard handler\n"
-                "This is not intended. Expect badness.\n");
-            // TODO: Handle?
-            break;
-        case RPC_ACK_MESSAGE(RPC_TYPE_NUMBER):
-            DBG(DETAILED, "ACK Received (number)\n");
-            break;
-        default:
-            debug_printf("got message type %d", msg.words[0]);
-            printf("%zu\n", msg.words[0]);
-            DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
-            assert(!"NOT IMPLEMENTED");
-    }
-
-    return SYS_ERR_OK;
-
-}
-*/
-
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
     DBG(VERBOSE, "rpc_send_number\n");
@@ -176,100 +24,14 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
     uintptr_t *sendargs =malloc(1* sizeof(uintptr_t));
 
     sendargs[0] = (uintptr_t) val;
-    int unused_id;
-    CHECK(send(&chan->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_NUMBER),1,sendargs,MKCLOSURE(free,sendargs),&unused_id));
+    CHECK(send(&chan->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_NUMBER),1,sendargs,MKCLOSURE(free,sendargs),request_fresh_id(RPC_MESSAGE(RPC_TYPE_NUMBER))));
     CHECK(event_dispatch(get_default_waitset()));
     return SYS_ERR_OK;
 }
-
-static errval_t string_send_handler(uintptr_t *args)
-{
-    DBG(DETAILED, "string_send_handler (%d)\n", args[8]);
-
-    struct aos_rpc *rpc = (struct aos_rpc *) args[0];
-
-    errval_t err;
-    err = lmp_chan_send9(&rpc->chan, LMP_FLAG_SYNC, NULL_CAP,
-                         RPC_MESSAGE((uint32_t) args[8]), rpc->id, args[1],
-                         args[2], args[3], args[4], args[5], args[6], args[7]);
-    if (err_is_fail(err)){
-        // Reregister if failed.
-        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
-                                     MKCLOSURE((void *) string_send_handler,
-                                               args)));
-        CHECK(event_dispatch(get_default_waitset()));
-    }
-
-    return SYS_ERR_OK;
-}
-
 errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
-    int unused_id;
-    CHECK(persist_send_cleanup_wrapper(&rpc->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_STRING),strlen(string),(void*)string,NULL_EVENT_CLOSURE,&unused_id));
+    CHECK(persist_send_cleanup_wrapper(&rpc->chan,NULL_CAP,RPC_MESSAGE(RPC_TYPE_STRING),strlen(string),(void*)string,NULL_EVENT_CLOSURE,request_fresh_id(RPC_MESSAGE(RPC_TYPE_STRING))));
     CHECK(event_dispatch(get_default_waitset()));
-    return SYS_ERR_OK;
-
-    thread_mutex_lock(&rpc->mutex);
-    assert(rpc != NULL);
-    // We probably have to split the string into smaller pieces.
-    // Reminder: string is null terminated ('\0')
-    // We can send a max of 9 messages where we need one to identify the 
-    // message type so we can send 8 32 bit/4 char chunks at once.
-
-    struct waitset *ws = get_default_waitset();
-
-    uint32_t args[9];
-    args[0] = (uint32_t) rpc;
-    args[8] = (uint32_t) RPC_TYPE_STRING;
-
-    // Get the length of the string (including the terminating 0).
-    uint32_t len = strlen(string) + 1;
-
-    uint8_t count = 0; // We init with 0 to be able to add 1 at the beginning.
-
-    // We send the size of the string in the first message.
-    args[++count] = len;
-    for (uint32_t i=0; i<=len;++i){
-        // We go through the array and pack 4 of them together.
-        if (i%4==0){
-            // Increase count.
-            // The first of 4 should reset the value.
-            args[++count] = string[i];
-        } else {
-            // Shift and add the other 3 values.
-            args[count] += string[i] << ((i%4)*8);
-        }
-        // Send if full.
-        if (count == 7 && i%4==3){
-            errval_t err;
-            do {
-                // Check if sender is currently busy.
-                err = lmp_chan_register_send(&rpc->chan, ws,
-                                 MKCLOSURE((void *) string_send_handler,
-                                           args));
-                CHECK(event_dispatch(ws));
-            } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
-            args[8] = (uint32_t) RPC_TYPE_STRING_DATA;
-
-            // Reset counter.
-            count = 0;
-        }
-    }
-
-    // Send the final chunk if needed.
-    if (len%32 != 0){
-        errval_t err;
-        do {
-            // Check if sender is currently busy.
-            err = lmp_chan_register_send(&rpc->chan, ws,
-                             MKCLOSURE((void *) string_send_handler,
-                                       args));
-            CHECK(event_dispatch(ws));
-        } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
-    }
-    thread_mutex_unlock(&rpc->mutex);
-
     return SYS_ERR_OK;
 }
 
@@ -311,14 +73,12 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
     struct waitset *ws = get_default_waitset();
 
-    uintptr_t sendargs[5];
+    uintptr_t sendargs[3];
     DBG(VERBOSE, "rpc_get_ram_cap 2\n");
 
     sendargs[0] = (uintptr_t) chan;
     sendargs[1] = (uintptr_t) &size;
     sendargs[2] = (uintptr_t) &align;
-    sendargs[3] = (uintptr_t) retcap;
-    sendargs[4] = (uintptr_t) ret_size;
     DBG(VERBOSE, "rpc_get_ram_cap 3\n");
 
 //    CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
@@ -341,13 +101,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     DBG(-1, "rpc_get_ram_cap 6\n");
 
 
-/*    DBG(-1,"get_ram_cap event dispatch 1\n");
-    CHECK(event_dispatch(ws));
-    DBG(-1,"get_ram_cap event dispatch 2\n");
-    CHECK(event_dispatch(ws));
-    DBG(-1,"get_ram_cap event dispatch done\n");*/
-    while(ram_size == 0) event_dispatch(ws);
-//        DBG(ERR,"we did not receive ram!\n");
+    while(ram_size == 0) event_dispatch(ws); //kind of an ugly hack
     *retcap = ram_cap;
     *ret_size = ram_size;
     ram_size = 0;
@@ -565,24 +319,6 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
 }
 
 
-/*
-static errval_t handshake_send_handler(void* args)
-{
-    DBG(DETAILED, "handshake_send_handler\n");
-    struct aos_rpc *rpc = (struct aos_rpc *) args;
-
-    errval_t err;
-    err = lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap,
-                         RPC_MESSAGE(RPC_TYPE_HANDSHAKE));
-    if (err_is_fail(err)){
-        // Reregister if failed.
-        CHECK(lmp_chan_register_send(&rpc->chan, get_default_waitset(),
-                                     MKCLOSURE((void *) handshake_send_handler,
-                                               args)));
-    }
-    return SYS_ERR_OK;
-}
-*/
 static void aos_rpc_recv_handler(struct recv_list* data) {
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
@@ -596,9 +332,7 @@ static void aos_rpc_recv_handler(struct recv_list* data) {
             DBG(DETAILED, "ACK Received (putchar) \n");
             break;
         case RPC_ACK_MESSAGE(RPC_TYPE_RAM):
-//            DBG(WARN, "RAM RPC received, but with standard handler\n"
-//                    "This is not intended. Expect badness.\n");
-            // TODO: Handle?
+            // TODO: Handle in non-hacky way
             ram_cap = data->cap;
             ram_size = data->size;
             break;
@@ -625,8 +359,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
     // the endpoint.
     // Set send handler.
     struct waitset* ws = get_default_waitset();
-    int unused_id;
-    CHECK(send(&rpc->chan,rpc->chan.local_cap,RPC_MESSAGE(RPC_TYPE_HANDSHAKE),0,NULL,NULL_EVENT_CLOSURE,&unused_id));
+    CHECK(send(&rpc->chan,rpc->chan.local_cap,RPC_MESSAGE(RPC_TYPE_HANDSHAKE),0,NULL,NULL_EVENT_CLOSURE,request_fresh_id(RPC_MESSAGE(RPC_TYPE_HANDSHAKE))));
     rpc->id = id;
     id++;
     set_init_rpc(rpc);

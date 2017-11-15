@@ -55,9 +55,10 @@ struct recv_chan {
     void (*recv_deal_with_msg)(struct recv_list *);
     struct recv_list* rpc_recv_list; //todo: instead of having 1 list which shares type+id, split this off into a list of types which each has a list of ids, thereby drastically speeding up lookup
 };
-//id is an out parameter
-errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, uintptr_t* payload, struct event_closure callback_when_done, int* id);
-errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done, int* id);
+unsigned char request_fresh_id(unsigned char type);
+//id needs to be a currently unused id obtained via request_fresh_id
+errval_t send(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, uintptr_t* payload, struct event_closure callback_when_done, unsigned char id);
+errval_t persist_send_cleanup_wrapper(struct lmp_chan * chan, struct capref cap, unsigned char type, size_t payloadsize, void* payload, struct event_closure callback_when_done, unsigned char id);
 errval_t send_response(struct recv_list *rl, struct lmp_chan *chan, struct capref cap, size_t payloadsize, void* payload);
 
 #define NULL_EVENT_CLOSURE (struct event_closure){ NULL, NULL }
