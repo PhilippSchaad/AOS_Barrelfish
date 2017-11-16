@@ -6,6 +6,7 @@
 
 #include <aos/aos.h>
 #include <spawn/spawn.h>
+#include <lib_urpc.h>
 
 /// Struct to keep track of a process.
 struct process_info {

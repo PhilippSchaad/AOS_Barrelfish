@@ -95,6 +95,14 @@ domainid_t procman_register_process(char *name, coreid_t core_id)
 {
     DBG(DETAILED, "Registering process %s\n", name);
 
+    // if the core_id is on the other core, forward the request to the other core
+    if(disp_get_core_id() != 0){
+        // TODO: this doesn't give an answer, currently...
+        // We should work on the urpc interface first
+        urpc_register_process(name);
+        return (domainid_t) 42;
+    }
+
     assert(pt != NULL);
     assert(pt->head != NULL);
 
@@ -117,9 +125,9 @@ domainid_t procman_register_process(char *name, coreid_t core_id)
 
     pi->next = new_proc;
 
-#if DEBUG_LEVEL == DETAILED
+//#if(DEBUG_LEVEL == DETAILED)
     procman_print_proc_list();
-#endif
+//#endif
 
     return new_proc->id;
 }

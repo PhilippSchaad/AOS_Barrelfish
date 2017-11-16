@@ -6,9 +6,6 @@
 #include <aos/waitset.h>
 #include <aos/aos_rpc_shared.h>
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
 {
@@ -94,6 +91,7 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
         //TODO: we need to get the ID of the created process.
         // we should create a urpc call for that (or create a response for the spawn call)
         //send_response(data, chan, NULL_CAP, 1, (unsigned int *) 42 /*TODO: changeme */ );
+        send_response(data, chan, NULL_CAP, 1, NULL);
         return SYS_ERR_OK;
     }
 
@@ -102,15 +100,12 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
     errval_t err;
     err = spawn_load_by_name(name, si);
 
+    // this is done at a separate call, because some day we would want to split the name server from main.
     //domainid_t ret_id = procman_register_process(name, si, 0);
-    domainid_t ret_id = procman_register_process(name, disp_get_core_id());
+    //domainid_t ret_id = procman_register_process(name, disp_get_core_id());
 
-#if DEBUG_LEVEL == DETAILED
-    procman_print_proc_list();
-#endif
-
-    debug_printf("Spawned process %s with id %u\n", name, ret_id);
-    send_response(data, chan, NULL_CAP, 1, (unsigned int *) &ret_id);
+    debug_printf("Spawned process %s\n");
+    send_response(data, chan, NULL_CAP, 1, NULL);
 
     return SYS_ERR_OK;
 }
@@ -145,15 +140,15 @@ static void process_register_recv_handler(struct recv_list *data,
     domainid_t proc_id = procman_register_process(proc_name, core_id);
 
     // send back core id and pid
-    uint32_t combinedArg[2];
+    uint32_t *combinedArg = malloc(8);
 
     combinedArg[0] = proc_id;
     combinedArg[1] = core_id;
 
     DBG(DETAILED, "process_register_recv_handler: respond with "
-                  "core %d pid %d", combinedArg[1], combinedArg[0]);
+                  "core %d pid %d\n", combinedArg[1], combinedArg[0]);
 
-    send_response(data, chan, NULL_CAP, 8, (void*) combinedArg);
+    send_response(data, chan, NULL_CAP, 2, (void*) combinedArg);
 }
 
 static void recv_deal_with_msg(struct recv_list *data)

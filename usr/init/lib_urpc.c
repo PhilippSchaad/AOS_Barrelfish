@@ -33,7 +33,7 @@ static struct thread_mutex urpc_thread_mutex;
 
 enum urpc_state { non_initalized = 0, needs_to_be_read, available };
 
-enum urpc_type { send_string, remote_spawn, init_mem_alloc };
+enum urpc_type { send_string, remote_spawn, init_mem_alloc , register_process};
 
 struct urpc_bootinfo_package {
     struct bootinfo boot_info;
@@ -205,6 +205,10 @@ static void recv(__volatile struct urpc *data)
     case init_mem_alloc:
         recv_init_mem_alloc(&data->data.urpc_bootinfo);
         break;
+    case register_process:
+        // TODO: this currently only works for two cores...
+        procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1);
+        break;
     }
 }
 
@@ -259,6 +263,15 @@ static bool send_string_func(__volatile struct urpc *urpcobj, void *data)
     assert(strlen(str) < 2000);
     urpcobj->type = send_string;
     memcpy((void *) &urpcobj->data.send_string.string, str, strlen(str) + 1);
+    return 1;
+}
+
+static bool send_register_process_func(__volatile struct urpc *urpcobj, void *data)
+{
+    const char *name = (const char *) data;
+    assert(strlen(name) < 2000);
+    urpcobj->type = register_process;
+    memcpy((void *) &urpcobj->data.send_string.string, name, strlen(name) + 1);
     return 1;
 }
 
@@ -329,6 +342,10 @@ void urpc_slave_init_and_run(void)
 }
 
 void urpc_sendstring(char *str) { enqueue(send_string_func, str); }
+
+void urpc_register_process(char *str) {
+    enqueue(send_register_process_func, str);
+}
 
 void urpc_init_mem_alloc(struct bootinfo *p_bi)
 {

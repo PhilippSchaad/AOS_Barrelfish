@@ -15,9 +15,6 @@
 #include <aos/aos_rpc.h>
 #include <aos/generic_threadsafe_queue.h>
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 struct thread_mutex aos_rpc_mutex;
 
 struct rpc_call {
@@ -236,12 +233,10 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan, struct capref disp)
 
 static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 {
-    // TODO: find out why this gets never called and blocks....
-    domainid_t *newpid = (domainid_t *) arg1;
-    debug_printf("spawned new process with id %d (payload size: %u)\n",
-                 data->payload[1], data->size);
-    *newpid = data->payload[1];
-    USER_PANIC("finally");
+    // TODO: can this be removed or is there something useful that we should do here?
+    // domainid_t *newpid = (domainid_t *) arg1;
+    debug_printf("spawned requested process\n");
+    //*newpid = data->payload[1];
 }
 
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
@@ -271,17 +266,18 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
     return SYS_ERR_OK;
 }
 
+
 static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
 {
-    
     uint32_t *combinedArg = (uint32_t*) data->payload;
-    DBG(DETAILED, "registered self. received %d\n", combinedArg[1]);
+    DBG(DETAILED, "registered self. received core %d pid %d\n", combinedArg[1], combinedArg[0]);
     // TODO: store somewhere
     //domainid_t pid = combinedArg[0];
     coreid_t coreid = combinedArg[1];
 
     disp_set_core_id(coreid);
-    debug_printf("test it");
+    // printfs are correctly prefixed from now on
+    // registration finished
 }
 
 errval_t aos_rpc_process_register(struct aos_rpc *chan, char *name)
