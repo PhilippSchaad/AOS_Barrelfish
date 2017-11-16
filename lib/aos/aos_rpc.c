@@ -15,6 +15,9 @@
 #include <aos/aos_rpc.h>
 #include <aos/generic_threadsafe_queue.h>
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 struct thread_mutex aos_rpc_mutex;
 
 struct rpc_call {

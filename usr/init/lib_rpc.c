@@ -6,6 +6,9 @@
 #include <aos/waitset.h>
 #include <aos/aos_rpc_shared.h>
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
 {
@@ -101,7 +104,8 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
 
     // XXX: 0 here is the core-id, we want to replace this with the actual
     // core in the future once we have that implemented.
-    domainid_t ret_id = procman_register_process(name, si, 0);
+    //domainid_t ret_id = procman_register_process(name, si, 0);
+    domainid_t ret_id = procman_register_process(name, 0);
 
 #if DEBUG_LEVEL == DETAILED
     procman_print_proc_list();
@@ -131,17 +135,28 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
 }
 
 static void process_register_recv_handler(struct recv_list *data,
-                                                  struct lmp_chan *chan){
-        // TODO: do we need the spawninfo?
-        // TODO: think first: how should we handle process management? who is in charge of giving process ids? 
-        // TODO: register process
-        // send back core id and pid
-        uint32_t combinedArg[2];
+                                          struct lmp_chan *chan)
+{
+    // TODO: do we need the spawninfo? Maybe not, temporarily removed
 
-        combinedArg[0] = 42 /*TODO: replace me*/;
-        combinedArg[1] = disp_get_core_id();
-        DBG(DETAILED, "process_register_recv_handler: respond with core %d pid %d", combinedArg[1], combinedArg[0]);
-        send_response(data, chan, NULL_CAP, 8, (void*) combinedArg);
+    // Grab the process name
+    char *proc_name = malloc(sizeof(char) * 4 * data->size);
+    strcpy(proc_name, (char *) data->payload);
+
+    coreid_t core_id = disp_get_core_id();
+    domainid_t proc_id = procman_register_process(proc_name,
+                                                  core_id);
+
+    // send back core id and pid
+    uint32_t combinedArg[2];
+
+    combinedArg[0] = proc_id;
+    combinedArg[1] = core_id;
+
+    DBG(DETAILED, "process_register_recv_handler: respond with "
+                  "core %d pid %d", combinedArg[1], combinedArg[0]);
+
+    send_response(data, chan, NULL_CAP, 8, (void*) combinedArg);
 }
 
 static void recv_deal_with_msg(struct recv_list *data)

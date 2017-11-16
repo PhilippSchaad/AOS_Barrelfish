@@ -52,6 +52,7 @@ errval_t procman_init(void)
     return SYS_ERR_OK;
 }
 
+/*
 /// Register a process.
 domainid_t procman_register_process(char *name, struct spawninfo *si,
                                     coreid_t core_id)
@@ -84,6 +85,41 @@ domainid_t procman_register_process(char *name, struct spawninfo *si,
 #endif
 
     pi->next = new_proc;
+
+    return new_proc->id;
+}
+*/
+
+/// Register a process.
+domainid_t procman_register_process(char *name, coreid_t core_id)
+{
+    DBG(DETAILED, "Registering process %s\n", name);
+
+    assert(pt != NULL);
+    assert(pt->head != NULL);
+
+    struct process_info *pi = pt->head;
+
+    while (pi->next != NULL)
+        pi = pi->next;
+
+    struct process_info *new_proc = malloc(sizeof(struct process_info));
+    if (new_proc == NULL) {
+        USER_PANIC("Failed to create Process-Info for new process!\n");
+        // TODO: handle?
+    }
+
+    new_proc->id = pi->id + 1;
+    new_proc->core = core_id;
+    new_proc->name = name;
+    new_proc->next = NULL;
+    new_proc->prev = pi;
+
+    pi->next = new_proc;
+
+#if DEBUG_LEVEL == DETAILED
+    procman_print_proc_list();
+#endif
 
     return new_proc->id;
 }
