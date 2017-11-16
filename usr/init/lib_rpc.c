@@ -102,10 +102,8 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
     errval_t err;
     err = spawn_load_by_name(name, si);
 
-    // XXX: 0 here is the core-id, we want to replace this with the actual
-    // core in the future once we have that implemented.
     //domainid_t ret_id = procman_register_process(name, si, 0);
-    domainid_t ret_id = procman_register_process(name, 0);
+    domainid_t ret_id = procman_register_process(name, disp_get_core_id());
 
 #if DEBUG_LEVEL == DETAILED
     procman_print_proc_list();
@@ -144,8 +142,7 @@ static void process_register_recv_handler(struct recv_list *data,
     strcpy(proc_name, (char *) data->payload);
 
     coreid_t core_id = disp_get_core_id();
-    domainid_t proc_id = procman_register_process(proc_name,
-                                                  core_id);
+    domainid_t proc_id = procman_register_process(proc_name, core_id);
 
     // send back core id and pid
     uint32_t combinedArg[2];
@@ -214,6 +211,7 @@ static void recv_deal_with_msg(struct recv_list *data)
         process_register_recv_handler(data,chan);
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
+        DBG(ERR, "No get PIDs handler implemented yet\n");
     default:
         DBG(WARN, "Unable to handle RPC-receipt, expect badness! type: %u\n",
             (unsigned int) data->type);
