@@ -91,7 +91,7 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
         //TODO: we need to get the ID of the created process.
         // we should create a urpc call for that (or create a response for the spawn call)
         //send_response(data, chan, NULL_CAP, 1, (unsigned int *) 42 /*TODO: changeme */ );
-        send_response(data, chan, NULL_CAP, 1, NULL);
+        send_response(data, chan, NULL_CAP, 0, NULL);
         return SYS_ERR_OK;
     }
 
@@ -105,7 +105,7 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
     //domainid_t ret_id = procman_register_process(name, disp_get_core_id());
 
     debug_printf("Spawned process %s\n");
-    send_response(data, chan, NULL_CAP, 1, NULL);
+    send_response(data, chan, NULL_CAP, 0, NULL);
 
     return SYS_ERR_OK;
 }
@@ -145,7 +145,7 @@ static void process_register_recv_handler(struct recv_list *data,
     combinedArg[0] = proc_id;
     combinedArg[1] = core_id;
 
-    DBG(DETAILED, "process_register_recv_handler: respond with "
+    DBG(-1, "process_register_recv_handler: respond with "
                   "core %d pid %d\n", combinedArg[1], combinedArg[0]);
 
     send_response(data, chan, NULL_CAP, 2, (void*) combinedArg);

@@ -266,14 +266,13 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
     return SYS_ERR_OK;
 }
 
-
 static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
 {
     uint32_t *combinedArg = (uint32_t*) data->payload;
-    DBG(DETAILED, "registered self. received core %d pid %d\n", combinedArg[1], combinedArg[0]);
+    DBG(DETAILED, "registered self. received core %d pid %d\n", combinedArg[2], combinedArg[1]);
     // TODO: store somewhere
-    //domainid_t pid = combinedArg[0];
-    coreid_t coreid = combinedArg[1];
+    //domainid_t pid = combinedArg[1];
+    coreid_t coreid = combinedArg[2];
 
     disp_set_core_id(coreid);
     // printfs are correctly prefixed from now on

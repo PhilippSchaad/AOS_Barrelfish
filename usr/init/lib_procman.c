@@ -125,9 +125,9 @@ domainid_t procman_register_process(char *name, coreid_t core_id)
 
     pi->next = new_proc;
 
-//#if(DEBUG_LEVEL == DETAILED)
+#if(DEBUG_LEVEL == DETAILED)
     procman_print_proc_list();
-//#endif
+#endif
 
     return new_proc->id;
 }
