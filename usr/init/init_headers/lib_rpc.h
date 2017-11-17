@@ -9,6 +9,7 @@
 
 #include <mem_alloc.h>
 #include <lib_procman.h>
+#include <lib_urpc.h>
 
 struct domain {
     struct lmp_chan chan;

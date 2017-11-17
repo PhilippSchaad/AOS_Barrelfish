@@ -319,6 +319,11 @@ void recv_handling(void *args)
     //    -> you mean, to ensure that ram RPCs send a cap, for example? not all
     //    rpcs need to send caps.
     //    we should consider freeing the slot again when not used anymore.
+    // if we receive an NULL_CAP, delete it again.
+    if (capref_is_null(cap)){
+        cap_destroy(cap);
+    }
+
     lmp_chan_alloc_recv_slot(rc->chan);
     lmp_chan_register_recv(rc->chan, get_default_waitset(),
                            MKCLOSURE(recv_handling, args));

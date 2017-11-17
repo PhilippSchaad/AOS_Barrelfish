@@ -185,6 +185,18 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Register ourselves with init
     aos_rpc_init(&init_rpc);
     ram_alloc_set(NULL);
+
+    // Register ourselves in the process manager.
+    debug_printf("We're gonna register ourself with the procman now\n");
+
+    // The first cmdline argument holds our process domain name
+    char *domain_name = (char *) params->argv[0];
+    // TODO: This might need to be truncated if the process is spawned
+    //       with path (eg /local/usr/bin/process instead of process)..
+    aos_rpc_process_register(aos_rpc_get_process_channel(), domain_name);
+
+    debug_printf("Registration completed, running main now\n");
+    
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;

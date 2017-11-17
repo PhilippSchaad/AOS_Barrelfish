@@ -44,6 +44,7 @@
 #define RPC_TYPE_PROCESS_GET_NAME 0x9
 #define RPC_TYPE_PROCESS_GET_PIDS 0x10
 #define RPC_TYPE_PROCESS_KILL_ME 0x11
+#define RPC_TYPE_PROCESS_REGISTER 0x12
 
 struct recv_list {
     unsigned char type;

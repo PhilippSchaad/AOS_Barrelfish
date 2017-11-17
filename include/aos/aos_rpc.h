@@ -56,6 +56,11 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c);
 errval_t aos_rpc_kill_me(struct aos_rpc *chan, struct capref disp);
 
 /**
+ * \brief Register the current process at the process manager
+ */
+errval_t aos_rpc_process_register(struct aos_rpc *chan, char *name);
+
+/**
  * \brief Request process manager to start a new process
  * \arg name the name of the process that needs to be spawned (without a
  *           path prefix)

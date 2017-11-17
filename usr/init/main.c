@@ -102,6 +102,9 @@ int main(int argc, char *argv[])
         while (!urpc_ram_is_initalized())
             ;
 
+        // register self
+        urpc_register_process("init");
+
         /*
         struct tester t;
         init_testing(&t);
