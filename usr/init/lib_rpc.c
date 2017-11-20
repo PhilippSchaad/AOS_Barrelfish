@@ -29,8 +29,6 @@ static struct domain *find_domain(struct capref *cap)
     return NULL;
 }
 
-static int pid;
-
 static errval_t new_ram_recv_handler(struct recv_list *data,
                                      struct lmp_chan *chan)
 {
@@ -88,10 +86,11 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
         DBG(DETAILED, "spawn %s on other core\n", name);
         urpc_spawn_process(name);
         //free(name);
+
         //TODO: we need to get the ID of the created process.
         // we should create a urpc call for that (or create a response for the spawn call)
-        //send_response(data, chan, NULL_CAP, 1, (unsigned int *) 42 /*TODO: changeme */ );
-        send_response(data, chan, NULL_CAP, 0, NULL);
+        send_response(data, chan, NULL_CAP, 1, (unsigned int *) 42 /*TODO: changeme */ );
+        //send_response(data, chan, NULL_CAP, 0, NULL);
         return SYS_ERR_OK;
     }
 
@@ -100,12 +99,16 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
     errval_t err;
     err = spawn_load_by_name(name, si);
 
+    // preregister the process we just spawned
+    // This will create the process but the process does not know its PID yet and we don't have a rpc channel.
+    domainid_t pid = procman_register_process(name, disp_get_core_id(), si);
+
     // this is done at a separate call, because some day we would want to split the name server from main.
     //domainid_t ret_id = procman_register_process(name, si, 0);
     //domainid_t ret_id = procman_register_process(name, disp_get_core_id());
 
     debug_printf("Spawned process %s\n");
-    send_response(data, chan, NULL_CAP, 0, NULL);
+    send_response(data, chan, NULL_CAP, 1, &pid);
 
     return SYS_ERR_OK;
 }
@@ -130,20 +133,27 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
 static void process_register_recv_handler(struct recv_list *data,
                                           struct lmp_chan *chan)
 {
-    // TODO: do we need the spawninfo? Maybe not, temporarily removed
-
+    DBG(DETAILED, "seems that someone wants to register himself\n");
     // Grab the process name
     char *proc_name = malloc(sizeof(char) * 4 * data->size);
     strcpy(proc_name, (char *) data->payload);
 
     coreid_t core_id = disp_get_core_id();
-    domainid_t proc_id = procman_register_process(proc_name, core_id);
+    domainid_t proc_id = procman_finish_process_register(proc_name, chan);
 
     // send back core id and pid
     uint32_t *combinedArg = malloc(8);
 
     combinedArg[0] = proc_id;
     combinedArg[1] = core_id;
+
+    // store name and pid in domain
+    struct domain *domain = find_domain(&data->cap);
+    assert(domain);
+    domain->name = proc_name;
+    domain->id = proc_id;
+
+    //cap_destroy(data->cap);
 
     DBG(-1, "process_register_recv_handler: respond with "
                   "core %d pid %d\n", combinedArg[1], combinedArg[0]);
@@ -156,6 +166,7 @@ static void recv_deal_with_msg(struct recv_list *data)
     // Check the message type and handle it accordingly.
     DBG(VERBOSE, "recv msg...\n");
     struct lmp_chan *chan = data->chan;
+    uint32_t success;
     switch (data->type) {
     case RPC_MESSAGE(RPC_TYPE_NUMBER):
         printf("Received number %u via RPC\n", data->payload[0]);
@@ -189,18 +200,34 @@ static void recv_deal_with_msg(struct recv_list *data)
     case RPC_MESSAGE(RPC_TYPE_PROCESS_SPAWN):
         CHECK(new_spawn_recv_handler(data, chan));
         break;
+    case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL):
+        // TODO: check if we are allowed to kill this process...
+        success = err_is_ok(procman_kill_process(*((uint32_t*) data->payload)));
+        if(success != 0){
+            debug_printf("delete successful\n");
+        } else {
+            debug_printf("delete not so successful\n");
+        }
+        send_response(data, chan, NULL_CAP, 1, &success);
+        break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
         // TODO: Add a mechanism to kill a remote process
         // TODO: Find a way to get the PID which gets deleted and remove it
         //       from the procman
         // TODO: Does this have to remove something in the
         // adhoc_process_table?..
+        // TODO: find a way to destroy dispatcher
+        // Should we destroy the dispatcher at all? the child can do that itself...
         DBG(DETAILED, "kill_me_recv_handler\n");
-        errval_t err = cap_delete(data->cap);
-        if (err_is_fail(err)) {
-            DBG(WARN, "We failed to delete the dispatcher in init..\n");
-        }
-        send_response(data, chan, NULL_CAP, 0, NULL);
+        struct domain *domain = find_domain(&data->cap);
+        DBG(-1, "I remove %s pid %d\n", domain->name, domain->id);
+        procman_deregister(domain->id);
+        //errval_t err = cap_delete(data->cap);
+        //if (err_is_fail(err)) {
+        //    DBG(WARN, "We failed to delete the dispatcher in init..\n");
+        //}
+        //free(domain);
+        //send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_REGISTER):
         process_register_recv_handler(data,chan);
@@ -221,7 +248,6 @@ static errval_t new_handshake_recv_handler(struct capref *child_cap)
     struct domain *dom = find_domain(child_cap);
     if (dom == NULL) {
         dom = (struct domain *) malloc(sizeof(struct domain));
-        dom->id = pid++;
         dom->next = active_domains->head;
         active_domains->head = dom;
 

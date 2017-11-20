@@ -254,6 +254,14 @@ int main(int argc, char *argv[])
         thread_create((thread_func_t) test_basic_rpc, NULL);
     thread_join(threadchecks, &retval);
 
+
+    aos_rpc_process_spawn(&init_rpc, "killme", 0, &ret);
+    uint32_t retbool = 0;
+    debug_printf("\033[33mWe spawned 'killme' and try to kill it now.\n\033[0m");
+    while(retbool == 0)
+        aos_rpc_process_kill(&init_rpc, ret, &retbool);
+    debug_printf("\033[33mkilled!\n\033[0m");
+
     debug_printf("seems I have done everything I should... =)\n");
     debug_printf("memeater terminated....\n");
     return EXIT_SUCCESS;

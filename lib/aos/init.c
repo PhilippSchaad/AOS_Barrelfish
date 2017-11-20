@@ -56,7 +56,7 @@ void libc_exit(int status)
         }
         // XXX: Leak all other domain allocations
     } else {
-        CHECK(aos_rpc_kill_me(aos_rpc_get_process_channel(), cap_dispatcher));
+        CHECK(aos_rpc_kill_me(aos_rpc_get_process_channel()));
         errval_t err = cap_delete(cap_dispatcher);
         if (err_is_fail(err)) {
             sys_print("revoking dispatcher failed in _Exit, spinning!\n", 100);

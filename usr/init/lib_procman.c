@@ -1,4 +1,5 @@
 #include <lib_procman.h>
+#include <aos/aos_rpc_shared.h>
 
 /// Find a process in the proclist with a given ID.
 static errval_t find_process_by_id(domainid_t proc_id,
@@ -20,7 +21,7 @@ static errval_t find_process_by_id(domainid_t proc_id,
         pi = pi->next;
     }
 
-    return 1; // TODO: Create error for process ID not found.
+    return PROCMAN_ERR_PID_NOT_FOUND; // TODO: Create error for process ID not found.
 }
 
 /// Initialize the procman.
@@ -91,17 +92,11 @@ domainid_t procman_register_process(char *name, struct spawninfo *si,
 */
 
 /// Register a process.
-domainid_t procman_register_process(char *name, coreid_t core_id)
+// All information is on core 0. But: capsrefs are stored on the core on which the process was started to avoid forging them on the other core.
+domainid_t procman_register_process(char *name, coreid_t core_id, struct spawninfo *si)
 {
     DBG(DETAILED, "Registering process %s\n", name);
 
-    // if the core_id is on the other core, forward the request to the other core
-    if(disp_get_core_id() != 0){
-        // TODO: this doesn't give an answer, currently...
-        // We should work on the urpc interface first
-        urpc_register_process(name);
-        return (domainid_t) 42;
-    }
 
     assert(pt != NULL);
     assert(pt->head != NULL);
@@ -111,17 +106,32 @@ domainid_t procman_register_process(char *name, coreid_t core_id)
     while (pi->next != NULL)
         pi = pi->next;
 
+    // get the PID
+    domainid_t pid;
+    // if the core_id is on the other core, forward the request to the other core
+    if(disp_get_core_id() != 0){
+        // TODO: this doesn't give an answer, currently...
+        // We should work on the urpc interface first
+        urpc_register_process(name);
+        // TODO: get a real process ID from the other core;
+        pid = 42;
+    } else {
+        pid = pi->id + 1;
+    }
+
     struct process_info *new_proc = malloc(sizeof(struct process_info));
     if (new_proc == NULL) {
         USER_PANIC("Failed to create Process-Info for new process!\n");
         // TODO: handle?
     }
 
-    new_proc->id = pi->id + 1;
+    new_proc->id = pid;
     new_proc->core = core_id;
     new_proc->name = name;
     new_proc->next = NULL;
     new_proc->prev = pi;
+    new_proc->si = si;
+    new_proc->init = false;
 
     pi->next = new_proc;
 
@@ -129,7 +139,31 @@ domainid_t procman_register_process(char *name, coreid_t core_id)
     procman_print_proc_list();
 #endif
 
-    return new_proc->id;
+    return pid;
+}
+
+domainid_t procman_finish_process_register(char *name, struct lmp_chan *chan){
+    DBG(DETAILED, "finish registration of process  %s\n", name);
+    // find the right process
+    // TODO: what happens if two process with the same name want to register at the same time?
+    assert(pt != NULL);
+    assert(pt->head != NULL);
+    struct process_info *pi = pt->head;
+    while(pi != NULL){
+        if(!pi->init && strcmp(name, pi->name) == 0){
+            pi->chan = chan;
+            pi->init = true;
+            return pi->id;
+        }
+        pi = pi->next;
+    }
+    // this situation might happen, if a process is spawned directly by the init process
+    // TODO: catch this case somewhere else
+    procman_register_process(name, disp_get_core_id(), NULL);
+    return procman_finish_process_register(name, chan);
+
+    // handle this somehow
+    return -1;
 }
 
 /// Deregister a process.
@@ -144,12 +178,31 @@ errval_t procman_deregister(domainid_t proc_id)
     CHECK(find_process_by_id(proc_id, &pi));
 
     assert(pi->prev != NULL); // That would mean deregisterint init.
+    assert(proc_id != 0);
 
     pi->prev->next = pi->next;
     if (pi->next)
         pi->next->prev = pi->prev;
 
+    // destroy leftovers of process
+        // TODO: maybe we could add a function here that does additional cleanup:
+        // - free memory
+        // - destroy caps
+        // - ...
+        //cap_destroy(pi->si->l1_cnode);
+        //free(pi->si);
+        //free(pi->chan);
+
+    // if the process is on the other core, delete it there as well. Keep in mind that all processes are registered on core 0
+    if (disp_get_core_id() != 0 || pi->core != 0){
+        // TODO: uarpc call to other core to make the cleanup there
+    }
+
     free(pi);
+
+#if(DEBUG_LEVEL == DETAILED)
+    procman_print_proc_list();
+#endif
 
     return SYS_ERR_OK;
 }
@@ -157,6 +210,13 @@ errval_t procman_deregister(domainid_t proc_id)
 /// List all processes to stdout.
 void procman_print_proc_list(void)
 {
+    // check if we are on core 0
+    // if the core_id is on the other core, forward the request to the other core
+    if(disp_get_core_id() != 0){
+        // TODO: urpc call to other core to display process list
+        return;
+    }
+
     assert(pt != NULL);
     assert(pt->head != NULL);
 
@@ -175,11 +235,44 @@ void procman_print_proc_list(void)
 /// Kill a process.
 errval_t procman_kill_process(domainid_t proc_id)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DBG(DETAILED, "Kill process id %" PRIuDOMAINID "\n", proc_id);
+
+    assert(pt != NULL);
+    assert(pt->head != NULL);
+
+    struct process_info *pi = NULL;
+    CHECK(find_process_by_id(proc_id, &pi));
+
+    // check if we are on the right core
+    if(disp_get_core_id() != pi->core){
+        // TODO: urpc call to other core to kill process
+        return LIB_ERR_NOT_IMPLEMENTED;
+    } else {
+        if (!pi->init){
+            // process not ready yet...
+            // TODO: maybe we can handle this differently
+            DBG(DETAILED, "PROCMAN_ERR_PROCESS_NOT_YET_STARTED\n");
+            return PROCMAN_ERR_PROCESS_NOT_YET_STARTED;
+        }
+        //cap_destroy(pi->si->dispatcher);
+        //lmp_chan_destroy(pi->chan);
+        //cap_destroy(pi->chan->remote_cap);
+        //free(pi->chan);
+        // TODO: rpc call or destroy vital cap
+
+        // actual killing. this currently works using rpc which is not that nice but I have not been able to
+        // kill the process without locking the system.
+        CHECK(send(pi->chan, NULL_CAP, RPC_MESSAGE(RPC_TYPE_PROCESS_KILL), 0, NULL, NULL_EVENT_CLOSURE,request_fresh_id(RPC_TYPE_PROCESS_KILL)));
+    }
+
+    // deregister
+    procman_deregister(proc_id);
+
+    return SYS_ERR_OK;
 }
 
 /// Find a process name by its process ID.
+// Returns NULL if not found
 char *procman_lookup_name_by_id(domainid_t proc_id)
 {
     DBG(DETAILED, "Looking up name of process %" PRIuDOMAINID "\n", proc_id);
@@ -188,7 +281,16 @@ char *procman_lookup_name_by_id(domainid_t proc_id)
     assert(pt->head != NULL);
 
     struct process_info *pi = NULL;
-    CHECK(find_process_by_id(proc_id, &pi));
+    errval_t err = find_process_by_id(proc_id, &pi);
+
+    // if we are not on core 0 it may happen that we do not find the process
+    if (err == PROCMAN_ERR_PID_NOT_FOUND){
+        if(disp_get_core_id() != 0){
+            // TODO: urpc call to other core
+            return NULL;
+        }
+        return NULL;
+    }
 
     return pi->name;
 }

@@ -11,6 +11,9 @@ static errval_t actual_sending(struct lmp_chan *chan, struct capref cap,
                                int first_byte, size_t payloadcount,
                                uintptr_t *payload)
 {
+    if(!chan){
+        USER_PANIC("no more chan...");
+    }
     switch (payloadcount) {
     case 0:
         return (lmp_chan_send1(chan, LMP_FLAG_SYNC, cap, first_byte));
@@ -77,6 +80,7 @@ static errval_t send_loop(void *args)
     } else {
         cap = NULL_CAP;
     }
+
     errval_t err =
         actual_sending(sq->chan, cap, first_byte,
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);

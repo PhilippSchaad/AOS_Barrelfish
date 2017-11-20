@@ -222,21 +222,28 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
     return SYS_ERR_OK;
 }
 
-errval_t aos_rpc_kill_me(struct aos_rpc *chan, struct capref disp)
+errval_t aos_rpc_kill_me(struct aos_rpc *chan)
 {
     DBG(VERBOSE, "aos_rpc_kill_me\n");
-    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_KILL_ME, &chan->chan, disp, 0,
+    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_KILL_ME, &chan->chan, chan->chan.local_cap, 0,
                   NULL, NULL_EVENT_CLOSURE);
     DBG(ERR, "we should be dead by now\n");
+    //exit(0);
     return SYS_ERR_OK;
 }
+
+/*errval_t aos_rpc_kill(struct aos_rpc *chan){
+    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_KILL, &chan->chan, NULL_CAP, 0,
+                  NULL, NULL_EVENT_CLOSURE);
+}*/
 
 static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 {
     // TODO: can this be removed or is there something useful that we should do here?
-    // domainid_t *newpid = (domainid_t *) arg1;
-    debug_printf("spawned requested process\n");
-    //*newpid = data->payload[1];
+    domainid_t *newpid = (domainid_t *) arg1;
+    debug_printf("spawned requested process. PID is %d\n", *newpid);
+    *newpid = data->payload[1];
+    debug_printf("spawned requested process. PID is %d\n", *newpid);
 }
 
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
@@ -266,6 +273,23 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
     return SYS_ERR_OK;
 }
 
+static void aos_rpc_process_kill_recv(void *arg1, struct recv_list *data)
+{
+    uint32_t *success = (uint32_t *) arg1;
+    *success = (uint32_t) data->payload[1];
+}
+errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid, uint32_t *success)
+{
+    DBG(DETAILED, "rpc call: kill process %d\n", pid);
+
+    rpc_framework(aos_rpc_process_kill_recv, success, RPC_TYPE_PROCESS_KILL,
+                  &chan->chan, NULL_CAP, 1, &pid,
+                  NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
 static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
 {
     uint32_t *combinedArg = (uint32_t*) data->payload;
@@ -291,7 +315,7 @@ errval_t aos_rpc_process_register(struct aos_rpc *chan, char *name)
                                                      &payloadsize2);
 
     rpc_framework(aos_rpc_process_register_recv, chan, RPC_TYPE_PROCESS_REGISTER,
-                  &chan->chan, NULL_CAP, payloadsize2, payload2,
+                  &chan->chan, chan->chan.local_cap, payloadsize2, payload2,
                   NULL_EVENT_CLOSURE);
     free(payload2);
     return SYS_ERR_OK;
@@ -408,6 +432,10 @@ static void aos_rpc_recv_handler(struct recv_list *data)
         }
     } else {
         switch (data->type) {
+        case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL):
+            debug_printf("Got request to be killed...\n");
+            // TODO: check if origin is init
+            exit(1);
         default:
             debug_printf("got message type %d\n", data->type);
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");

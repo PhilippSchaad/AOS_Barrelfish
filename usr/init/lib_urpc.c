@@ -207,7 +207,7 @@ static void recv(__volatile struct urpc *data)
         break;
     case register_process:
         // TODO: this currently only works for two cores...
-        procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1);
+        procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1, NULL);
         break;
     }
 }

@@ -79,9 +79,9 @@ int main(int argc, char *argv[])
     active_domains = malloc(sizeof(struct domain_list));
 
     init_rpc();
+    CHECK(procman_init());
 
     if (my_core_id == 0) {
-        CHECK(procman_init());
 
         urpc_master_init_and_run(buf);
 
