@@ -155,12 +155,14 @@ recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 static void
 recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
 {
+    debug_printf("received bootinfo package\n");
     struct bootinfo *n_bi =
         (struct bootinfo *) malloc(sizeof(struct bootinfo));
     memcpy((void *) n_bi, (void *) &bootinfo_package->boot_info,
            sizeof(struct bootinfo));
     memcpy((void *) &n_bi->regions, (void *) &bootinfo_package->regions,
            sizeof(struct mem_region) * n_bi->regions_length);
+    dump_bootinfo(n_bi,1);
     initialize_ram_alloc(n_bi);
 
     // Set up the modules from the boot info for spawning.
@@ -184,7 +186,7 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
                               disp_get_core_id()));
         }
     }
-
+    debug_printf("done with mem recv\n");
     already_received_memory = true;
 }
 
