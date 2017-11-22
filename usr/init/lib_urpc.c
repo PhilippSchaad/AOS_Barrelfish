@@ -129,8 +129,43 @@ recv_remote_spawn(__volatile struct urpc_remote_spawn *remote_spawn_obj)
     free(si);
 }
 
+//TODO: maybe we can add the receiver ID to this, if we want to support faster (and maybe easier) multiplexing of the receiver (when using with regular rpcs)
+struct urpc_waiting_state{
+    bool waiting;
+    struct event_closure callback_when_done;
+};
+static struct urpc_waiting_state urpc_waiting_calls[256];
+void urpc2_send_and_receive(struct urpc2_data (*func)(void *data), void *payload, char type, struct event_closure callback_when_done)
+{
+    uint32_t index = type;
+    // TODO: we rely on the type being equal to the one specified in func. this is potentially dangerous and may lead to unexpected behaviour when
+    // mismatched
+
+
+    // check that there is no other ongoing transmission with the same id
+    while (urpc_waiting_calls[index].waiting);
+
+    // add to table of waiting calls
+    urpc_waiting_calls[index].waiting = true;
+    urpc_waiting_calls[index].callback_when_done = callback_when_done;
+
+    // do the request
+    urpc2_enqueue(func, payload);
+
+    // wait for the answer
+    while (urpc_waiting_calls[index].waiting);
+}
+
 static void recv(__volatile struct urpc *data)
 {
+    uint32_t index = data->type;
+    // check if we were waiting for this call
+    if(urpc_waiting_calls[index].waiting){
+        urpc_waiting_calls[index].callback_when_done.handler(urpc_waiting_calls[index].callback_when_done.arg);
+        urpc_waiting_calls[index].waiting = false;
+    }
+
+    domainid_t pid;
     switch (data->type) {
     case send_string:
         recv_send_string(&data->data.send_string);
@@ -143,7 +178,7 @@ static void recv(__volatile struct urpc *data)
         break;
     case register_process:
         // TODO: this currently only works for two cores...
-        procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1);
+        pid = procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1);
         break;
     }
 }
@@ -219,6 +254,7 @@ void urpc_init_mem_alloc(struct bootinfo *p_bi)
 {
     urpc2_enqueue(send_init_mem_alloc_func, p_bi);
 }
+
 
 static struct urpc2_data spawnprocess_internal(void *data)
 {
