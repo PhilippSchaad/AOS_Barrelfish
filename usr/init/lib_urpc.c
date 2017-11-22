@@ -33,11 +33,8 @@
     for (struct thread_mutex *_mutx = &_mut; _mutx != NULL; _mutx = NULL)     \
         for (thread_mutex_lock(&_mut); _mutx != NULL;                         \
              _mutx = NULL, thread_mutex_unlock(&_mut))
-/*
-static struct thread_mutex urpc_thread_mutex;
-
 enum urpc_state { non_initalized = 0, needs_to_be_read, available };
-*/
+
 enum urpc_type { send_string, remote_spawn, init_mem_alloc , register_process};
 
 struct urpc_bootinfo_package {
@@ -67,7 +64,7 @@ struct urpc {
 bool already_received_memory = false;
 bool urpc_ram_is_initalized(void) { return already_received_memory; }
 
-/*
+
 // we define a very simple protocol
 struct urpc_protocol {
     char master_state;
@@ -75,7 +72,7 @@ struct urpc_protocol {
     struct urpc master_data;
     struct urpc slave_data;
 };
-
+/*
 struct send_queue {
     bool (*func)(__volatile struct urpc *addr, void *data);
     void *data;
@@ -164,7 +161,7 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
            sizeof(struct mem_region) * n_bi->regions_length);
     dump_bootinfo(n_bi,1);
     initialize_ram_alloc(n_bi);
-
+    debug_printf("what is going wrong...\n");
     // Set up the modules from the boot info for spawning.
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
@@ -269,13 +266,6 @@ static int urpc_internal_master(void *urpc_vaddr)
     return 0;
 }
 */
-void urpc_master_init_and_run(void *urpc_vaddr)
-{
-//    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
-//    thread_mutex_init(&urpc_thread_mutex);
-//    thread_create(urpc_internal_master, urpc_vaddr);
-    urpc2_init_and_run(urpc_vaddr,urpc_vaddr+(32*64),recv_wrapper);
-}
 
 static struct urpc2_data send_string_func(void *data)
 {
@@ -347,12 +337,29 @@ static int urpc_internal_slave(void *nothing)
     return 0;
 }
 */
+
+//we do the mem transfer before we go into the real protocol
+static void slave_setup(void) {
+    __volatile struct urpc_protocol *urpc_protocol =
+            (struct urpc_protocol *) MON_URPC_VBASE;
+    while(already_received_memory == false) {
+        MEMORY_BARRIER;
+        if(urpc_protocol->slave_state == needs_to_be_read) {
+            assert(urpc_protocol->slave_data.type == init_mem_alloc);
+            recv_init_mem_alloc(&urpc_protocol->slave_data.data.urpc_bootinfo);
+        }
+    }
+    //we clear it as a signal to the other side that it can go into the real protocol now
+    urpc_protocol->slave_state = available;
+    MEMORY_BARRIER;
+}
+
 void urpc_slave_init_and_run(void)
 {
 /*    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
     thread_mutex_init(&urpc_thread_mutex);
     thread_create(urpc_internal_slave, NULL);*/
-    urpc2_init_and_run((void*)(MON_URPC_VBASE+(32*64)),(void*)MON_URPC_VBASE,recv_wrapper);
+    urpc2_init_and_run((void*)(MON_URPC_VBASE+(32*64)),(void*)MON_URPC_VBASE,recv_wrapper,slave_setup);
 }
 
 void urpc_sendstring(char *str) { urpc2_enqueue(send_string_func, str); }
@@ -375,4 +382,29 @@ static struct urpc2_data spawnprocess_internal(void *data)
 void urpc_spawn_process(char *name) {
     DBG(DETAILED, "send request to spawn %s\n", name);
     urpc2_enqueue(spawnprocess_internal, name);
+}
+
+static void *slave_page_urpc_vaddr;
+//we do the mem transfer before we go into the real protocol
+static void master_setup(void) {
+    __volatile struct urpc_protocol *urpc_protocol =
+            (struct urpc_protocol *) slave_page_urpc_vaddr;
+    struct urpc2_data data = send_init_mem_alloc_func(bi);
+    MEMORY_BARRIER;
+    urpc_protocol->slave_data.type = init_mem_alloc;
+    memcpy((void*)&urpc_protocol->slave_data.data.urpc_bootinfo,data.data,data.size_in_bytes);
+    urpc_protocol->slave_state = needs_to_be_read;
+    //we wait for a signal of the other side that it can go into the real protocol now
+    while(urpc_protocol->slave_state != available) MEMORY_BARRIER;
+    free(data.data);
+}
+
+void urpc_master_init_and_run(void *urpc_vaddr)
+{
+//    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
+//    thread_mutex_init(&urpc_thread_mutex);
+//    thread_create(urpc_internal_master, urpc_vaddr);
+    //ugly hack
+    slave_page_urpc_vaddr = urpc_vaddr;
+    urpc2_init_and_run(urpc_vaddr,urpc_vaddr+(32*64),recv_wrapper,master_setup);
 }

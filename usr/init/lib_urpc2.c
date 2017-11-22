@@ -241,8 +241,11 @@ static enum urpc2_states core_recv(struct urpc2_data* data) {
 static bool usd_store_used = false;
 static struct urpc2_data usd_store;
 
-static int urpc2_internal(void* nothing)
+static int urpc2_internal(void *data)
 {
+    //first we spin on setup, this is so we can transfer ram
+    void (*setup_func)(void) = (void(*)(void)) data;
+    setup_func();
     while (true) {
         MEMORY_BARRIER;
         if (!(ringbufferReceive[current_receive].flags & MSG_WAITING)&&
@@ -284,13 +287,13 @@ static int urpc2_internal(void* nothing)
     return 0;
 }
 
-void urpc2_init_and_run(void* sendbuffer, void* receivebuffer, void (*recv_handler)(struct urpc2_data*)) {
+void urpc2_init_and_run(void* sendbuffer, void* receivebuffer, void (*recv_handler)(struct urpc2_data*), void (*setup_func)(void)) {
     assert(sizeof(struct ringbuffer_entry) == 64);
     thread_mutex_init(&urpc2_thread_mutex);
     ringbufferSend = sendbuffer;
     ringbufferReceive = receivebuffer;
     urpc2_recv_handler = recv_handler;
-    thread_create(urpc2_internal, NULL);
+    thread_create(urpc2_internal, setup_func);
 }
 void urpc2_enqueue(struct urpc2_data (*func)(void *data), void *data) {
     enqueue(func,data);
