@@ -85,8 +85,6 @@ int main(int argc, char *argv[])
 
         urpc_master_init_and_run(buf);
 
-        urpc_init_mem_alloc(bi);
-
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);

@@ -8,6 +8,11 @@
 #include <mm/mm.h>
 #include <aos/paging.h>
 #include <lib_urpc.h>
+#include <lib_urpc2.h>
+#include "init_headers/lib_urpc2.h"
+
+//we still need to port the proper ID system, so until now it uses this. Just rip it out of aos_rpc_shared
+#define TODO_ID 0
 
 // look, the proper way to implement this is via interrupts (see inthandler.c
 // and anything mentioning IPI or IRQ in the kernel code)
@@ -28,9 +33,6 @@
     for (struct thread_mutex *_mutx = &_mut; _mutx != NULL; _mutx = NULL)     \
         for (thread_mutex_lock(&_mut); _mutx != NULL;                         \
              _mutx = NULL, thread_mutex_unlock(&_mut))
-
-static struct thread_mutex urpc_thread_mutex;
-
 enum urpc_state { non_initalized = 0, needs_to_be_read, available };
 
 enum urpc_type { send_string, remote_spawn, init_mem_alloc , register_process};
@@ -59,6 +61,10 @@ struct urpc {
     } data;
 };
 
+bool already_received_memory = false;
+bool urpc_ram_is_initalized(void) { return already_received_memory; }
+
+
 // we define a very simple protocol
 struct urpc_protocol {
     char master_state;
@@ -66,78 +72,6 @@ struct urpc_protocol {
     struct urpc master_data;
     struct urpc slave_data;
 };
-
-struct send_queue {
-    bool (*func)(__volatile struct urpc *addr, void *data);
-    void *data;
-    struct send_queue *next;
-};
-
-struct send_queue *urpc_send_queue = NULL;
-struct send_queue *urpc_send_queue_last = NULL;
-
-bool already_received_memory = false;
-bool urpc_ram_is_initalized(void) { return already_received_memory; }
-
-static void enqueue(bool (*func)(__volatile struct urpc *addr, void *data),
-                    void *data)
-{
-    synchronized(urpc_thread_mutex)
-    {
-        struct send_queue *new = malloc(sizeof(struct send_queue));
-
-        new->func = func;
-        new->data = data;
-        new->next = NULL;
-
-        if (urpc_send_queue_last == NULL) {
-            assert(urpc_send_queue == NULL);
-            urpc_send_queue = new;
-            urpc_send_queue_last = new;
-        } else {
-            urpc_send_queue_last->next = new;
-            urpc_send_queue_last = new;
-        }
-    }
-}
-
-static void requeue(struct send_queue *sq)
-{
-    synchronized(urpc_thread_mutex)
-    {
-        if (urpc_send_queue_last == NULL) {
-            assert(urpc_send_queue == NULL);
-            urpc_send_queue = sq;
-            urpc_send_queue_last = sq;
-        } else {
-            urpc_send_queue_last->next = sq;
-            urpc_send_queue_last = sq;
-        }
-    }
-}
-
-static bool queue_empty(void)
-{
-    bool status;
-    synchronized(urpc_thread_mutex) status = urpc_send_queue == NULL;
-    return status;
-}
-
-static struct send_queue *dequeue(void)
-{
-    struct send_queue *fst;
-    synchronized(urpc_thread_mutex)
-    {
-        assert(urpc_send_queue != NULL);
-
-        fst = urpc_send_queue;
-        urpc_send_queue = fst->next;
-
-        if (urpc_send_queue == NULL)
-            urpc_send_queue_last = NULL;
-    }
-    return fst;
-}
 
 static void
 recv_send_string(__volatile struct urpc_send_string *send_string_obj)
@@ -148,14 +82,16 @@ recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 static void
 recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
 {
+    debug_printf("received bootinfo package\n");
     struct bootinfo *n_bi =
         (struct bootinfo *) malloc(sizeof(struct bootinfo));
     memcpy((void *) n_bi, (void *) &bootinfo_package->boot_info,
            sizeof(struct bootinfo));
     memcpy((void *) &n_bi->regions, (void *) &bootinfo_package->regions,
            sizeof(struct mem_region) * n_bi->regions_length);
+    dump_bootinfo(n_bi,1);
     initialize_ram_alloc(n_bi);
-
+    debug_printf("what is going wrong...\n");
     // Set up the modules from the boot info for spawning.
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
@@ -177,7 +113,7 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
                               disp_get_core_id()));
         }
     }
-
+    debug_printf("done with mem recv\n");
     already_received_memory = true;
 }
 
@@ -212,156 +148,107 @@ static void recv(__volatile struct urpc *data)
     }
 }
 
-static int urpc_internal_master(void *urpc_vaddr)
-{
-    __volatile struct urpc_protocol *urpc_protocol =
-        (struct urpc_protocol *) urpc_vaddr;
-    MEMORY_BARRIER;
-    urpc_protocol->master_state = available;
-    while (true) {
-        MEMORY_BARRIER;
-        if (urpc_protocol->master_state != needs_to_be_read &&
-            (queue_empty() || urpc_protocol->slave_state != available)) {
-            MEMORY_BARRIER;
-            thread_yield();
-        } else {
-            if (urpc_protocol->master_state == needs_to_be_read) {
-                recv(&urpc_protocol->master_data);
-                urpc_protocol->master_state = available;
-            } else {
-                // we can only get into this case if we have something to send
-                // and can send right now
-                struct send_queue *sendobj = dequeue();
-                if (!sendobj->func(&urpc_protocol->slave_data,
-                                   sendobj->data)) {
-                    // we are not done yet with this one, so we requeue it
-                    requeue(sendobj);
-                } else {
-                    // note: this is fine and can't memleak so long as the func
-                    // that was passed to us via sendobj cleans its own data up
-                    // after it's done using it
-                    free(sendobj);
-                }
-                urpc_protocol->slave_state = needs_to_be_read;
-            }
-            MEMORY_BARRIER;
-        }
-    }
-    return 0;
+//todo: this is a temp wrapper and should be changed asap because it contains an entirely unnecessary memcpy
+static void recv_wrapper(struct urpc2_data *data) {
+    assert(data->size_in_bytes < 2000);
+    struct urpc data_wrapper;
+    data_wrapper.type = data->type;
+    memcpy(&data_wrapper.data,data->data,data->size_in_bytes);
+    recv(&data_wrapper);
 }
 
-void urpc_master_init_and_run(void *urpc_vaddr)
+static struct urpc2_data send_string_func(void *data)
 {
-    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
-    thread_mutex_init(&urpc_thread_mutex);
-    thread_create(urpc_internal_master, urpc_vaddr);
+    char *str = (char *) data;
+    return init_urpc2_data(send_string,TODO_ID,strlen(str)+1,str);
 }
 
-static bool send_string_func(__volatile struct urpc *urpcobj, void *data)
+static struct urpc2_data send_register_process_func(void *data)
 {
-    const char *str = (const char *) data;
-    assert(strlen(str) < 2000);
-    urpcobj->type = send_string;
-    memcpy((void *) &urpcobj->data.send_string.string, str, strlen(str) + 1);
-    return 1;
+    char *name = (char *) data;
+    return init_urpc2_data(register_process,TODO_ID,strlen(name)+1,name);
 }
 
-static bool send_register_process_func(__volatile struct urpc *urpcobj, void *data)
-{
-    const char *name = (const char *) data;
-    assert(strlen(name) < 2000);
-    urpcobj->type = register_process;
-    memcpy((void *) &urpcobj->data.send_string.string, name, strlen(name) + 1);
-    return 1;
-}
-
-static bool send_init_mem_alloc_func(__volatile struct urpc *urpcobj,
-                                     void *data)
+static struct urpc2_data send_init_mem_alloc_func(void *data)
 {
     struct bootinfo *p_bi = (struct bootinfo *) data;
     assert(p_bi->regions_length <= 10);
-    urpcobj->type = init_mem_alloc;
-    memcpy((void *) &urpcobj->data.urpc_bootinfo.boot_info, p_bi,
+    struct urpc_bootinfo_package* urpc_bootinfo = malloc(sizeof(struct urpc_bootinfo_package));
+    memcpy((void *) &urpc_bootinfo->boot_info, p_bi,
            sizeof(struct bootinfo));
-    memcpy((void *) &urpcobj->data.urpc_bootinfo.regions, p_bi->regions,
+    memcpy((void *) urpc_bootinfo->regions, p_bi->regions,
            sizeof(struct mem_region) * p_bi->regions_length);
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
     };
     struct frame_identity mmstrings_id;
     CHECK(frame_identify(mmstrings_cap, &mmstrings_id));
-    urpcobj->data.urpc_bootinfo.mmstrings_base = mmstrings_id.base;
-    urpcobj->data.urpc_bootinfo.mmstrings_size = mmstrings_id.bytes;
-    return 1;
+    urpc_bootinfo->mmstrings_base = mmstrings_id.base;
+    urpc_bootinfo->mmstrings_size = mmstrings_id.bytes;
+    return init_urpc2_data(init_mem_alloc,TODO_ID,sizeof(struct urpc_bootinfo_package),urpc_bootinfo);
 }
 
-static int urpc_internal_slave(void *nothing)
-{
+//we do the mem transfer before we go into the real protocol
+static void slave_setup(void) {
     __volatile struct urpc_protocol *urpc_protocol =
-        (struct urpc_protocol *) MON_URPC_VBASE;
-    MEMORY_BARRIER;
-    urpc_protocol->slave_state = available;
-    while (true) {
+            (struct urpc_protocol *) MON_URPC_VBASE;
+    while(already_received_memory == false) {
         MEMORY_BARRIER;
-        if (urpc_protocol->slave_state != needs_to_be_read &&
-            (queue_empty() || urpc_protocol->master_state != available)) {
-            MEMORY_BARRIER;
-            thread_yield();
-        } else {
-            if (urpc_protocol->slave_state == needs_to_be_read) {
-                recv(&urpc_protocol->slave_data);
-                urpc_protocol->slave_state = available;
-            } else {
-                // we can only get into this case if we have something
-                // to send and can send right now
-                struct send_queue *sendobj = dequeue();
-                if (!sendobj->func(&urpc_protocol->master_data,
-                                   sendobj->data)) {
-                    // we are not done yet with this one, so we
-                    // requeue it
-                    requeue(sendobj);
-                } else {
-                    // note: this is fine and can't memleak so long as
-                    // the func that was passed to us via sendobj
-                    // cleans its own data up after it's done using it
-                    free(sendobj);
-                }
-                urpc_protocol->master_state = needs_to_be_read;
-            }
-            MEMORY_BARRIER;
+        if(urpc_protocol->slave_state == needs_to_be_read) {
+            assert(urpc_protocol->slave_data.type == init_mem_alloc);
+            recv_init_mem_alloc(&urpc_protocol->slave_data.data.urpc_bootinfo);
         }
     }
-    return 0;
+    //we clear it as a signal to the other side that it can go into the real protocol now
+    urpc_protocol->slave_state = available;
+    MEMORY_BARRIER;
 }
 
 void urpc_slave_init_and_run(void)
 {
-    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
-    thread_mutex_init(&urpc_thread_mutex);
-    thread_create(urpc_internal_slave, NULL);
+    urpc2_init_and_run((void*)(MON_URPC_VBASE+(32*64)),(void*)MON_URPC_VBASE,recv_wrapper,slave_setup);
 }
 
-void urpc_sendstring(char *str) { enqueue(send_string_func, str); }
+void urpc_sendstring(char *str) { urpc2_enqueue(send_string_func, str); }
 
 void urpc_register_process(char *str) {
-    enqueue(send_register_process_func, str);
+    urpc2_enqueue(send_register_process_func, str);
 }
 
 void urpc_init_mem_alloc(struct bootinfo *p_bi)
 {
-    enqueue(send_init_mem_alloc_func, p_bi);
+    urpc2_enqueue(send_init_mem_alloc_func, p_bi);
 }
 
-static bool spawnprocess_internal(__volatile struct urpc *urpcobj, void *data)
+static struct urpc2_data spawnprocess_internal(void *data)
 {
-    const char *str = (const char *) data;
-    assert(strlen(str) < 2000);
-    urpcobj->type = remote_spawn;
-    memcpy((void *) &urpcobj->data.remote_spawn.name, str, strlen(str) + 1);
-    return 1;
+    char *str = (char *) data;
+    return init_urpc2_data(remote_spawn,TODO_ID,strlen(str)+1,str);
 }
 
 void urpc_spawn_process(char *name) {
     DBG(DETAILED, "send request to spawn %s\n", name);
-    enqueue(spawnprocess_internal, name);
+    urpc2_enqueue(spawnprocess_internal, name);
+}
+
+static void *slave_page_urpc_vaddr;
+//we do the mem transfer before we go into the real protocol
+static void master_setup(void) {
+    __volatile struct urpc_protocol *urpc_protocol =
+            (struct urpc_protocol *) slave_page_urpc_vaddr;
+    struct urpc2_data data = send_init_mem_alloc_func(bi);
+    MEMORY_BARRIER;
+    urpc_protocol->slave_data.type = init_mem_alloc;
+    memcpy((void*)&urpc_protocol->slave_data.data.urpc_bootinfo,data.data,data.size_in_bytes);
+    urpc_protocol->slave_state = needs_to_be_read;
+    //we wait for a signal of the other side that it can go into the real protocol now
+    while(urpc_protocol->slave_state != available) MEMORY_BARRIER;
+    free(data.data);
+}
+
+void urpc_master_init_and_run(void *urpc_vaddr)
+{
+    //ugly hack
+    slave_page_urpc_vaddr = urpc_vaddr;
+    urpc2_init_and_run(urpc_vaddr,urpc_vaddr+(32*64),recv_wrapper,master_setup);
 }

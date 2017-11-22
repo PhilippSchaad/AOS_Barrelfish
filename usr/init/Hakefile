@@ -17,7 +17,8 @@
                         "lib_multicore.c",
                         "lib_rpc.c",
                         "lib_urpc.c",
-                        "lib_procman.c"
+                        "lib_procman.c",
+                        "lib_urpc2.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
                       addLibraries = [
