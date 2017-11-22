@@ -72,77 +72,7 @@ struct urpc_protocol {
     struct urpc master_data;
     struct urpc slave_data;
 };
-/*
-struct send_queue {
-    bool (*func)(__volatile struct urpc *addr, void *data);
-    void *data;
-    struct send_queue *next;
-};
 
-struct send_queue *urpc_send_queue = NULL;
-struct send_queue *urpc_send_queue_last = NULL;
-
-
-static void enqueue(bool (*func)(__volatile struct urpc *addr, void *data),
-                    void *data)
-{
-    synchronized(urpc_thread_mutex)
-    {
-        struct send_queue *new = malloc(sizeof(struct send_queue));
-
-        new->func = func;
-        new->data = data;
-        new->next = NULL;
-
-        if (urpc_send_queue_last == NULL) {
-            assert(urpc_send_queue == NULL);
-            urpc_send_queue = new;
-            urpc_send_queue_last = new;
-        } else {
-            urpc_send_queue_last->next = new;
-            urpc_send_queue_last = new;
-        }
-    }
-}
-
-static void requeue(struct send_queue *sq)
-{
-    synchronized(urpc_thread_mutex)
-    {
-        if (urpc_send_queue_last == NULL) {
-            assert(urpc_send_queue == NULL);
-            urpc_send_queue = sq;
-            urpc_send_queue_last = sq;
-        } else {
-            urpc_send_queue_last->next = sq;
-            urpc_send_queue_last = sq;
-        }
-    }
-}
-
-static bool queue_empty(void)
-{
-    bool status;
-    synchronized(urpc_thread_mutex) status = urpc_send_queue == NULL;
-    return status;
-}
-
-static struct send_queue *dequeue(void)
-{
-    struct send_queue *fst;
-    synchronized(urpc_thread_mutex)
-    {
-        assert(urpc_send_queue != NULL);
-
-        fst = urpc_send_queue;
-        urpc_send_queue = fst->next;
-
-        if (urpc_send_queue == NULL)
-            urpc_send_queue_last = NULL;
-    }
-    return fst;
-}
-*/
 static void
 recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 {
@@ -227,46 +157,6 @@ static void recv_wrapper(struct urpc2_data *data) {
     recv(&data_wrapper);
 }
 
-/*
-static int urpc_internal_master(void *urpc_vaddr)
-{
-    __volatile struct urpc_protocol *urpc_protocol =
-        (struct urpc_protocol *) urpc_vaddr;
-    MEMORY_BARRIER;
-    urpc_protocol->master_state = available;
-    while (true) {
-        MEMORY_BARRIER;
-        if (urpc_protocol->master_state != needs_to_be_read &&
-            (queue_empty() || urpc_protocol->slave_state != available)) {
-            MEMORY_BARRIER;
-            thread_yield();
-        } else {
-            if (urpc_protocol->master_state == needs_to_be_read) {
-                recv(&urpc_protocol->master_data);
-                urpc_protocol->master_state = available;
-            } else {
-                // we can only get into this case if we have something to send
-                // and can send right now
-                struct send_queue *sendobj = dequeue();
-                if (!sendobj->func(&urpc_protocol->slave_data,
-                                   sendobj->data)) {
-                    // we are not done yet with this one, so we requeue it
-                    requeue(sendobj);
-                } else {
-                    // note: this is fine and can't memleak so long as the func
-                    // that was passed to us via sendobj cleans its own data up
-                    // after it's done using it
-                    free(sendobj);
-                }
-                urpc_protocol->slave_state = needs_to_be_read;
-            }
-            MEMORY_BARRIER;
-        }
-    }
-    return 0;
-}
-*/
-
 static struct urpc2_data send_string_func(void *data)
 {
     char *str = (char *) data;
@@ -297,46 +187,6 @@ static struct urpc2_data send_init_mem_alloc_func(void *data)
     urpc_bootinfo->mmstrings_size = mmstrings_id.bytes;
     return init_urpc2_data(init_mem_alloc,TODO_ID,sizeof(struct urpc_bootinfo_package),urpc_bootinfo);
 }
-/*
-static int urpc_internal_slave(void *nothing)
-{
-    __volatile struct urpc_protocol *urpc_protocol =
-        (struct urpc_protocol *) MON_URPC_VBASE;
-    MEMORY_BARRIER;
-    urpc_protocol->slave_state = available;
-    while (true) {
-        MEMORY_BARRIER;
-        if (urpc_protocol->slave_state != needs_to_be_read &&
-            (queue_empty() || urpc_protocol->master_state != available)) {
-            MEMORY_BARRIER;
-            thread_yield();
-        } else {
-            if (urpc_protocol->slave_state == needs_to_be_read) {
-                recv(&urpc_protocol->slave_data);
-                urpc_protocol->slave_state = available;
-            } else {
-                // we can only get into this case if we have something
-                // to send and can send right now
-                struct send_queue *sendobj = dequeue();
-                if (!sendobj->func(&urpc_protocol->master_data,
-                                   sendobj->data)) {
-                    // we are not done yet with this one, so we
-                    // requeue it
-                    requeue(sendobj);
-                } else {
-                    // note: this is fine and can't memleak so long as
-                    // the func that was passed to us via sendobj
-                    // cleans its own data up after it's done using it
-                    free(sendobj);
-                }
-                urpc_protocol->master_state = needs_to_be_read;
-            }
-            MEMORY_BARRIER;
-        }
-    }
-    return 0;
-}
-*/
 
 //we do the mem transfer before we go into the real protocol
 static void slave_setup(void) {
@@ -356,9 +206,6 @@ static void slave_setup(void) {
 
 void urpc_slave_init_and_run(void)
 {
-/*    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
-    thread_mutex_init(&urpc_thread_mutex);
-    thread_create(urpc_internal_slave, NULL);*/
     urpc2_init_and_run((void*)(MON_URPC_VBASE+(32*64)),(void*)MON_URPC_VBASE,recv_wrapper,slave_setup);
 }
 
@@ -401,9 +248,6 @@ static void master_setup(void) {
 
 void urpc_master_init_and_run(void *urpc_vaddr)
 {
-//    assert(sizeof(struct urpc_protocol) <= BASE_PAGE_SIZE);
-//    thread_mutex_init(&urpc_thread_mutex);
-//    thread_create(urpc_internal_master, urpc_vaddr);
     //ugly hack
     slave_page_urpc_vaddr = urpc_vaddr;
     urpc2_init_and_run(urpc_vaddr,urpc_vaddr+(32*64),recv_wrapper,master_setup);
