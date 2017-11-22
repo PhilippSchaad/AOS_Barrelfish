@@ -1,6 +1,15 @@
 #include <lib_procman.h>
 #include <aos/aos_rpc_shared.h>
 
+/*
+ * In theory this works as follows:
+ * when the process is created in init, a new process is created in the table.
+ * However, the process has then to register itself. this is the point at which
+ * the interface to the new process is fully functional. So if you need to send a 
+ * message to a process, check if the channel is set in the process_info.
+ * 
+ */
+
 /// Find a process in the proclist with a given ID.
 static errval_t find_process_by_id(domainid_t proc_id,
                                    struct process_info **ret_pi)
@@ -21,7 +30,7 @@ static errval_t find_process_by_id(domainid_t proc_id,
         pi = pi->next;
     }
 
-    return PROCMAN_ERR_PID_NOT_FOUND; // TODO: Create error for process ID not found.
+    return PROCMAN_ERR_PID_NOT_FOUND; 
 }
 
 /// Initialize the procman.
@@ -48,48 +57,9 @@ errval_t procman_init(void)
     pt->head->next = NULL;
     pt->head->prev = NULL;
     pt->head->name = "init";
-    // TODO: Add spawn-info
 
     return SYS_ERR_OK;
 }
-
-/*
-/// Register a process.
-domainid_t procman_register_process(char *name, struct spawninfo *si,
-                                    coreid_t core_id)
-{
-    DBG(DETAILED, "Registering process %s\n", name);
-
-    assert(pt != NULL);
-    assert(pt->head != NULL);
-
-    struct process_info *pi = pt->head;
-
-    while (pi->next != NULL)
-        pi = pi->next;
-
-    struct process_info *new_proc = malloc(sizeof(struct process_info));
-    if (new_proc == NULL) {
-        USER_PANIC("Failed to create Process-Info for new process!\n");
-        // TODO: handle?
-    }
-
-    new_proc->id = pi->id + 1;
-    new_proc->core = core_id;
-    new_proc->name = name;
-    new_proc->si = *si;
-    new_proc->next = NULL;
-    new_proc->prev = pi;
-
-#if DEBUG_LEVEL == DETAILED
-    procman_print_proc_list();
-#endif
-
-    pi->next = new_proc;
-
-    return new_proc->id;
-}
-*/
 
 /// Register a process.
 // All information is on core 0. But: capsrefs are stored on the core on which the process was started to avoid forging them on the other core.
