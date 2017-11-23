@@ -25,6 +25,7 @@ struct domain_list {
 
 struct domain_list *active_domains;
 
+void recv_deal_with_msg(struct recv_list *data);
 void init_rpc(void);
 
 #endif /* LIB_RPC_H */
