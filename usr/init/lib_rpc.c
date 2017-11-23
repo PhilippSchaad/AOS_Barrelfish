@@ -5,6 +5,8 @@
 #include <lib_rpc.h>
 #include <aos/waitset.h>
 #include <aos/aos_rpc_shared.h>
+#include "init_headers/lib_urpc.h"
+
 
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
@@ -48,6 +50,12 @@ static errval_t new_ram_recv_handler(struct recv_list *data,
     }
     DBG(DETAILED, "We got ram with size %zu\n", size);
 
+    if(chan == NULL) { //HACK: We are in URPC
+        //TODO: figure out if we want to deal with this?
+        USER_PANIC("todo");
+        return -1;
+    }
+
     CHECK(send_response(data, chan, ram_cap, 1, &size));
 
     return SYS_ERR_OK;
@@ -56,6 +64,8 @@ static errval_t new_ram_recv_handler(struct recv_list *data,
 static errval_t new_spawn_recv_handler(struct recv_list *data,
                                        struct lmp_chan *chan)
 {
+    debug_printf("A call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
+
     char *recv_name = (char *) data->payload;
 
     // separate core and name
@@ -78,13 +88,19 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
     strcpy(name, recv_name);
     name[length] = '\0';
 
-    DBG(DETAILED, "receive spawn request: name: %s, core %d\n", recv_name, core);
+    DBG(-1, "receive spawn request: name: %s, core %d\n", recv_name, core);
 
     // check if we are on the right core, else send cross core request
     if (disp_get_core_id() != core){
+        //... ... ...
+        recv_name[last_occurence] = '_'; //todo: please just transfer the number as a number instead of this string hacking stuff
         // have to send cross core request
-        DBG(DETAILED, "spawn %s on other core\n", name);
-        urpc_spawn_process(name);
+        DBG(-1, "spawn %s on other core\n", name);
+        DBG(-1, "spawninfo: %s size %u\n",(char*)data->payload,data->size);
+        //we don't actually need any response, we just want to know the response exists
+        free_urpc_allocated_ack_recv_list(urpc2_rpc_over_urpc(data,NULL_CAP));
+        debug_printf("we got through the spawn\n");
+//        urpc_spawn_process(name);
         //free(name);
 
         //TODO: we need to get the ID of the created process.
@@ -93,6 +109,7 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
         //send_response(data, chan, NULL_CAP, 0, NULL);
         return SYS_ERR_OK;
     }
+    debug_printf("B call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
 
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
@@ -109,7 +126,15 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
 
     debug_printf("Spawned process %s\n");
     send_response(data, chan, NULL_CAP, 1, &pid);
-
+    // TODO: check if the merge conflict was handled correctly
+    debug_printf("Spawned process %s\n",name);
+    if(chan == NULL) { //HACK: We are in URPC
+        debug_printf("C call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
+        urpc2_send_response(data,NULL_CAP, 1, &pid);
+        return SYS_ERR_OK;
+    } else {
+        send_response(data, chan, NULL_CAP, 1, &pid);
+    }
     return SYS_ERR_OK;
 }
 
@@ -125,7 +150,10 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
     size_t payloadsize2;
     convert_charptr_to_uintptr_with_padding_and_copy(name, tempsize, &payload2,
                                                      &payloadsize2);
-    send_response(data, chan, NULL_CAP, payloadsize2, payload2);
+    if(chan == NULL) { //HACK: We are in URPC
+        urpc2_send_response(data,NULL_CAP,payloadsize2*4,payload2);
+    }else
+        send_response(data, chan, NULL_CAP, payloadsize2, payload2);
     free(payload2);
     return SYS_ERR_OK;
 }
@@ -158,34 +186,59 @@ static void process_register_recv_handler(struct recv_list *data,
     DBG(-1, "process_register_recv_handler: respond with "
                   "core %d pid %d\n", combinedArg[1], combinedArg[0]);
 
-    send_response(data, chan, NULL_CAP, 2, (void*) combinedArg);
+    if(chan == NULL) { //HACK: We are in URPC
+        urpc2_send_response(data,NULL_CAP,2*4,(void*) combinedArg);
+    }else
+        send_response(data, chan, NULL_CAP, 2, (void*) combinedArg);
 }
 
-static void recv_deal_with_msg(struct recv_list *data)
+void recv_deal_with_msg(struct recv_list *data)
 {
     // Check the message type and handle it accordingly.
-    DBG(VERBOSE, "recv msg...\n");
+    DBG(-1, "recv msg...\n");
     struct lmp_chan *chan = data->chan;
     uint32_t success;
     switch (data->type) {
     case RPC_MESSAGE(RPC_TYPE_NUMBER):
+        if(chan == NULL) { //HACK: We are in URPC
+            printf("Received number %u via URPC\n", data->payload[0]);
+            urpc2_send_response(data,NULL_CAP,0,NULL);
+            break;
+        }
         printf("Received number %u via RPC\n", data->payload[0]);
         send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_STRING):
+        if(chan == NULL) { //HACK: We are in URPC
+            printf("URPC Terminal: %s\n", (char*)data->payload);
+            urpc2_send_response(data,NULL_CAP,0,NULL);
+            break;
+        }
         printf("Terminal: %s\n", (char *) data->payload);
         send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
         debug_printf("RPC_TYPE_STRING_DATA is deprecated\n");
+        if(chan == NULL) { //HACK: We are in URPC
+            urpc2_send_response(data,NULL_CAP,0,NULL);
+            break;
+        }
         send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_RAM):
+        assert(chan != NULL && "we can not handle cap transfer across cores via urpc yet");
         CHECK(new_ram_recv_handler(data, chan));
         break;
     case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
-        DBG(DETAILED, "putchar request received\n");
+        if(chan == NULL) { //HACK: We are in URPC
+            DBG(DETAILED, "putchar request received via URPC\n");
+        }else
+            DBG(DETAILED, "putchar request received\n");
         sys_print((char *) &data->payload[1], 1);
+        if(chan == NULL) { //HACK: We are in URPC
+            urpc2_send_response(data,NULL_CAP,0,NULL);
+            break;
+        }
         send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
@@ -216,8 +269,12 @@ static void recv_deal_with_msg(struct recv_list *data)
         //       from the procman
         // TODO: Does this have to remove something in the
         // adhoc_process_table?..
+<<<<<<< HEAD
         // TODO: find a way to destroy dispatcher
         // Should we destroy the dispatcher at all? the child can do that itself...
+=======
+        assert(chan != NULL && "why is it possible to ask another core than your own to kill you?");
+>>>>>>> urpc_return
         DBG(DETAILED, "kill_me_recv_handler\n");
         struct domain *domain = find_domain(&data->cap);
         DBG(-1, "I remove %s pid %d\n", domain->name, domain->id);
@@ -237,6 +294,8 @@ static void recv_deal_with_msg(struct recv_list *data)
     default:
         DBG(WARN, "Unable to handle RPC-receipt, expect badness! type: %u\n",
             (unsigned int) data->type);
+        if(chan == NULL) //HACK: We are in URPC
+            DBG(WARN,"The RPC-receit that was unable to be handled was actually a URPC thing!\n");
         return;
     }
 }

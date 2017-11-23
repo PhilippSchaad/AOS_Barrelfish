@@ -35,7 +35,6 @@
              _mutx = NULL, thread_mutex_unlock(&_mut))
 enum urpc_state { non_initalized = 0, needs_to_be_read, available };
 
-enum urpc_type { send_string, remote_spawn, init_mem_alloc , register_process};
 
 struct urpc_bootinfo_package {
     struct bootinfo boot_info;
@@ -129,8 +128,94 @@ recv_remote_spawn(__volatile struct urpc_remote_spawn *remote_spawn_obj)
     free(si);
 }
 
+struct urpc_waiting_state{
+    bool waiting;
+    struct urpc2_data ret;
+};
+static struct urpc_waiting_state urpc_waiting_calls[256];
+struct urpc2_data urpc2_send_and_receive(struct urpc2_data (*func)(void *data), void *payload, char type)
+{
+    uint32_t index = type;
+    // TODO: we rely on the type being equal to the one specified in func. this is potentially dangerous and may lead to unexpected behaviour when
+    // mismatched
+
+    //TODO: make this stuff threadsafe
+    // check that there is no other ongoing transmission with the same id
+    while (urpc_waiting_calls[index].waiting);
+
+    // add to table of waiting calls
+    urpc_waiting_calls[index].waiting = true;
+    debug_printf("urpc2_send_and_receive 1\n");
+    // do the request
+    urpc2_enqueue(func, payload);
+    debug_printf("urpc2_send_and_receive 2\n");
+
+    // wait for the answer
+    __volatile bool *waiting = &urpc_waiting_calls[index].waiting;
+    while (*waiting);
+    debug_printf("urpc2_send_and_receive 3\n");
+    return urpc_waiting_calls[index].ret;
+}
+#include <lib_rpc.h>
+#include <aos/aos_rpc_shared.h>
+
+static void* urpc2_rpc_send_helper1(unsigned char rpc_type, unsigned char rpc_id, struct capref cap, size_t payloadsize, void *payload) {
+    unsigned char* transfer = malloc(payloadsize+6);
+    memcpy(transfer,&payloadsize,4);
+    transfer[4] = rpc_type;
+    transfer[5] = rpc_id;
+    memcpy(&transfer[6],payload,payloadsize);
+    debug_printf("urpc copying: %u bytes - %s\n",payloadsize,(char*)&transfer[6]);
+    return transfer;
+}
+
+static struct urpc2_data urpc2_rpc_send_helper2(void* transfer) {
+    size_t payloadsize = *(int32_t *)transfer;
+    void * too_much_memcpy = malloc(payloadsize+2);
+    memcpy(too_much_memcpy,&((unsigned char*)transfer)[4], payloadsize+2);
+    free(transfer);
+    debug_printf("sending %u - %s\n",payloadsize,&(((char*)too_much_memcpy)[2]));
+    return init_urpc2_data(rpc_over_urpc, 0 /*TODO_ID*/, payloadsize+2, too_much_memcpy);
+}
+
+void urpc2_send_response(struct recv_list *rl, struct capref cap, size_t payloadsize, void *payload) {
+    //todo: handle cap being other than NULL_CAP
+    assert((rl->type & 1) == 0);
+    debug_printf("D call of rpc type %u and id %u\n",(unsigned int) (rl->type&1), (unsigned int)rl->id);
+    urpc2_enqueue(urpc2_rpc_send_helper2,urpc2_rpc_send_helper1(rl->type&1,rl->id,cap,payloadsize,payload));
+}
+
+
+//todo: we can make this a lot nicer by refactoring lib_rpc to be transmission backend agnostic
+static struct recv_list recv_rpc_over_urpc(struct urpc2_data * data) {
+    //we just assume that we can reconstruct it like the aos_rpc_shared thing. Which implies they should share code
+    struct recv_list k;
+    unsigned char type = ((char*)data->data)[0];
+    unsigned char id = ((char*)data->data)[1];
+    size_t size = (data->size_in_bytes-2) + ((data->size_in_bytes-2) % 4);
+    k.type = type;
+    k.id = id; //todo: consider if this is sane, given that it comes from another core
+    k.payload = (uintptr_t*)&(((char *)data->data)[2]);
+    k.size = size;
+    k.index = size;
+    k.next = NULL;
+    k.chan = NULL; //consider having a response channel that this thread is waiting on?
+    //hell, consider resending from here to the other thread as if it were a RPC? Or is that too insane?
+    //also we still need to figure out how to transfer caps
+    debug_printf("received urpc call of rpc type %u and id %u\n",(unsigned int) type, (unsigned int)id);
+    return k;
+}
+
+struct recv_list urpc2_rpc_over_urpc(struct recv_list *rl, struct capref cap) {
+    debug_printf("sending urpc call of rpc type %u and id %u\n",(unsigned int) rl->type, (unsigned int)rl->id);
+    struct urpc2_data ud = urpc2_send_and_receive(urpc2_rpc_send_helper2,urpc2_rpc_send_helper1(rl->type,rl->id,cap,rl->size*4,rl->payload),rpc_over_urpc);
+    return recv_rpc_over_urpc(&ud);
+}
+
+
 static void recv(__volatile struct urpc *data)
 {
+    domainid_t pid;
     switch (data->type) {
     case send_string:
         recv_send_string(&data->data.send_string);
@@ -143,18 +228,40 @@ static void recv(__volatile struct urpc *data)
         break;
     case register_process:
         // TODO: this currently only works for two cores...
-        procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1, NULL);
+    //TODO: check if merge was done correctly
+        pid = procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1 , &pid);
         break;
+    case rpc_over_urpc:
+        assert(!"This shall be called nevermore\n");
     }
 }
 
 //todo: this is a temp wrapper and should be changed asap because it contains an entirely unnecessary memcpy
 static void recv_wrapper(struct urpc2_data *data) {
-    assert(data->size_in_bytes < 2000);
-    struct urpc data_wrapper;
-    data_wrapper.type = data->type;
-    memcpy(&data_wrapper.data,data->data,data->size_in_bytes);
-    recv(&data_wrapper);
+    uint32_t index = data->type;
+    // check if we were waiting for this call
+    if(urpc_waiting_calls[index].waiting){
+        debug_printf("recv_wrapper 1 index: %u\n",index);
+
+        urpc_waiting_calls[index].ret = *data;
+        //we make a copy of the data, because threads and stacks and frees and stuff. Also I'm tired and todo: rethink all these mallocs
+        urpc_waiting_calls[index].ret.data = malloc(data->size_in_bytes);
+        memcpy(urpc_waiting_calls[index].ret.data,data,data->size_in_bytes);
+        urpc_waiting_calls[index].waiting = false;
+    }else //todo: consider having an rpc_over_urpc_ack thing to make this all nicer
+        if(data->type == rpc_over_urpc) {
+            debug_printf("recv_wrapper 2\n");
+            struct recv_list ret = recv_rpc_over_urpc(data);
+            recv_deal_with_msg(&ret);
+            return;
+        }
+    if(data->type != rpc_over_urpc) {
+        assert(data->size_in_bytes < 2000);
+        struct urpc data_wrapper;
+        data_wrapper.type = data->type;
+        memcpy(&data_wrapper.data, data->data, data->size_in_bytes);
+        recv(&data_wrapper);
+    }
 }
 
 static struct urpc2_data send_string_func(void *data)
@@ -219,6 +326,7 @@ void urpc_init_mem_alloc(struct bootinfo *p_bi)
 {
     urpc2_enqueue(send_init_mem_alloc_func, p_bi);
 }
+
 
 static struct urpc2_data spawnprocess_internal(void *data)
 {
