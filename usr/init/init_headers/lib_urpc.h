@@ -38,7 +38,7 @@ inline void free_urpc_allocated_ack_recv_list(struct recv_list k) {
     free(((char*)k.payload)-2);
 }
 
-void urpc_perf_measurement(char* payload);
+void urpc_perf_measurement(void* payload);
 
 domainid_t urpc_register_process(char *str);
 

@@ -77,11 +77,12 @@ struct urpc_protocol {
 // performance measurement
 static struct urpc2_data perf_func(void *data)
 {
-    char *str = (char *) data;
-    return init_urpc2_data(rpc_perf_measurement,TODO_ID,strlen(str)+1,str);
-}
-void urpc_perf_measurement(char* payload){
+    int *str = (int *) data;
+    debug_printf("size to send: %d on core %u\n",*str,(unsigned int)disp_get_core_id());
     reset_cycle_counter();
+    return init_urpc2_data(rpc_perf_measurement,TODO_ID,*str,str);
+}
+void urpc_perf_measurement(void* payload){
     urpc2_enqueue(perf_func, payload);
 }
 // -------------------------------------
@@ -247,13 +248,6 @@ static void recv(__volatile struct urpc *data)
     case remote_spawn:
         recv_remote_spawn(&data->data.remote_spawn);
         break;
-    case rpc_perf_measurement:
-        if(disp_get_core_id() == 0){
-            debug_printf("URPC_PERFORMANCE_CYCLES: %u\n", get_cycle_count());
-        } else {
-            urpc2_enqueue(perf_func, "just some ponies and stuff");
-        }
-        break;
     case init_mem_alloc:
         recv_init_mem_alloc(&data->data.urpc_bootinfo);
         break;
@@ -271,6 +265,7 @@ static void recv(__volatile struct urpc *data)
         urpc_register_process_reply(&pid);
         break;
     case rpc_over_urpc:
+    case rpc_perf_measurement:
         assert(!"This shall be called nevermore\n");
     }
 }
@@ -299,6 +294,28 @@ static void recv_wrapper(struct urpc2_data *data) {
             recv_deal_with_msg(&ret);
             return;
         }
+    if(data->type == rpc_perf_measurement) {
+        if (disp_get_core_id() == 0) {
+            unsigned int k = get_cycle_count();
+            int j = ((int *) data->data)[1];
+            debug_printf("URPC_PERFORMANCE_CYCLES: %u for datasize %d\n", k, j);
+            if(j < 1024*1024*100) {
+                int* payload = malloc(1024*1024*10+j);
+                *payload = j+ 10 * 1024 * 1024;
+                debug_printf("payload: %d\n",*payload);
+                urpc_perf_measurement((void*)payload);
+            }
+        } else {
+            struct anon {
+                int size;
+                int received_size;
+                char str[46];
+            };
+            struct anon *temp = malloc(54);
+            *temp = (struct anon){54, (int) data->size_in_bytes, "just some ponies and stuff"};
+            urpc2_enqueue(perf_func, (void *) temp);
+        }
+    } else
     if(data->type != rpc_over_urpc) {
         assert(data->size_in_bytes < 2000);
         struct urpc data_wrapper;

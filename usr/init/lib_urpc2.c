@@ -92,8 +92,9 @@ static void requeue(struct urpc2_send_queue *sq)
             urpc_urpc2_send_queue = sq;
             urpc_urpc2_send_queue_last = sq;
         } else {
-            urpc_urpc2_send_queue_last->next = sq;
-            urpc_urpc2_send_queue_last = sq;
+            //todo: change this back to queue for last once the rest of the system can handle that
+            sq->next = urpc_urpc2_send_queue;
+            urpc_urpc2_send_queue = sq;
         }
     }
 }
@@ -260,7 +261,7 @@ static int urpc2_internal(void *data)
         } else {
             if (ringbufferReceive[current_receive].flags & MSG_WAITING) {
 //debug_printf("received something \n");
-                if(usd_store_used == true) {
+                if(usd_store_used != true) {
                     struct urpc2_data usd;
                     if(core_recv(&usd) != DONE_WITH_TASK) {
                         usd_store = usd;
@@ -276,8 +277,10 @@ static int urpc2_internal(void *data)
                 // we can only get into this case if we have something to send
                 // and can send right now
                 struct urpc2_send_queue *sendobj = dequeue();
-                if(!sendobj->hasDataInit)
+                if(!sendobj->hasDataInit) {
                     sendobj->cachedata = sendobj->func(sendobj->rawdata);
+                    sendobj->hasDataInit = true;
+                }
                 if (core_send(&sendobj->cachedata) != DONE_WITH_TASK) {
                     // we are not done yet with this one, so we requeue it
                     requeue(sendobj);
