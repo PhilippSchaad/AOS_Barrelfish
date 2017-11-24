@@ -38,6 +38,6 @@ inline void free_urpc_allocated_ack_recv_list(struct recv_list k) {
     free(((char*)k.payload)-2);
 }
 
-void urpc_register_process(char *str);
+domainid_t urpc_register_process(char *str);
 
 #endif /* LIB_URPC_H */

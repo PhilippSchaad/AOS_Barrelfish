@@ -10,6 +10,9 @@
  * 
  */
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL DETAILED
+
 /// Find a process in the proclist with a given ID.
 static errval_t find_process_by_id(domainid_t proc_id,
                                    struct process_info **ret_pi)
@@ -67,7 +70,6 @@ domainid_t procman_register_process(char *name, coreid_t core_id, struct spawnin
 {
     DBG(DETAILED, "Registering process %s\n", name);
 
-
     assert(pt != NULL);
     assert(pt->head != NULL);
 
@@ -82,9 +84,7 @@ domainid_t procman_register_process(char *name, coreid_t core_id, struct spawnin
     if(disp_get_core_id() != 0){
         // TODO: this doesn't give an answer, currently...
         // We should work on the urpc interface first
-        urpc_register_process(name);
-        // TODO: get a real process ID from the other core;
-        pid = 42;
+        pid = urpc_register_process(name);
     } else {
         pid = pi->id + 1;
     }
@@ -112,6 +112,33 @@ domainid_t procman_register_process(char *name, coreid_t core_id, struct spawnin
     return pid;
 }
 
+void procman_foreign_preregister(domainid_t pid, char *name, coreid_t core_id, struct spawninfo *si){
+    assert(pt != NULL);
+    assert(pt->head != NULL);
+
+    struct process_info *pi = pt->head;
+
+    while (pi->next != NULL)
+        pi = pi->next;
+
+    struct process_info *new_proc = malloc(sizeof(struct process_info));
+    if (new_proc == NULL) {
+        USER_PANIC("Failed to create Process-Info for new process!\n");
+        // TODO: handle?
+    }
+
+    new_proc->id = pid;
+    new_proc->core = core_id;
+    new_proc->name = name;
+    new_proc->next = NULL;
+    new_proc->prev = pi;
+    new_proc->si = si;
+    new_proc->init = false;
+
+    pi->next = new_proc;
+    return;
+}
+
 domainid_t procman_finish_process_register(char *name, struct lmp_chan *chan){
     DBG(DETAILED, "finish registration of process  %s\n", name);
     // find the right process
@@ -128,12 +155,9 @@ domainid_t procman_finish_process_register(char *name, struct lmp_chan *chan){
         pi = pi->next;
     }
     // this situation might happen, if a process is spawned directly by the init process
-    // TODO: catch this case somewhere else
+    assert(disp_get_core_id()==0);
     procman_register_process(name, disp_get_core_id(), NULL);
     return procman_finish_process_register(name, chan);
-
-    // handle this somehow
-    return -1;
 }
 
 /// Deregister a process.
@@ -211,16 +235,26 @@ errval_t procman_kill_process(domainid_t proc_id)
     assert(pt->head != NULL);
 
     struct process_info *pi = NULL;
-    CHECK(find_process_by_id(proc_id, &pi));
+    errval_t err = find_process_by_id(proc_id, &pi);
+    // if we don't find the process here, it may be on the other core
+    if(err_is_fail(err)){
+        if (disp_get_core_id() != 0){
+            // call to other core
+            return PROCMAN_ERR_PROCESS_ON_OTHER_CORE;
+        } else {
+            return PROCMAN_ERR_PID_NOT_FOUND;
+        }
+    }
 
     // check if we are on the right core
     if(disp_get_core_id() != pi->core){
         // TODO: urpc call to other core to kill process
-        return LIB_ERR_NOT_IMPLEMENTED;
+        return PROCMAN_ERR_PROCESS_ON_OTHER_CORE;
     } else {
         if (!pi->init){
             // process not ready yet...
             // TODO: maybe we can handle this differently
+            // TODO: this currently leads to a race condition on foreign cores
             DBG(DETAILED, "PROCMAN_ERR_PROCESS_NOT_YET_STARTED\n");
             return PROCMAN_ERR_PROCESS_NOT_YET_STARTED;
         }

@@ -101,7 +101,8 @@ int main(int argc, char *argv[])
             ;
 
         // register self
-        urpc_register_process("init");
+        procman_register_process("init", 1, NULL);
+        //urpc_register_process("init");
 
         /*
         struct tester t;

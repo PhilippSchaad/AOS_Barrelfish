@@ -11,6 +11,9 @@
 #include <lib_urpc2.h>
 #include "init_headers/lib_urpc2.h"
 
+#undef DEBUG_LEVEL
+  #define DEBUG_LEVEL DETAILED
+
 //we still need to port the proper ID system, so until now it uses this. Just rip it out of aos_rpc_shared
 #define TODO_ID 0
 
@@ -132,16 +135,22 @@ struct urpc_waiting_state{
     bool waiting;
     struct urpc2_data ret;
 };
-static struct urpc_waiting_state urpc_waiting_calls[256];
+static struct urpc_waiting_state urpc_waiting_calls[255];
 struct urpc2_data urpc2_send_and_receive(struct urpc2_data (*func)(void *data), void *payload, char type)
 {
     uint32_t index = type;
+    debug_printf("urpc2_send_and_receive type %d\n", index);
+    debug_printf("lock is %d\n", urpc_waiting_calls[index].waiting);
     // TODO: we rely on the type being equal to the one specified in func. this is potentially dangerous and may lead to unexpected behaviour when
     // mismatched
 
     //TODO: make this stuff threadsafe
     // check that there is no other ongoing transmission with the same id
-    while (urpc_waiting_calls[index].waiting);
+    __volatile bool *waiting = &urpc_waiting_calls[index].waiting;
+    while (*waiting){
+        thread_yield();
+    }
+    DBG_LINE;
 
     // add to table of waiting calls
     urpc_waiting_calls[index].waiting = true;
@@ -151,8 +160,10 @@ struct urpc2_data urpc2_send_and_receive(struct urpc2_data (*func)(void *data), 
     debug_printf("urpc2_send_and_receive 2\n");
 
     // wait for the answer
-    __volatile bool *waiting = &urpc_waiting_calls[index].waiting;
-    while (*waiting);
+    while (*waiting){
+        thread_yield();
+    }
+    debug_printf("sendandreceive index: %u size: %u\n",urpc_waiting_calls[index].ret.type, urpc_waiting_calls[index].ret.size_in_bytes);
     debug_printf("urpc2_send_and_receive 3\n");
     return urpc_waiting_calls[index].ret;
 }
@@ -212,7 +223,7 @@ struct recv_list urpc2_rpc_over_urpc(struct recv_list *rl, struct capref cap) {
     return recv_rpc_over_urpc(&ud);
 }
 
-
+static void urpc_register_process_reply(domainid_t *pid);
 static void recv(__volatile struct urpc *data)
 {
     domainid_t pid;
@@ -228,8 +239,16 @@ static void recv(__volatile struct urpc *data)
         break;
     case register_process:
         // TODO: this currently only works for two cores...
-    //TODO: check if merge was done correctly
-        pid = procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1 , &pid);
+        // check the core and drop message
+        // Core 1 doesn't have to do anything here
+        if(disp_get_core_id() != 0){
+            debug_printf("however, the value here would be: %d\n", (char*) data->data.send_string.string);
+            return;
+        }
+        debug_printf("here I am... \n");
+        pid = procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1 , NULL);
+        debug_printf("... the pony man %d\n", pid);
+        urpc_register_process_reply(&pid);
         break;
     case rpc_over_urpc:
         assert(!"This shall be called nevermore\n");
@@ -238,15 +257,20 @@ static void recv(__volatile struct urpc *data)
 
 //todo: this is a temp wrapper and should be changed asap because it contains an entirely unnecessary memcpy
 static void recv_wrapper(struct urpc2_data *data) {
+    debug_printf("xxxx>receive value:%d\n", *((uint32_t*) data->data));
     uint32_t index = data->type;
     // check if we were waiting for this call
+    debug_printf("waiting? %d\n", urpc_waiting_calls[index].waiting);
     if(urpc_waiting_calls[index].waiting){
-        debug_printf("recv_wrapper 1 index: %u\n",index);
+        debug_printf("recv_wrapper 1 index: %u size: %u\n",index, data->size_in_bytes);
 
+        debug_printf("the value here is: %d\n", *((uint32_t*) data->data));
         urpc_waiting_calls[index].ret = *data;
+        debug_printf("the value here is: %d\n", *((uint32_t*) urpc_waiting_calls[index].ret.data));
         //we make a copy of the data, because threads and stacks and frees and stuff. Also I'm tired and todo: rethink all these mallocs
         urpc_waiting_calls[index].ret.data = malloc(data->size_in_bytes);
-        memcpy(urpc_waiting_calls[index].ret.data,data,data->size_in_bytes);
+        memcpy(urpc_waiting_calls[index].ret.data,data->data,data->size_in_bytes);
+        debug_printf("the value here is: %d\n", *((uint32_t*) urpc_waiting_calls[index].ret.data));
         urpc_waiting_calls[index].waiting = false;
     }else //todo: consider having an rpc_over_urpc_ack thing to make this all nicer
         if(data->type == rpc_over_urpc) {
@@ -274,6 +298,11 @@ static struct urpc2_data send_register_process_func(void *data)
 {
     char *name = (char *) data;
     return init_urpc2_data(register_process,TODO_ID,strlen(name)+1,name);
+}
+static struct urpc2_data send_register_process_reply_func(void *data)
+{
+    debug_printf("when sending, the value is still %d\n", *((uint32_t*) data));
+    return init_urpc2_data(register_process,TODO_ID,sizeof(domainid_t),data);
 }
 
 static struct urpc2_data send_init_mem_alloc_func(void *data)
@@ -318,8 +347,18 @@ void urpc_slave_init_and_run(void)
 
 void urpc_sendstring(char *str) { urpc2_enqueue(send_string_func, str); }
 
-void urpc_register_process(char *str) {
-    urpc2_enqueue(send_register_process_func, str);
+domainid_t urpc_register_process(char *str) {
+    DBG(DETAILED, "send process register request for %s \n", str);
+    struct urpc2_data ud = urpc2_send_and_receive(send_register_process_func,str, register_process);
+    DBG(DETAILED, "got answer to process register  request: %d\n", *((uint32_t*)ud.data));
+    return *((uint32_t*)ud.data);
+    //urpc2_enqueue(send_register_process_func, str);
+}
+static void urpc_register_process_reply(domainid_t *pid) {
+    DBG(DETAILED, "send process pid %d\n", *pid);
+    uint32_t* per_pid = malloc(sizeof(uint32_t));
+    *per_pid = *pid;
+    urpc2_enqueue(send_register_process_reply_func, per_pid);
 }
 
 void urpc_init_mem_alloc(struct bootinfo *p_bi)
