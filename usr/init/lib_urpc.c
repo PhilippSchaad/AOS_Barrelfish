@@ -10,9 +10,7 @@
 #include <lib_urpc.h>
 #include <lib_urpc2.h>
 #include "init_headers/lib_urpc2.h"
-
-#undef DEBUG_LEVEL
-  #define DEBUG_LEVEL DETAILED
+#include <barrelfish_kpi/asm_inlines_arch.h>
 
 //we still need to port the proper ID system, so until now it uses this. Just rip it out of aos_rpc_shared
 #define TODO_ID 0
@@ -74,6 +72,21 @@ struct urpc_protocol {
     struct urpc master_data;
     struct urpc slave_data;
 };
+
+// -------------------------------------
+// performance measurement
+static struct urpc2_data perf_func(void *data)
+{
+    char *str = (char *) data;
+    return init_urpc2_data(rpc_perf_measurement,TODO_ID,strlen(str)+1,str);
+}
+void urpc_perf_measurement(char* payload){
+    reset_cycle_counter();
+    urpc2_enqueue(perf_func, payload);
+}
+// -------------------------------------
+
+
 
 static void
 recv_send_string(__volatile struct urpc_send_string *send_string_obj)
@@ -233,6 +246,13 @@ static void recv(__volatile struct urpc *data)
         break;
     case remote_spawn:
         recv_remote_spawn(&data->data.remote_spawn);
+        break;
+    case rpc_perf_measurement:
+        if(disp_get_core_id() == 0){
+            debug_printf("URPC_PERFORMANCE_CYCLES: %u\n", get_cycle_count());
+        } else {
+            urpc2_enqueue(perf_func, "just some ponies and stuff");
+        }
         break;
     case init_mem_alloc:
         recv_init_mem_alloc(&data->data.urpc_bootinfo);
@@ -399,3 +419,5 @@ void urpc_master_init_and_run(void *urpc_vaddr)
     slave_page_urpc_vaddr = urpc_vaddr;
     urpc2_init_and_run(urpc_vaddr,urpc_vaddr+(32*64),recv_wrapper,master_setup);
 }
+
+

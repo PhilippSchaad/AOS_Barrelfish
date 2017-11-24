@@ -31,6 +31,9 @@
 #include <mem_alloc.h>
 
 #include "../tests/test.h"
+#include <barrelfish_kpi/asm_inlines_arch.h>
+
+#define PERF_MEASUREMENT
 
 coreid_t my_core_id;
 struct bootinfo *bi;
@@ -92,6 +95,17 @@ int main(int argc, char *argv[])
         tests_run(&t);
 
         procman_print_proc_list();
+
+#ifdef PERF_MEASUREMENT
+        char* payload;
+        for (int i=0; i<100; ++i){
+            payload = malloc(10*i);
+            urpc_perf_measurement(payload);
+            free(payload);
+        }
+#endif
+
+
     } else {
         urpc_slave_init_and_run();
 

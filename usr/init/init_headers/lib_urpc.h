@@ -4,7 +4,7 @@
 #include <lib_procman.h>
 #include <lib_rpc.h>
 #include <lib_urpc2.h>
-enum urpc_type { send_string, remote_spawn, init_mem_alloc , register_process, rpc_over_urpc};
+enum urpc_type { send_string, remote_spawn, init_mem_alloc , register_process, rpc_over_urpc, rpc_perf_measurement};
 
 //TODO: maybe we can add the receiver ID to this, if we want to support faster (and maybe easier) multiplexing of the receiver (when using with regular rpcs)
 struct event_closure_with_arg {
@@ -37,6 +37,8 @@ struct recv_list urpc2_rpc_over_urpc(struct recv_list *rl, struct capref cap);
 inline void free_urpc_allocated_ack_recv_list(struct recv_list k) {
     free(((char*)k.payload)-2);
 }
+
+void urpc_perf_measurement(char* payload);
 
 domainid_t urpc_register_process(char *str);
 
