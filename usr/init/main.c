@@ -33,7 +33,7 @@
 #include "../tests/test.h"
 #include <barrelfish_kpi/asm_inlines_arch.h>
 
-#define PERF_MEASUREMENT
+//#define PERF_MEASUREMENT
 
 coreid_t my_core_id;
 struct bootinfo *bi;
@@ -88,18 +88,19 @@ int main(int argc, char *argv[])
 
         urpc_master_init_and_run(buf);
 
-/*        struct tester t;
+#ifndef PERF_MEASUREMENT
+        struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
-*/
+#endif
         procman_print_proc_list();
 
 #ifdef PERF_MEASUREMENT
         for (int i=1; i>0; --i){
-            int* payload = malloc(1024*1024*10*i);
-            *payload = i * 10 * 1024 * 1024;
+            int* payload = malloc(1024*10*i);
+            *payload = i * 10 * 1024;
 //            debug_printf("here\n");
             debug_printf("payload: %d\n",*payload);
             urpc_perf_measurement((void*)payload);

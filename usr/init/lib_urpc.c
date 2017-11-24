@@ -300,9 +300,9 @@ static void recv_wrapper(struct urpc2_data *data) {
             unsigned int k = get_cycle_count();
             int j = ((int *) data->data)[1];
             debug_printf("URPC_PERFORMANCE_CYCLES: %u for datasize %d\n", k, j);
-            if(j < 1024*1024*100) {
-                int* payload = malloc(1024*1024*10+j);
-                *payload = j+ 10 * 1024 * 1024;
+            if(j < 1024*1024*1) {
+                int* payload = malloc(1024*10+j);
+                *payload = j+ 10 * 1024;
                 debug_printf("payload: %d\n",*payload);
                 urpc_perf_measurement((void*)payload);
             }

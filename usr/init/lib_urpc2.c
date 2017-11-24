@@ -237,8 +237,6 @@ static enum urpc2_states core_recv(struct urpc2_data* data) {
         ringbufferReceive[current_receive].flags &= ~MSG_WAITING;
         current_receive = (current_receive + 1) % RINGSIZE;
         temp_counter++;
-        if(temp_counter % 1000 == 0 || (data->size_in_bytes > 15*1024*1024 && (temp_counter % 20 == 0)))
-            debug_printf("index: %u\n",(unsigned int)data->index);
         if(data->index >= data->size_in_bytes) {
 debug_printf("receive type: %u size:%u\n", data->type, data->size_in_bytes);
             state = DONE_WITH_TASK;
