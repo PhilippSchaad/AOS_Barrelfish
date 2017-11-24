@@ -82,7 +82,7 @@ static void enqueue(struct urpc2_data (*func)(void *data),
         }
     }
 }
-
+/*
 static void requeue(struct urpc2_send_queue *sq)
 {
     synchronized(urpc2_thread_mutex)
@@ -98,7 +98,7 @@ static void requeue(struct urpc2_send_queue *sq)
         }
     }
 }
-
+*/
 static bool queue_empty(void)
 {
     bool status;
@@ -134,6 +134,7 @@ static enum urpc2_states core_send(struct urpc2_data* data) {
             state = BUFFER_FULL;
             break;
         }
+        ringbufferSend[current_send].flags = 0;
         bool smallRem = false;
         char smallRemCount;
         if (data->index + 63 >= data->size_in_bytes && (data->index > 0 || data->size_in_bytes <= 61)) {
@@ -172,9 +173,11 @@ static enum urpc2_states core_send(struct urpc2_data* data) {
     return state;
 }
 
+static bool usd_store_used = false;
 
 static enum urpc2_states core_recv(struct urpc2_data* data) {
     enum urpc2_states state = WORKING;
+    int temp_counter = 0;
     do {
         MEMORY_BARRIER;
         int index_in_buffer = 0;
@@ -182,9 +185,11 @@ static enum urpc2_states core_recv(struct urpc2_data* data) {
             state = BUFFER_EMPTY;
             break;
         }
+        if(data->index != 0 && ringbufferReceive[current_receive].flags & MSG_BEGIN_BLOCK)
+            debug_printf("this too should never happen\n");
         if(data->index == 0) {
             if(!(ringbufferReceive[current_receive].flags & MSG_BEGIN_BLOCK))
-                USER_PANIC("well this should never occur");
+                debug_printf("well this should never occur\n");
             if(ringbufferReceive[current_receive].flags & MSG_END_BLOCK) {
                 data->size_in_bytes = 61; //best guess as we in that case never actually transmit the size and assume the type has a static size it knows anyway
                 //we just immediately handle it here as it's just a single entry
@@ -231,9 +236,13 @@ static enum urpc2_states core_recv(struct urpc2_data* data) {
         data->index += length;
         ringbufferReceive[current_receive].flags &= ~MSG_WAITING;
         current_receive = (current_receive + 1) % RINGSIZE;
+        temp_counter++;
+        if(temp_counter % 1000 == 0 || (data->size_in_bytes > 15*1024*1024 && (temp_counter % 20 == 0)))
+            debug_printf("index: %u\n",(unsigned int)data->index);
         if(data->index >= data->size_in_bytes) {
-//debug_printf("receive type: %u size:%u", data->type, data->size_in_bytes);
+debug_printf("receive type: %u size:%u\n", data->type, data->size_in_bytes);
             state = DONE_WITH_TASK;
+            usd_store_used = false;
             urpc2_recv_handler(data);
             free(data->data);
             break;
@@ -244,9 +253,8 @@ static enum urpc2_states core_recv(struct urpc2_data* data) {
     return state;
 }
 
-static bool usd_store_used = false;
 static struct urpc2_data usd_store;
-
+struct urpc2_send_queue *sendobj;
 static int urpc2_internal(void *data)
 {
     //first we spin on setup, this is so we can transfer ram
@@ -255,40 +263,46 @@ static int urpc2_internal(void *data)
     while (true) {
         MEMORY_BARRIER;
         if (!(ringbufferReceive[current_receive].flags & MSG_WAITING)&&
-            (queue_empty() || (ringbufferSend[current_send].flags & MSG_WAITING))) {
+            ((sendobj == NULL &&queue_empty()) || (ringbufferSend[current_send].flags & MSG_WAITING))) {
             MEMORY_BARRIER;
             thread_yield();
         } else {
             if (ringbufferReceive[current_receive].flags & MSG_WAITING) {
 //debug_printf("received something \n");
                 if(usd_store_used != true) {
+                    debug_printf("hi\n");
                     struct urpc2_data usd;
+                    usd.index = 0;
                     if(core_recv(&usd) != DONE_WITH_TASK) {
+                        debug_printf("storing\n");
                         usd_store = usd;
                         usd_store_used = true;
                     }
                 }else{
-                    if(core_recv(&usd_store) == DONE_WITH_TASK)
+                    if(core_recv(&usd_store) == DONE_WITH_TASK) {
+                        debug_printf("bye\n");
                         usd_store_used = false;
+                    }
                 }
 
             } else {
 //debug_printf("send something \n");
                 // we can only get into this case if we have something to send
                 // and can send right now
-                struct urpc2_send_queue *sendobj = dequeue();
+                if(sendobj == NULL) sendobj = dequeue();
                 if(!sendobj->hasDataInit) {
                     sendobj->cachedata = sendobj->func(sendobj->rawdata);
                     sendobj->hasDataInit = true;
                 }
                 if (core_send(&sendobj->cachedata) != DONE_WITH_TASK) {
                     // we are not done yet with this one, so we requeue it
-                    requeue(sendobj);
+//                    requeue(sendobj);
                 } else {
                     // note: this is fine and can't memleak so long as the func
                     // that was passed to us via sendobj cleans its own data up
                     // after it's done using it
                     free(sendobj);
+                    sendobj = NULL;
                 }
             }
             MEMORY_BARRIER;

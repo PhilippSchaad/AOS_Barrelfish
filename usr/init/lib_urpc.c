@@ -295,6 +295,7 @@ static void recv_wrapper(struct urpc2_data *data) {
             return;
         }
     if(data->type == rpc_perf_measurement) {
+        debug_printf("received bytes: %u\n",(unsigned int)data->size_in_bytes);
         if (disp_get_core_id() == 0) {
             unsigned int k = get_cycle_count();
             int j = ((int *) data->data)[1];
