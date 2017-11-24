@@ -123,7 +123,7 @@ static struct urpc2_send_queue *dequeue(void)
 
 
 static enum urpc2_states core_send(struct urpc2_data* data) {
-    debug_printf("send type: %u size:%u", data->type, data->size_in_bytes);
+//debug_printf("send type: %u size:%u", data->type, data->size_in_bytes);
     assert(data->size_in_bytes < (((int64_t)1)<<63)); //we cut the highest bit to make sure we never run into issues with overflow or stuff
     enum urpc2_states state = WORKING;
     do {
@@ -193,12 +193,12 @@ static enum urpc2_states core_recv(struct urpc2_data* data) {
                 index_in_buffer++;
                 //copyless for efficency
                 data->data = (void*)&ringbufferReceive[current_receive].entry[index_in_buffer];
-                debug_printf("receive value:%d\n", *((uint32_t*) data->data));
+//debug_printf("receive value:%d\n", *((uint32_t*) data->data));
                 urpc2_recv_handler(data);
                 ringbufferReceive[current_receive].flags &= ~MSG_WAITING;
                 current_receive = (current_receive + 1) % RINGSIZE;
                 state = DONE_WITH_TASK;
-            debug_printf("receive type: %u size:%u", data->type, data->size_in_bytes);
+//debug_printf("receive type: %u size:%u", data->type, data->size_in_bytes);
                 break;
             }
             else if(ringbufferReceive[current_receive].flags & MSG_HAS_SIZE_INT32) {
@@ -231,14 +231,14 @@ static enum urpc2_states core_recv(struct urpc2_data* data) {
         ringbufferReceive[current_receive].flags &= ~MSG_WAITING;
         current_receive = (current_receive + 1) % RINGSIZE;
         if(data->index >= data->size_in_bytes) {
-            debug_printf("receive type: %u size:%u", data->type, data->size_in_bytes);
+//debug_printf("receive type: %u size:%u", data->type, data->size_in_bytes);
             state = DONE_WITH_TASK;
             urpc2_recv_handler(data);
             free(data->data);
             break;
         }
     }while(true);
-                debug_printf("receive value:%d\n", *((uint32_t*) data->data));
+//debug_printf("receive value:%d\n", *((uint32_t*) data->data));
     MEMORY_BARRIER;
     return state;
 }
@@ -259,7 +259,7 @@ static int urpc2_internal(void *data)
             thread_yield();
         } else {
             if (ringbufferReceive[current_receive].flags & MSG_WAITING) {
-                debug_printf("received something \n");
+//debug_printf("received something \n");
                 if(usd_store_used == true) {
                     struct urpc2_data usd;
                     if(core_recv(&usd) != DONE_WITH_TASK) {
@@ -272,7 +272,7 @@ static int urpc2_internal(void *data)
                 }
 
             } else {
-                debug_printf("send something \n");
+//debug_printf("send something \n");
                 // we can only get into this case if we have something to send
                 // and can send right now
                 struct urpc2_send_queue *sendobj = dequeue();

@@ -10,6 +10,7 @@
  * 
  */
 
+// TODO: keep this for the presentation
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL DETAILED
 

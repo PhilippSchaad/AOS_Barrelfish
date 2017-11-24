@@ -66,7 +66,7 @@ static errval_t new_ram_recv_handler(struct recv_list *data,
 static errval_t new_spawn_recv_handler(struct recv_list *data,
                                        struct lmp_chan *chan)
 {
-    debug_printf("A call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
+    //debug_printf("A call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
 
     char *recv_name = (char *) data->payload;
 
@@ -90,16 +90,16 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
     strcpy(name, recv_name);
     name[length] = '\0';
 
-    DBG(-1, "receive spawn request: name: %s, core %d\n", recv_name, core);
-        DBG(-1, "spawninfo: %s size %u\n",(char*)data->payload,data->size);
+    DBG(DETAILED, "receive spawn request: name: %s, core %d\n", recv_name, core);
+        DBG(DETAILED, "spawninfo: %s size %u\n",(char*)data->payload,data->size);
 
     // check if we are on the right core, else send cross core request
     if (disp_get_core_id() != core){
         //... ... ...
         recv_name[last_occurence] = '_'; //todo: please just transfer the number as a number instead of this string hacking stuff
         // have to send cross core request
-        DBG(-1, "spawn %s on other core\n", name);
-        DBG(-1, "spawninfo: %s size %u\n",(char*)data->payload,data->size);
+        DBG(DETAILED, "spawn %s on other core\n", name);
+        DBG(DETAILED, "spawninfo: %s size %u\n",(char*)data->payload,data->size);
 
         // if we are on core 0 we can (and have to) preset the pid
         domainid_t pid = 0;
@@ -113,13 +113,13 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
         void* newpayload = malloc(bytesize);
         memcpy(newpayload, data->payload, bytesize-4);
         *((uint32_t*)(newpayload + strlen(recv_name)+1)) = pid;
-        debug_printf("send pid: %d\n", *((uint32_t*)(newpayload + strlen(recv_name)+1)));
+        //debug_printf("send pid: %d\n", *((uint32_t*)(newpayload + strlen(recv_name)+1)));
         data->payload = newpayload;
         data->size = bytesize;
 
         //we don't actually need any response, we just want to know the response exists
         free_urpc_allocated_ack_recv_list(urpc2_rpc_over_urpc(data,NULL_CAP));
-        debug_printf("we got through the spawn\n");
+        //debug_printf("we got through the spawn\n");
 //        urpc_spawn_process(name);
         //free(name);
 
@@ -132,35 +132,34 @@ static errval_t new_spawn_recv_handler(struct recv_list *data,
         //send_response(data, chan, NULL_CAP, 0, NULL);
         return SYS_ERR_OK;
     }
-    debug_printf("B call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
-    debug_printf("1");
+    //debug_printf("B call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
+    //debug_printf("1");
 
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
     err = spawn_load_by_name(name, si);
-    debug_printf("1");
+    // debug_printf("1");
     // preregister the process we just spawned
     // This will create the process but the process does not know its PID yet and we don't have a rpc channel.
     domainid_t pid;
     if(chan == NULL && disp_get_core_id() != 0) { //HACK: We are in URPC
         pid = *((domainid_t*)(recv_name + strlen(recv_name) + 3));
         procman_foreign_preregister(pid, name,core, si);
-        debug_printf("spawn using pid %d\n", pid);
+        //debug_printf("spawn using pid %d\n", pid);
     } else {
         pid = procman_register_process(name, core, si);
     }
 
-    debug_printf("1");
+    //debug_printf("1");
 
     // this is done at a separate call, because some day we would want to split the name server from main.
     //domainid_t ret_id = procman_register_process(name, si, 0);
     //domainid_t ret_id = procman_register_process(name, disp_get_core_id());
 
-    // TODO: check if the merge conflict was handled correctly
-    debug_printf("Spawned process %s\n",name);
+    //debug_printf("Spawned process %s\n",name);
     if(chan == NULL) { //HACK: We are in URPC
-        debug_printf("C call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
+        //debug_printf("C call of rpc type %u and id %u\n",(unsigned int) data->type, (unsigned int)data->id);
         urpc2_send_response(data,NULL_CAP, 1, &pid);
         return SYS_ERR_OK;
     } else {
@@ -175,7 +174,7 @@ static errval_t new_process_get_name_recv_handler(struct recv_list *data,
     int id = (int) data->payload[0];
     char *name = procman_lookup_name_by_id(id);
 
-    debug_printf("found process with name %s for id %d\n", name, id);
+    //debug_printf("found process with name %s for id %d\n", name, id);
     size_t tempsize = strlen(name);
     uintptr_t *payload2;
     size_t payloadsize2;
@@ -214,7 +213,7 @@ static void process_register_recv_handler(struct recv_list *data,
 
     //cap_destroy(data->cap);
 
-    DBG(-1, "process_register_recv_handler: respond with "
+    DBG(DETAILED, "process_register_recv_handler: respond with "
                   "core %d pid %d\n", combinedArg[1], combinedArg[0]);
 
     if(chan == NULL) { //HACK: We are in URPC
@@ -226,7 +225,7 @@ static void process_register_recv_handler(struct recv_list *data,
 void recv_deal_with_msg(struct recv_list *data)
 {
     // Check the message type and handle it accordingly.
-    DBG(-1, "recv msg...\n");
+    DBG(DETAILED, "recv msg...\n");
     struct lmp_chan *chan = data->chan;
     uint32_t success;
     errval_t err;
@@ -299,14 +298,14 @@ void recv_deal_with_msg(struct recv_list *data)
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
         // Should we destroy the dispatcher at all? the child can do that itself...
-        DBG(-1, "kill_me_recv_handler\n");
+        DBG(DETAILED, "kill_me_recv_handler\n");
         assert((chan != NULL || disp_get_core_id() == 0)  && "why is it possible to ask another core than your own to kill you?");
         if(chan == NULL){ //HACK: We are in URPC
-            DBG(-1, "I remove pid %d\n", *((domainid_t*)data->payload));
+            DBG(DETAILED, "I remove pid %d\n", *((domainid_t*)data->payload));
             procman_deregister(*((domainid_t*)data->payload));
         } else {
             struct domain *domain = find_domain(&data->cap);
-            DBG(-1, "I remove %s pid %d\n", domain->name, domain->id);
+            DBG(DETAILED, "I remove %s pid %d\n", domain->name, domain->id);
             procman_deregister(domain->id);
 
             // if we are on core 1, we have to inform core 0 that the process was killed

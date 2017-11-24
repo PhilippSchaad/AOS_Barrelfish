@@ -78,13 +78,13 @@ struct urpc_protocol {
 static void
 recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 {
-    debug_printf("CCM: %s", send_string_obj->string);
+//debug_printf("CCM: %s", send_string_obj->string);
 }
 
 static void
 recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
 {
-    debug_printf("received bootinfo package\n");
+//debug_printf("received bootinfo package\n");
     struct bootinfo *n_bi =
         (struct bootinfo *) malloc(sizeof(struct bootinfo));
     memcpy((void *) n_bi, (void *) &bootinfo_package->boot_info,
@@ -93,7 +93,7 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
            sizeof(struct mem_region) * n_bi->regions_length);
     dump_bootinfo(n_bi,1);
     initialize_ram_alloc(n_bi);
-    debug_printf("what is going wrong...\n");
+//debug_printf("what is going wrong...\n");
     // Set up the modules from the boot info for spawning.
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
@@ -115,7 +115,7 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
                               disp_get_core_id()));
         }
     }
-    debug_printf("done with mem recv\n");
+//debug_printf("done with mem recv\n");
     already_received_memory = true;
 }
 
@@ -139,8 +139,8 @@ static struct urpc_waiting_state urpc_waiting_calls[255];
 struct urpc2_data urpc2_send_and_receive(struct urpc2_data (*func)(void *data), void *payload, char type)
 {
     uint32_t index = type;
-    debug_printf("urpc2_send_and_receive type %d\n", index);
-    debug_printf("lock is %d\n", urpc_waiting_calls[index].waiting);
+//debug_printf("urpc2_send_and_receive type %d\n", index);
+//debug_printf("lock is %d\n", urpc_waiting_calls[index].waiting);
     // TODO: we rely on the type being equal to the one specified in func. this is potentially dangerous and may lead to unexpected behaviour when
     // mismatched
 
@@ -154,17 +154,17 @@ struct urpc2_data urpc2_send_and_receive(struct urpc2_data (*func)(void *data), 
 
     // add to table of waiting calls
     urpc_waiting_calls[index].waiting = true;
-    debug_printf("urpc2_send_and_receive 1\n");
+//debug_printf("urpc2_send_and_receive 1\n");
     // do the request
     urpc2_enqueue(func, payload);
-    debug_printf("urpc2_send_and_receive 2\n");
+//debug_printf("urpc2_send_and_receive 2\n");
 
     // wait for the answer
     while (*waiting){
         thread_yield();
     }
-    debug_printf("sendandreceive index: %u size: %u\n",urpc_waiting_calls[index].ret.type, urpc_waiting_calls[index].ret.size_in_bytes);
-    debug_printf("urpc2_send_and_receive 3\n");
+//debug_printf("sendandreceive index: %u size: %u\n",urpc_waiting_calls[index].ret.type, urpc_waiting_calls[index].ret.size_in_bytes);
+//debug_printf("urpc2_send_and_receive 3\n");
     return urpc_waiting_calls[index].ret;
 }
 #include <lib_rpc.h>
@@ -176,7 +176,7 @@ static void* urpc2_rpc_send_helper1(unsigned char rpc_type, unsigned char rpc_id
     transfer[4] = rpc_type;
     transfer[5] = rpc_id;
     memcpy(&transfer[6],payload,payloadsize);
-    debug_printf("urpc copying: %u bytes - %s\n",payloadsize,(char*)&transfer[6]);
+//debug_printf("urpc copying: %u bytes - %s\n",payloadsize,(char*)&transfer[6]);
     return transfer;
 }
 
@@ -185,14 +185,14 @@ static struct urpc2_data urpc2_rpc_send_helper2(void* transfer) {
     void * too_much_memcpy = malloc(payloadsize+2);
     memcpy(too_much_memcpy,&((unsigned char*)transfer)[4], payloadsize+2);
     free(transfer);
-    debug_printf("sending %u - %s\n",payloadsize,&(((char*)too_much_memcpy)[2]));
+//debug_printf("sending %u - %s\n",payloadsize,&(((char*)too_much_memcpy)[2]));
     return init_urpc2_data(rpc_over_urpc, 0 /*TODO_ID*/, payloadsize+2, too_much_memcpy);
 }
 
 void urpc2_send_response(struct recv_list *rl, struct capref cap, size_t payloadsize, void *payload) {
     //todo: handle cap being other than NULL_CAP
     assert((rl->type & 1) == 0);
-    debug_printf("D call of rpc type %u and id %u\n",(unsigned int) (rl->type&1), (unsigned int)rl->id);
+//debug_printf("D call of rpc type %u and id %u\n",(unsigned int) (rl->type&1), (unsigned int)rl->id);
     urpc2_enqueue(urpc2_rpc_send_helper2,urpc2_rpc_send_helper1(rl->type&1,rl->id,cap,payloadsize,payload));
 }
 
@@ -213,12 +213,12 @@ static struct recv_list recv_rpc_over_urpc(struct urpc2_data * data) {
     k.chan = NULL; //consider having a response channel that this thread is waiting on?
     //hell, consider resending from here to the other thread as if it were a RPC? Or is that too insane?
     //also we still need to figure out how to transfer caps
-    debug_printf("received urpc call of rpc type %u and id %u\n",(unsigned int) type, (unsigned int)id);
+//debug_printf("received urpc call of rpc type %u and id %u\n",(unsigned int) type, (unsigned int)id);
     return k;
 }
 
 struct recv_list urpc2_rpc_over_urpc(struct recv_list *rl, struct capref cap) {
-    debug_printf("sending urpc call of rpc type %u and id %u\n",(unsigned int) rl->type, (unsigned int)rl->id);
+//debug_printf("sending urpc call of rpc type %u and id %u\n",(unsigned int) rl->type, (unsigned int)rl->id);
     struct urpc2_data ud = urpc2_send_and_receive(urpc2_rpc_send_helper2,urpc2_rpc_send_helper1(rl->type,rl->id,cap,rl->size*4,rl->payload),rpc_over_urpc);
     return recv_rpc_over_urpc(&ud);
 }
@@ -242,12 +242,12 @@ static void recv(__volatile struct urpc *data)
         // check the core and drop message
         // Core 1 doesn't have to do anything here
         if(disp_get_core_id() != 0){
-            debug_printf("however, the value here would be: %d\n", (char*) data->data.send_string.string);
+//debug_printf("however, the value here would be: %d\n", (char*) data->data.send_string.string);
             return;
         }
-        debug_printf("here I am... \n");
+//debug_printf("here I am... \n");
         pid = procman_register_process((char*) data->data.send_string.string, disp_get_core_id() == 1 ? 0 : 1 , NULL);
-        debug_printf("... the pony man %d\n", pid);
+//debug_printf("... the pony man %d\n", pid);
         urpc_register_process_reply(&pid);
         break;
     case rpc_over_urpc:
@@ -257,24 +257,24 @@ static void recv(__volatile struct urpc *data)
 
 //todo: this is a temp wrapper and should be changed asap because it contains an entirely unnecessary memcpy
 static void recv_wrapper(struct urpc2_data *data) {
-    debug_printf("xxxx>receive value:%d\n", *((uint32_t*) data->data));
+//debug_printf("xxxx>receive value:%d\n", *((uint32_t*) data->data));
     uint32_t index = data->type;
     // check if we were waiting for this call
-    debug_printf("waiting? %d\n", urpc_waiting_calls[index].waiting);
+//debug_printf("waiting? %d\n", urpc_waiting_calls[index].waiting);
     if(urpc_waiting_calls[index].waiting){
-        debug_printf("recv_wrapper 1 index: %u size: %u\n",index, data->size_in_bytes);
+//debug_printf("recv_wrapper 1 index: %u size: %u\n",index, data->size_in_bytes);
 
-        debug_printf("the value here is: %d\n", *((uint32_t*) data->data));
+//debug_printf("the value here is: %d\n", *((uint32_t*) data->data));
         urpc_waiting_calls[index].ret = *data;
-        debug_printf("the value here is: %d\n", *((uint32_t*) urpc_waiting_calls[index].ret.data));
+//debug_printf("the value here is: %d\n", *((uint32_t*) urpc_waiting_calls[index].ret.data));
         //we make a copy of the data, because threads and stacks and frees and stuff. Also I'm tired and todo: rethink all these mallocs
         urpc_waiting_calls[index].ret.data = malloc(data->size_in_bytes);
         memcpy(urpc_waiting_calls[index].ret.data,data->data,data->size_in_bytes);
-        debug_printf("the value here is: %d\n", *((uint32_t*) urpc_waiting_calls[index].ret.data));
+//debug_printf("the value here is: %d\n", *((uint32_t*) urpc_waiting_calls[index].ret.data));
         urpc_waiting_calls[index].waiting = false;
     }else //todo: consider having an rpc_over_urpc_ack thing to make this all nicer
         if(data->type == rpc_over_urpc) {
-            debug_printf("recv_wrapper 2\n");
+//debug_printf("recv_wrapper 2\n");
             struct recv_list ret = recv_rpc_over_urpc(data);
             recv_deal_with_msg(&ret);
             return;
@@ -301,7 +301,7 @@ static struct urpc2_data send_register_process_func(void *data)
 }
 static struct urpc2_data send_register_process_reply_func(void *data)
 {
-    debug_printf("when sending, the value is still %d\n", *((uint32_t*) data));
+//debug_printf("when sending, the value is still %d\n", *((uint32_t*) data));
     return init_urpc2_data(register_process,TODO_ID,sizeof(domainid_t),data);
 }
 

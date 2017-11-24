@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
 
-    debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
+//debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
     for (int i = 0; i < argc; i++) {
         printf(" %s", argv[i]);
     }
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
         */
     }
 
-    debug_printf("Message handler loop\n");
+//debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
     while (true) {
