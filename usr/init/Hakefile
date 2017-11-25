@@ -18,7 +18,11 @@
                         "lib_rpc.c",
                         "lib_urpc.c",
                         "lib_procman.c",
-                        "lib_urpc2.c"
+                        "lib_urpc2.c",
+                        "distops/caplock.c",
+                        "distops/capqueue.c",
+                        "distops/deletestep.c",
+                        "distops/invocations.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
                       addLibraries = [

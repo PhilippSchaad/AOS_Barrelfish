@@ -16,18 +16,12 @@ errval_t aos_ram_alloc_aligned(struct capref *ret, size_t size,
     return mm_alloc_aligned(&aos_mm, size, alignment, ret);
 }
 
-errval_t aos_ram_free(struct capref cap, size_t bytes)
+errval_t aos_ram_free(struct capref cap)
 {
     errval_t err;
     struct frame_identity fi;
     err = frame_identify(cap, &fi);
-    if (bytes > fi.bytes) {
-        bytes = fi.bytes;
-    }
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "frame_identify:");
-    }
-    return mm_free(&aos_mm, cap, fi.base, bytes);
+    return mm_free(&aos_mm, cap, fi.base, fi.bytes);
 }
 
 /**
