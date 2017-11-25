@@ -279,7 +279,7 @@ void mm_destroy(struct mm *mm)
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base,
                 gensize_t size)
 {
-    DBG(-1, "libmm: Adding a capability of size %" PRIu64 " MB at %zx \n",
+    DBG(VERBOSE, "libmm: Adding a capability of size %" PRIu64 " MB at %zx \n",
         size / 1048576, base);
 
     // Create the node.

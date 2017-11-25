@@ -103,7 +103,7 @@ errval_t initialize_ram_alloc(struct bootinfo *bi_override)
             used_regions++;
         }
     }
-    debug_printf("Added %" PRIu64 " MB of physical memory.\n",
+    DBG(VERBOSE, "Added %" PRIu64 " MB of physical memory.\n",
                  mem_avail / 1024 / 1024);
 
     // Finally, we can initialize the generic RAM allocator to use our local

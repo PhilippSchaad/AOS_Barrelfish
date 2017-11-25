@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
@@ -39,6 +40,56 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
+static void print_fill_length(const char *format, ...)
+{
+    int colwidth = 80;
+
+    va_list p_args;
+    va_start(p_args, format);
+
+    char pre_formatted[colwidth];
+    vsprintf(pre_formatted, format, p_args);
+
+    char p_line[colwidth];
+    sprintf(p_line, "* %.*s\0", colwidth - 4, pre_formatted);
+
+    int p_line_length = strlen(p_line);
+    int spaces_to_fill = colwidth;
+    spaces_to_fill -= 2 + p_line_length;
+
+    char *filler =
+        "                                                                     "
+        "        ";
+
+    printf("%s%.*s *\n", p_line, spaces_to_fill, filler);
+
+    va_end(p_args);
+}
+
+static void print_welcome_msg(void)
+{
+    assert(OS_VERSION_MAJOR >= 0);
+    assert(OS_VERSION_MINOR >= 0);
+    assert(OS_PATCH_LEVEL >= 0);
+
+    for (int i = 0; i < 1000; i++)
+        printf("\n");
+
+    printf("**************************************"
+           "******************************************\n");
+    printf("*********************************  Welcome  "
+           "************************************\n");
+    printf("**************************************"
+           "******************************************\n");
+    print_fill_length("%.20s v%u.%u.%u", OS_NAME, OS_VERSION_MAJOR,
+                      OS_VERSION_MINOR, OS_PATCH_LEVEL);
+    print_fill_length("Authors: %s", OS_AUTHORS);
+    print_fill_length("%s", OS_GROUP);
+    print_fill_length("");
+    printf("**************************************"
+           "******************************************\n");
+}
+
 int main(int argc, char *argv[])
 {
     errval_t err;
@@ -48,13 +99,13 @@ int main(int argc, char *argv[])
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
 
-    /*
+#if DEBUG_LEVEL >= VERBOSE
     debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
     for (int i = 0; i < argc; i++) {
         printf(" %s", argv[i]);
     }
     printf("\n");
-    */
+#endif
 
     // First argument contains the bootinfo location, if it's not set.
     if (my_core_id == 0) {
@@ -93,13 +144,11 @@ int main(int argc, char *argv[])
 
         /*
 #ifndef PERF_MEASUREMENT
-*/
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
-        /*
 #endif
         procman_print_proc_list();
 
@@ -127,7 +176,9 @@ int main(int argc, char *argv[])
         procman_register_process("init", 1, NULL);
     }
 
-    debug_printf("Core %" PRIuCOREID " initialized\n");
+    if (my_core_id == 1)
+        print_welcome_msg();
+
     // Hang around
     struct waitset *default_ws = get_default_waitset();
     while (true) {

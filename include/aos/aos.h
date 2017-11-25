@@ -58,6 +58,13 @@
 
 #define MEMORY_BARRIER          __asm volatile("dmb");__asm volatile("isb")
 
+#define OS_NAME                 "Barrelfish"
+#define OS_VERSION_MAJOR        0
+#define OS_VERSION_MINOR        1
+#define OS_PATCH_LEVEL          0
+#define OS_AUTHORS              "Fania Christian, Mueller Jan, Schaad Philipp"
+#define OS_GROUP                "Group D"
+
 /* Duplicate memory */
 static inline void * memdup(const void *ptr, size_t size) {
     void *res = malloc(size);
