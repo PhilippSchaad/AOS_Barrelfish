@@ -309,17 +309,14 @@ static int urpc2_internal(void *data)
             if (ringbufferReceive[current_receive].flags & MSG_WAITING) {
                 // debug_printf("received something \n");
                 if (usd_store_used != true) {
-                    debug_printf("hi\n");
                     struct urpc2_data usd;
                     usd.index = 0;
                     if (core_recv(&usd) != DONE_WITH_TASK) {
-                        debug_printf("storing\n");
                         usd_store = usd;
                         usd_store_used = true;
                     }
                 } else {
                     if (core_recv(&usd_store) == DONE_WITH_TASK) {
-                        debug_printf("bye\n");
                         usd_store_used = false;
                     }
                 }

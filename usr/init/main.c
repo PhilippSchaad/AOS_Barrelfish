@@ -21,6 +21,8 @@
 #include <aos/paging.h>
 #include <aos/waitset.h>
 
+#include <barrelfish_kpi/asm_inlines_arch.h>
+
 #include <mm/mm.h>
 #include <spawn/spawn.h>
 
@@ -31,7 +33,6 @@
 #include <mem_alloc.h>
 
 #include "../tests/test.h"
-#include <barrelfish_kpi/asm_inlines_arch.h>
 
 //#define PERF_MEASUREMENT
 
@@ -47,7 +48,7 @@ int main(int argc, char *argv[])
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
 
-    // debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
+    debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
     for (int i = 0; i < argc; i++) {
         printf(" %s", argv[i]);
     }
@@ -85,9 +86,10 @@ int main(int argc, char *argv[])
     CHECK(procman_init());
 
     if (my_core_id == 0) {
-
+        // Initialize the master URPC server (aka core 0).
         urpc_master_init_and_run(buf);
 
+        /*
 #ifndef PERF_MEASUREMENT
         struct tester t;
         init_testing(&t);
@@ -101,15 +103,15 @@ int main(int argc, char *argv[])
         for (int i = 1; i > 0; --i) {
             int *payload = malloc(1024 * 10 * i);
             *payload = i * 10 * 1024;
-            //            debug_printf("here\n");
             debug_printf("payload: %d\n", *payload);
             urpc_perf_measurement((void *) payload);
-            //            debug_printf("and there\n");
         }
-// free(payload);
+        free(payload);
 #endif
+*/
 
     } else {
+        // Register ourselves as a slave server on the URPC master server.
         urpc_slave_init_and_run();
 
         // Wait until we have received the URPC telling us to initialiize our
@@ -117,20 +119,11 @@ int main(int argc, char *argv[])
         while (!urpc_ram_is_initalized())
             ;
 
-        // register self
+        // Register ourselves (init on core 1) with the process manager.
         procman_register_process("init", 1, NULL);
-        // urpc_register_process("init");
-
-        /*
-        struct tester t;
-        init_testing(&t);
-        register_memory_tests(&t);
-        register_spawn_tests(&t);
-        tests_run(&t);
-        */
     }
 
-    // debug_printf("Message handler loop\n");
+    debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
     while (true) {

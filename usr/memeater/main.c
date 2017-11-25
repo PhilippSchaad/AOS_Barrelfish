@@ -196,8 +196,6 @@ int main(int argc, char *argv[])
     debug_printf("\033[33mWe spawned 'hello' and then requested the name of "
                  "the process with its idea, result: %s\n\033[0m",
                  name);
-    // disabled because it gets ugly, as the name would indicate
-    // aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
 
     struct capref slot[2000];
     debug_printf("\033[33mTry to allocate 2000 slots\n\033[0m");

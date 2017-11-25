@@ -11,10 +11,6 @@
  *
  */
 
-// TODO: keep this for the presentation
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
-
 /// Find a process in the proclist with a given ID.
 static errval_t find_process_by_id(domainid_t proc_id,
                                    struct process_info **ret_pi)

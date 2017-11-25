@@ -35,6 +35,7 @@
     for (struct thread_mutex *_mutx = &_mut; _mutx != NULL; _mutx = NULL)     \
         for (thread_mutex_lock(&_mut); _mutx != NULL;                         \
              _mutx = NULL, thread_mutex_unlock(&_mut))
+
 enum urpc_state { non_initalized = 0, needs_to_be_read, available };
 
 struct urpc_bootinfo_package {
@@ -97,16 +98,14 @@ recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 static void
 recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
 {
-    // debug_printf("received bootinfo package\n");
     struct bootinfo *n_bi =
         (struct bootinfo *) malloc(sizeof(struct bootinfo));
     memcpy((void *) n_bi, (void *) &bootinfo_package->boot_info,
            sizeof(struct bootinfo));
     memcpy((void *) &n_bi->regions, (void *) &bootinfo_package->regions,
            sizeof(struct mem_region) * n_bi->regions_length);
-    dump_bootinfo(n_bi, 1);
     initialize_ram_alloc(n_bi);
-    // debug_printf("what is going wrong...\n");
+
     // Set up the modules from the boot info for spawning.
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
