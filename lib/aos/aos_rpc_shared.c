@@ -11,7 +11,7 @@ static errval_t actual_sending(struct lmp_chan *chan, struct capref cap,
                                int first_byte, size_t payloadcount,
                                uintptr_t *payload)
 {
-    if(!chan){
+    if (!chan) {
         USER_PANIC("no more chan...");
     }
     switch (payloadcount) {
@@ -85,8 +85,6 @@ static errval_t send_loop(void *args)
         actual_sending(sq->chan, cap, first_byte,
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);
     if (err_is_fail(err)) {
-        //silence - debug_printf("we had an error: %s\n", err_getstring(err));
-
         // Reregister if failed.
         CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                      MKCLOSURE((void *) send_loop, args)));
@@ -148,13 +146,10 @@ unsigned char request_fresh_id(unsigned char type)
         unsigned char min_id = rpc_type_min_id[type];
         unsigned char max_id = rpc_type_max_id[type];
         if ((max_id + 1) % 256 == min_id)
-            USER_PANIC("we ran out of message slots\n"); // TODO: turn this
-                                                         // into a proper error
-                                                         // msg that gets
-                                                         // returned and is
-                                                         // expected to be
-                                                         // handled by the
-                                                         // caller
+            USER_PANIC("we ran out of message slots\n");
+        // TODO: turn this into a proper error msg that gets returned and is
+        // expected to be handled by the caller.
+
         rpc_type_max_id[type] = (max_id + 1) % 256;
         id = max_id;
     }
@@ -324,7 +319,7 @@ void recv_handling(void *args)
     //    rpcs need to send caps.
     //    we should consider freeing the slot again when not used anymore.
     // if we receive an NULL_CAP, delete it again.
-    if (capref_is_null(cap)){
+    if (capref_is_null(cap)) {
         cap_destroy(cap);
     }
 

@@ -165,12 +165,7 @@ int main(int argc, char *argv[])
     debug_printf("memeater started....\n");
 
     debug_printf("Domain ID: %d\n", disp_get_domain_id());
-    /*
-    err = aos_rpc_init(&init_rpc);
-    if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "\033[31mcould not initialize RPC\033[0m\n");
-    }
-    */
+
     init_rpc = *get_init_rpc();
 
     err = test_basic_rpc();
@@ -196,8 +191,6 @@ int main(int argc, char *argv[])
     debug_printf("\033[33mWe spawned 'hello' and then requested the name of "
                  "the process with its idea, result: %s\n\033[0m",
                  name);
-    // disabled because it gets ugly, as the name would indicate
-    // aos_rpc_process_spawn(&init_rpc,"forkbomb",1,&ret);
 
     struct capref slot[2000];
     debug_printf("\033[33mTry to allocate 2000 slots\n\033[0m");
@@ -254,15 +247,16 @@ int main(int argc, char *argv[])
         thread_create((thread_func_t) test_basic_rpc, NULL);
     thread_join(threadchecks, &retval);
 
-
     aos_rpc_process_spawn(&init_rpc, "killme", 0, &ret);
     uint32_t retbool = 0;
-    debug_printf("\033[33mWe spawned 'killme' and try to kill it now.\n\033[0m");
-    while(retbool == 0)
+    debug_printf(
+        "\033[33mWe spawned 'killme' and try to kill it now.\n\033[0m");
+    while (retbool == 0)
         aos_rpc_process_kill(&init_rpc, ret, &retbool);
     debug_printf("\033[33mkilled!\n\033[0m");
 
     debug_printf("seems I have done everything I should... =)\n");
     debug_printf("memeater terminated....\n");
+
     return EXIT_SUCCESS;
 }
