@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
 
-//debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
+    // debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
     for (int i = 0; i < argc; i++) {
         printf(" %s", argv[i]);
     }
@@ -98,17 +98,16 @@ int main(int argc, char *argv[])
         procman_print_proc_list();
 
 #ifdef PERF_MEASUREMENT
-        for (int i=1; i>0; --i){
-            int* payload = malloc(1024*10*i);
+        for (int i = 1; i > 0; --i) {
+            int *payload = malloc(1024 * 10 * i);
             *payload = i * 10 * 1024;
-//            debug_printf("here\n");
-            debug_printf("payload: %d\n",*payload);
-            urpc_perf_measurement((void*)payload);
-//            debug_printf("and there\n");
+            //            debug_printf("here\n");
+            debug_printf("payload: %d\n", *payload);
+            urpc_perf_measurement((void *) payload);
+            //            debug_printf("and there\n");
         }
-        //free(payload);
+// free(payload);
 #endif
-
 
     } else {
         urpc_slave_init_and_run();
@@ -120,7 +119,7 @@ int main(int argc, char *argv[])
 
         // register self
         procman_register_process("init", 1, NULL);
-        //urpc_register_process("init");
+        // urpc_register_process("init");
 
         /*
         struct tester t;
@@ -131,7 +130,7 @@ int main(int argc, char *argv[])
         */
     }
 
-//debug_printf("Message handler loop\n");
+    // debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
     while (true) {

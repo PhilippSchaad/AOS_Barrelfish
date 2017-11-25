@@ -21,8 +21,8 @@
 int main(int argc, char *argv[])
 {
     debug_printf("Hello, world! from userspace\n");
-    if (argc > 0){
-        for (int i=0; i<argc; ++i){
+    if (argc > 0) {
+        for (int i = 0; i < argc; ++i) {
             debug_printf("Found command line argument %d: %s \n", i, argv[i]);
         }
     }

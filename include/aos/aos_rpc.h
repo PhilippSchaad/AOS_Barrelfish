@@ -58,7 +58,8 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan);
 /**
  * \brief Request the process manager to kill the process
  */
-errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid, uint32_t *success);
+errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
+                              uint32_t *success);
 
 /**
  * \brief Register the current process at the process manager

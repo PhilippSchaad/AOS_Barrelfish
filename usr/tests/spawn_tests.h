@@ -2,8 +2,7 @@
 #include <mm/mm.h>
 #include <aos/paging.h>
 
-__attribute__((unused))
-static int spawn_hello10(void)
+__attribute__((unused)) static int spawn_hello10(void)
 {
     TEST_PRINT_INFO("\n"
                     "           "
@@ -11,8 +10,9 @@ static int spawn_hello10(void)
 
     errval_t err;
 
-    for(int i = 0; i<10; ++i){
-        struct spawninfo* si = (struct spawninfo*) malloc(sizeof(struct spawninfo));
+    for (int i = 0; i < 10; ++i) {
+        struct spawninfo *si =
+            (struct spawninfo *) malloc(sizeof(struct spawninfo));
         err = spawn_load_by_name("hello", si);
         free(si);
         if (err_is_fail(err)) {
@@ -23,8 +23,7 @@ static int spawn_hello10(void)
     TEST_PRINT_SUCCESS();
 }
 
-__attribute__((unused))
-static int spawn_hello1(void)
+__attribute__((unused)) static int spawn_hello1(void)
 {
     TEST_PRINT_INFO("\n"
                     "           "
@@ -32,7 +31,8 @@ static int spawn_hello1(void)
 
     errval_t err;
 
-    struct spawninfo* si = (struct spawninfo*) malloc(sizeof(struct spawninfo));
+    struct spawninfo *si =
+        (struct spawninfo *) malloc(sizeof(struct spawninfo));
     err = spawn_load_by_name("hello", si);
     free(si);
     if (err_is_fail(err)) {
@@ -42,8 +42,7 @@ static int spawn_hello1(void)
     TEST_PRINT_SUCCESS();
 }
 
-__attribute__((unused))
-static int spawn_memeater(void)
+__attribute__((unused)) static int spawn_memeater(void)
 {
     TEST_PRINT_INFO("\n"
                     "           "
@@ -51,7 +50,8 @@ static int spawn_memeater(void)
 
     errval_t err;
 
-    struct spawninfo* si = (struct spawninfo*) malloc(sizeof(struct spawninfo));
+    struct spawninfo *si =
+        (struct spawninfo *) malloc(sizeof(struct spawninfo));
     err = spawn_load_by_name("memeater", si);
     free(si);
     if (err_is_fail(err)) {
@@ -61,16 +61,16 @@ static int spawn_memeater(void)
     TEST_PRINT_SUCCESS();
 }
 
-__attribute__((unused))
-static int spawn_forkbomb(void)
+__attribute__((unused)) static int spawn_forkbomb(void)
 {
     TEST_PRINT_INFO("\n"
-                            "           "
-                            "Start the forkbomb process");
+                    "           "
+                    "Start the forkbomb process");
 
     errval_t err;
 
-    struct spawninfo* si = (struct spawninfo*) malloc(sizeof(struct spawninfo));
+    struct spawninfo *si =
+        (struct spawninfo *) malloc(sizeof(struct spawninfo));
     err = spawn_load_by_name("forkbomb", si);
     free(si);
     if (err_is_fail(err)) {

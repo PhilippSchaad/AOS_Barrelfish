@@ -225,10 +225,10 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
 errval_t aos_rpc_kill_me(struct aos_rpc *chan)
 {
     DBG(VERBOSE, "aos_rpc_kill_me\n");
-    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_KILL_ME, &chan->chan, chan->chan.local_cap, 0,
-                  NULL, NULL_EVENT_CLOSURE);
+    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_KILL_ME, &chan->chan,
+                  chan->chan.local_cap, 0, NULL, NULL_EVENT_CLOSURE);
     DBG(ERR, "we should be dead by now\n");
-    //exit(0);
+    // exit(0);
     return SYS_ERR_OK;
 }
 
@@ -239,7 +239,8 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan)
 
 static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 {
-    // TODO: can this be removed or is there something useful that we should do here?
+    // TODO: can this be removed or is there something useful that we should do
+    // here?
     domainid_t *newpid = (domainid_t *) arg1;
     debug_printf("spawned requested process. PID is %d\n", *newpid);
     *newpid = data->payload[1];
@@ -255,15 +256,15 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
     size_t tempsize = strlen(name);
 
     // add core to the sendstring
-    char* new_name = malloc((tempsize + 5)*4);
+    char *new_name = malloc((tempsize + 5) * 4);
     sprintf(new_name, "%s_%d", name, core);
     tempsize = strlen(new_name);
 
     // convert
     uintptr_t *payload2;
     size_t payloadsize2;
-    convert_charptr_to_uintptr_with_padding_and_copy(new_name, tempsize, &payload2,
-                                                     &payloadsize2);
+    convert_charptr_to_uintptr_with_padding_and_copy(new_name, tempsize,
+                                                     &payload2, &payloadsize2);
 
     rpc_framework(aos_rpc_process_spawn_recv, newpid, RPC_TYPE_PROCESS_SPAWN,
                   &chan->chan, NULL_CAP, payloadsize2, payload2,
@@ -278,13 +279,13 @@ static void aos_rpc_process_kill_recv(void *arg1, struct recv_list *data)
     uint32_t *success = (uint32_t *) arg1;
     *success = (uint32_t) data->payload[1];
 }
-errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid, uint32_t *success)
+errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
+                              uint32_t *success)
 {
     DBG(DETAILED, "rpc call: kill process %d\n", pid);
 
     rpc_framework(aos_rpc_process_kill_recv, success, RPC_TYPE_PROCESS_KILL,
-                  &chan->chan, NULL_CAP, 1, &pid,
-                  NULL_EVENT_CLOSURE);
+                  &chan->chan, NULL_CAP, 1, &pid, NULL_EVENT_CLOSURE);
     return SYS_ERR_OK;
 }
 
@@ -292,10 +293,11 @@ errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid, uint32_t *su
 #define DEBUG_LEVEL DETAILED
 static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
 {
-    uint32_t *combinedArg = (uint32_t*) data->payload;
-    DBG(DETAILED, "registered self. received core %d pid %d\n", combinedArg[2], combinedArg[1]);
+    uint32_t *combinedArg = (uint32_t *) data->payload;
+    DBG(DETAILED, "registered self. received core %d pid %d\n", combinedArg[2],
+        combinedArg[1]);
     // TODO: store somewhere
-    //domainid_t pid = combinedArg[1];
+    // domainid_t pid = combinedArg[1];
     coreid_t coreid = combinedArg[2];
 
     disp_set_core_id(coreid);
@@ -314,9 +316,9 @@ errval_t aos_rpc_process_register(struct aos_rpc *chan, char *name)
     convert_charptr_to_uintptr_with_padding_and_copy(name, tempsize, &payload2,
                                                      &payloadsize2);
 
-    rpc_framework(aos_rpc_process_register_recv, chan, RPC_TYPE_PROCESS_REGISTER,
-                  &chan->chan, chan->chan.local_cap, payloadsize2, payload2,
-                  NULL_EVENT_CLOSURE);
+    rpc_framework(aos_rpc_process_register_recv, chan,
+                  RPC_TYPE_PROCESS_REGISTER, &chan->chan, chan->chan.local_cap,
+                  payloadsize2, payload2, NULL_EVENT_CLOSURE);
     free(payload2);
     return SYS_ERR_OK;
 }

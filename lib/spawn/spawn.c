@@ -8,7 +8,8 @@
 #include <spawn/multiboot.h>
 
 extern struct bootinfo *bi;
-extern domainid_t procman_register_process(char *name, coreid_t core_id, struct spawninfo *si);
+extern domainid_t procman_register_process(char *name, coreid_t core_id,
+                                           struct spawninfo *si);
 
 /// Initialize the cspace for a given module.
 static errval_t init_cspace(struct spawninfo *si)
