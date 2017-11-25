@@ -23,7 +23,7 @@ extern struct bootinfo *bi;
 extern struct mm aos_mm;
 
 errval_t initialize_ram_alloc(struct bootinfo *bi_override);
-errval_t aos_ram_free(struct capref cap, size_t bytes);
+errval_t aos_ram_free(struct capref cap);
 errval_t aos_ram_alloc_aligned(struct capref *ret, size_t size,
                                size_t alignment);
 

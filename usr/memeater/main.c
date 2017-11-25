@@ -21,7 +21,7 @@
 #include <aos/paging.h>
 #include <aos/waitset.h>
 
-static struct aos_rpc init_rpc;
+static struct aos_rpc *init_rpc, *mem_rpc;
 
 const char *str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
                   "sed do eiusmod tempor incididunt ut labore et dolore magna "
@@ -46,7 +46,7 @@ static errval_t request_and_map_memory(void)
                  BASE_PAGE_SIZE);
 
     struct capref cap1;
-    err = aos_rpc_get_ram_cap(&init_rpc, BASE_PAGE_SIZE, BASE_PAGE_SIZE, &cap1,
+    err = aos_rpc_get_ram_cap(mem_rpc, BASE_PAGE_SIZE, BASE_PAGE_SIZE, &cap1,
                               &bytes);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not get BASE_PAGE_SIZE cap\n\033[0m");
@@ -122,21 +122,21 @@ static errval_t test_basic_rpc(void)
     debug_printf("\033[33mRPC: testing basic RPCs...\033[0m\n");
 
     debug_printf("\033[33mRPC: sending number...\033[0m\n");
-    err = aos_rpc_send_number(&init_rpc, 42);
+    err = aos_rpc_send_number(init_rpc, 42);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not send a string\033[0m\n");
         return err;
     }
 
     debug_printf("\033[33mRPC: sending small string...\033[0m\n");
-    err = aos_rpc_send_string(&init_rpc, "Hello init");
+    err = aos_rpc_send_string(init_rpc, "Hello init");
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not send a string\033[0m\n");
         return err;
     }
 
     debug_printf("\033[33mRPC: sending large string...\033[0m\n");
-    err = aos_rpc_send_string(&init_rpc, str);
+    err = aos_rpc_send_string(init_rpc, str);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not send a string\033[0m\n");
         return err;
@@ -160,13 +160,21 @@ static void derference_kernel(void)
 
 int main(int argc, char *argv[])
 {
-    errval_t err;
+    errval_t err = SYS_ERR_OK;
 
     debug_printf("memeater started....\n");
 
     debug_printf("Domain ID: %d\n", disp_get_domain_id());
 
-    init_rpc = *get_init_rpc();
+    init_rpc = aos_rpc_get_init_channel();
+    if (!init_rpc) {
+        USER_PANIC_ERR(err, "init RPC channel NULL?\n");
+    }
+
+    mem_rpc = aos_rpc_get_memory_channel();
+    if (!mem_rpc) {
+        USER_PANIC_ERR(err, "init RPC channel NULL?\n");
+    }
 
     err = test_basic_rpc();
     if (err_is_fail(err)) {
@@ -185,9 +193,9 @@ int main(int argc, char *argv[])
     printf("Hello world using terminal service\n");
 
     domainid_t ret;
-    aos_rpc_process_spawn(&init_rpc, "hello", 1, &ret);
+    aos_rpc_process_spawn(init_rpc, "hello", 1, &ret);
     char *name;
-    aos_rpc_process_get_name(&init_rpc, ret, &name);
+    aos_rpc_process_get_name(init_rpc, ret, &name);
     debug_printf("\033[33mWe spawned 'hello' and then requested the name of "
                  "the process with its idea, result: %s\n\033[0m",
                  name);
@@ -247,12 +255,12 @@ int main(int argc, char *argv[])
         thread_create((thread_func_t) test_basic_rpc, NULL);
     thread_join(threadchecks, &retval);
 
-    aos_rpc_process_spawn(&init_rpc, "killme", 0, &ret);
+    aos_rpc_process_spawn(init_rpc, "killme", 0, &ret);
     uint32_t retbool = 0;
     debug_printf(
         "\033[33mWe spawned 'killme' and try to kill it now.\n\033[0m");
     while (retbool == 0)
-        aos_rpc_process_kill(&init_rpc, ret, &retbool);
+        aos_rpc_process_kill(init_rpc, ret, &retbool);
     debug_printf("\033[33mkilled!\n\033[0m");
 
     debug_printf("seems I have done everything I should... =)\n");

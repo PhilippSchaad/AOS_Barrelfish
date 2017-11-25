@@ -25,9 +25,7 @@ __attribute__((unused)) static int mm_alloc_300f(void)
     }
 
     for (int i = 0; i < 300; ++i) {
-        size_t bytes = 30 + i * 100;
-
-        err = aos_ram_free(frame[i], bytes);
+        err = aos_ram_free(frame[i]);
         cap_destroy(frame[i]);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
@@ -75,8 +73,7 @@ __attribute__((unused)) static int mm_alloc_and_map_10f(void)
     }
 
     for (int i = 0; i < 10; ++i) {
-        size_t bytes = 30 + i * 1000;
-        err = aos_ram_free(frame[i], bytes);
+        err = aos_ram_free(frame[i]);
         cap_destroy(frame[i]);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
@@ -126,8 +123,7 @@ __attribute__((unused)) static int mm_alloc_and_map_large_10f(void)
     }
 
     for (int i = 0; i < 10; ++i) {
-        size_t bytes = 30 + i * (1 << 20);
-        err = aos_ram_free(frame[i], bytes);
+        err = aos_ram_free(frame[i]);
         cap_destroy(frame[i]);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
@@ -159,8 +155,7 @@ __attribute__((unused)) static int mm_alloc_free_20(void)
         }
 
         for (int i = 0; i < 20; ++i) {
-            size_t bytes = 30 + i * 500;
-            err = aos_ram_free(frame[i], bytes);
+            err = aos_ram_free(frame[i]);
             if (err_is_fail(err)) {
                 TEST_PRINT_FAIL();
             }
@@ -191,8 +186,7 @@ __attribute__((unused)) static int mm_alloc_free_600(void)
     }
 
     for (int i = 0; i < 600; ++i) {
-        size_t bytes = 30;
-        err = aos_ram_free(frame[i], bytes);
+        err = aos_ram_free(frame[i]);
         cap_destroy(frame[i]);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
@@ -228,7 +222,7 @@ __attribute__((unused)) static int mm_alloc_free_10(void)
         }
         // free 5 (every second)
         for (int i = 0; i < 10; i += 2) {
-            err = aos_ram_free(frame[i], sizes[i]);
+            err = aos_ram_free(frame[i]);
             cap_destroy(frame[i]);
             if (err_is_fail(err)) {
                 TEST_PRINT_FAIL();
@@ -255,7 +249,7 @@ __attribute__((unused)) static int mm_alloc_free_10(void)
 
         // free 15
         for (int i = 0; i < 15; ++i) {
-            err = aos_ram_free(frame[i], sizes[i]);
+            err = aos_ram_free(frame[i]);
             cap_destroy(frame[i]);
             if (err_is_fail(err)) {
                 TEST_PRINT_FAIL();
@@ -283,7 +277,7 @@ __attribute__((unused)) static int mm_paging_map_fixed_attr_cursize_test(void)
     paging_map_fixed_attr(get_current_paging_state(), 0x55c2000, frame,
                           frame_size2, VREGION_FLAGS_READ_WRITE);
 
-    err = aos_ram_free(frame, frame_size2);
+    err = aos_ram_free(frame);
 
     cap_destroy(frame);
 
@@ -334,7 +328,7 @@ mm_paging_alloc_aligned_allignment_test(void)
     }
 
     for (int i = 0; i < 3; ++i) {
-        err = aos_ram_free(frame[i], sizes[i]);
+        err = aos_ram_free(frame[i]);
         cap_destroy(frame[i]);
         if (err_is_fail(err)) {
             TEST_PRINT_FAIL();
