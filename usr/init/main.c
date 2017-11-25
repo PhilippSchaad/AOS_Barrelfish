@@ -48,11 +48,13 @@ int main(int argc, char *argv[])
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
 
+    /*
     debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
     for (int i = 0; i < argc; i++) {
         printf(" %s", argv[i]);
     }
     printf("\n");
+    */
 
     // First argument contains the bootinfo location, if it's not set.
     if (my_core_id == 0) {
@@ -91,11 +93,13 @@ int main(int argc, char *argv[])
 
         /*
 #ifndef PERF_MEASUREMENT
+*/
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
+        /*
 #endif
         procman_print_proc_list();
 
@@ -123,7 +127,7 @@ int main(int argc, char *argv[])
         procman_register_process("init", 1, NULL);
     }
 
-    debug_printf("Message handler loop\n");
+    debug_printf("Core %" PRIuCOREID " initialized\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
     while (true) {

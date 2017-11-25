@@ -4,6 +4,7 @@
 #include <lib_procman.h>
 #include <lib_rpc.h>
 #include <lib_urpc2.h>
+
 enum urpc_type {
     send_string,
     remote_spawn,
@@ -13,9 +14,9 @@ enum urpc_type {
     rpc_perf_measurement
 };
 
-// TODO: maybe we can add the receiver ID to this, if we want to support faster
+// TODO: Maybe we can add the receiver ID to this, if we want to support faster
 // (and maybe easier) multiplexing of the receiver (when using with regular
-// rpcs)
+// rpcs).
 struct event_closure_with_arg {
     void (*func)(void *savedarg, void *newarg);
     void *savedarg;
@@ -38,15 +39,16 @@ void urpc_sendstring(char *str);
 void urpc_spawn_process(char *name);
 void urpc_init_mem_alloc(struct bootinfo *p_bi);
 bool urpc_ram_is_initalized(void);
-// returns a urpc2_data with the data field owned by this instance and needing
-// to be freed
+// Returns a urpc2_data with the data field owned by this instance and needing
+// to be freed.
 struct urpc2_data urpc2_send_and_receive(struct urpc2_data (*func)(void *data),
                                          void *payload, char type);
 
 void urpc2_send_response(struct recv_list *rl, struct capref cap,
                          size_t payloadsize, void *payload);
-// the recv_list owns data alloced at -2 relative to the where the ->data thing
-// points. Needs to be freed
+
+// The recv_list owns data alloced at -2 relative to the where the ->data thing
+// points. Needs to be freed.
 struct recv_list urpc2_rpc_over_urpc(struct recv_list *rl, struct capref cap);
 
 inline void free_urpc_allocated_ack_recv_list(struct recv_list k)

@@ -1,6 +1,7 @@
-#include "mem_alloc.h"
 #include <mm/mm.h>
 #include <aos/paging.h>
+
+#include <mem_alloc.h>
 
 __attribute__((unused)) static int mm_alloc_300f(void)
 {

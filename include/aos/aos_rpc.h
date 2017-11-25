@@ -14,6 +14,7 @@
 
 #ifndef _LIB_BARRELFISH_AOS_MESSAGES_H
 #define _LIB_BARRELFISH_AOS_MESSAGES_H
+
 #include <aos/aos_rpc_shared.h>
 
 struct aos_rpc {

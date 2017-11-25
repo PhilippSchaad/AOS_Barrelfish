@@ -1,5 +1,6 @@
-#include <lib_procman.h>
 #include <aos/aos_rpc_shared.h>
+
+#include <lib_procman.h>
 
 /*
  * In theory this works as follows:
@@ -78,13 +79,11 @@ domainid_t procman_register_process(char *name, coreid_t core_id,
     while (pi->next != NULL)
         pi = pi->next;
 
-    // get the PID
+    // Get the PID.
     domainid_t pid;
-    // if the core_id is on the other core, forward the request to the other
-    // core
+    // If the core_id is on the other core, forward the request to the other
+    // core.
     if (disp_get_core_id() != 0) {
-        // TODO: this doesn't give an answer, currently...
-        // We should work on the urpc interface first
         pid = urpc_register_process(name);
     } else {
         pid = pi->id + 1;
@@ -144,10 +143,11 @@ void procman_foreign_preregister(domainid_t pid, char *name, coreid_t core_id,
 
 domainid_t procman_finish_process_register(char *name, struct lmp_chan *chan)
 {
-    DBG(DETAILED, "finish registration of process  %s\n", name);
-    // find the right process
+    DBG(DETAILED, "Finish registration of process  %s\n", name);
+    // Find the right process.
     // TODO: what happens if two process with the same name want to register at
     // the same time?
+
     assert(pt != NULL);
     assert(pt->head != NULL);
     struct process_info *pi = pt->head;
@@ -159,8 +159,9 @@ domainid_t procman_finish_process_register(char *name, struct lmp_chan *chan)
         }
         pi = pi->next;
     }
-    // this situation might happen, if a process is spawned directly by the
-    // init process
+
+    // This situation might happen, if a process is spawned directly by the
+    // init process.
     assert(disp_get_core_id() == 0);
     procman_register_process(name, disp_get_core_id(), NULL);
     return procman_finish_process_register(name, chan);
@@ -184,7 +185,7 @@ errval_t procman_deregister(domainid_t proc_id)
     if (pi->next)
         pi->next->prev = pi->prev;
 
-    // destroy leftovers of process
+    // Destroy leftovers of process.
     // TODO: maybe we could add a function here that does additional cleanup:
     // - free memory
     // - destroy caps
@@ -193,10 +194,10 @@ errval_t procman_deregister(domainid_t proc_id)
     // free(pi->si);
     // free(pi->chan);
 
-    // if the process is on the other core, delete it there as well. Keep in
-    // mind that all processes are registered on core 0
+    // If the process is on the other core, delete it there as well. Keep in
+    // mind that all processes are registered on core 0.
     if (disp_get_core_id() != 0 || pi->core != 0) {
-        // TODO: uarpc call to other core to make the cleanup there
+        // TODO: urpc call to other core to make the cleanup there
     }
 
     free(pi);
@@ -211,9 +212,9 @@ errval_t procman_deregister(domainid_t proc_id)
 /// List all processes to stdout.
 void procman_print_proc_list(void)
 {
-    // check if we are on core 0
-    // if the core_id is on the other core, forward the request to the other
-    // core
+    // Check if we are on core 0.
+    // If the core_id is on the other core, forward the request to the other
+    // core.
     if (disp_get_core_id() != 0) {
         // TODO: urpc call to other core to display process list
         return;
@@ -244,23 +245,23 @@ errval_t procman_kill_process(domainid_t proc_id)
 
     struct process_info *pi = NULL;
     errval_t err = find_process_by_id(proc_id, &pi);
-    // if we don't find the process here, it may be on the other core
+    // If we don't find the process here, it may be on the other core.
     if (err_is_fail(err)) {
         if (disp_get_core_id() != 0) {
-            // call to other core
+            // Call to other core.
             return PROCMAN_ERR_PROCESS_ON_OTHER_CORE;
         } else {
             return PROCMAN_ERR_PID_NOT_FOUND;
         }
     }
 
-    // check if we are on the right core
+    // Check if we are on the right core.
     if (disp_get_core_id() != pi->core) {
-        // TODO: urpc call to other core to kill process
+        // TODO: urpc call to other core to kill process.
         return PROCMAN_ERR_PROCESS_ON_OTHER_CORE;
     } else {
         if (!pi->init) {
-            // process not ready yet...
+            // Process not ready yet...
             // TODO: maybe we can handle this differently
             // TODO: this currently leads to a race condition on foreign cores
             DBG(DETAILED, "PROCMAN_ERR_PROCESS_NOT_YET_STARTED\n");
@@ -280,14 +281,14 @@ errval_t procman_kill_process(domainid_t proc_id)
                    request_fresh_id(RPC_TYPE_PROCESS_KILL)));
     }
 
-    // deregister
+    // Deregister.
     procman_deregister(proc_id);
 
     return SYS_ERR_OK;
 }
 
 /// Find a process name by its process ID.
-// Returns NULL if not found
+// Returns NULL if not found.
 char *procman_lookup_name_by_id(domainid_t proc_id)
 {
     DBG(DETAILED, "Looking up name of process %" PRIuDOMAINID "\n", proc_id);
@@ -298,10 +299,10 @@ char *procman_lookup_name_by_id(domainid_t proc_id)
     struct process_info *pi = NULL;
     errval_t err = find_process_by_id(proc_id, &pi);
 
-    // if we are not on core 0 it may happen that we do not find the process
+    // If we are not on core 0 it may happen that we do not find the process.
     if (err == PROCMAN_ERR_PID_NOT_FOUND) {
         if (disp_get_core_id() != 0) {
-            // TODO: urpc call to other core
+            // TODO: urpc call to other core.
             return NULL;
         }
         return NULL;

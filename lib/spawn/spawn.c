@@ -349,7 +349,6 @@ static errval_t map_paging_state_to_child(struct paging_state *st)
     return SYS_ERR_OK;
 }
 
-// TODO(M4): Build and pass a messaging channel to your child process
 /**
  * \brief Spawn a process loaded by its binary name.
  *

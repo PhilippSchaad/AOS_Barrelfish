@@ -12,11 +12,10 @@
  * ETH Zurich D-INFK, CAB F.78, Universitaetstr. 6, CH-8092 Zurich,
  * Attn: Systems Group.
  */
-
-#include <aos/aos.h>
-
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <aos/aos.h>
 
 int main(int argc, char *argv[])
 {

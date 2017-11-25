@@ -6,6 +6,7 @@
 
 #include <aos/aos.h>
 #include <spawn/spawn.h>
+
 #include <lib_urpc.h>
 
 /// Struct to keep track of a process.
@@ -28,10 +29,6 @@ struct process_table {
 struct process_table *pt;
 
 errval_t procman_init(void);
-/*
-domainid_t procman_register_process(char *name, struct spawninfo *si,
-                                    coreid_t core_id);
-                                    */
 domainid_t procman_register_process(char *name, coreid_t core_id,
                                     struct spawninfo *si);
 domainid_t procman_finish_process_register(char *name, struct lmp_chan *chan);

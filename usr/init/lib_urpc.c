@@ -2,26 +2,30 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
-#include <barrelfish_kpi/init.h>
-#include <spawn/spawn.h>
-#include <mem_alloc.h>
-#include <mm/mm.h>
 #include <aos/paging.h>
+#include <aos/aos_rpc_shared.h>
+
+#include <mm/mm.h>
+#include <spawn/spawn.h>
+
+#include <barrelfish_kpi/asm_inlines_arch.h>
+#include <barrelfish_kpi/init.h>
+
+#include <lib_rpc.h>
 #include <lib_urpc.h>
 #include <lib_urpc2.h>
-#include "init_headers/lib_urpc2.h"
-#include <barrelfish_kpi/asm_inlines_arch.h>
+#include <mem_alloc.h>
 
-// we still need to port the proper ID system, so until now it uses this. Just
-// rip it out of aos_rpc_shared
+// TODO: We still need to port the proper ID system, so until now it uses this.
+// Just rip it out of aos_rpc_shared
 #define TODO_ID 0
 
-// look, the proper way to implement this is via interrupts (see inthandler.c
-// and anything mentioning IPI or IRQ in the kernel code)
-// but apparently we are supposed to just spawn a thread and spin spin spin on
-// it so that is what we'll do for now
+// Look, the proper way to implement this is via interrupts (see inthandler.c
+// and anything mentioning IPI or IRQ in the kernel code).
+// But apparently we are supposed to just spawn a thread and spin spin spin on
+// it so that is what we'll do for now.
 
-// copy from a kernel only header. TODO: Make nicer
+// Copy from a kernel only header. TODO: Make nicer
 #define INIT_BOOTINFO_VBASE ((lvaddr_t) 0x200000)
 #define INIT_ARGS_VBASE (INIT_BOOTINFO_VBASE + BOOTINFO_SIZE)
 #define INIT_DISPATCHER_VBASE (INIT_ARGS_VBASE + ARGS_SIZE)
@@ -65,7 +69,7 @@ struct urpc {
 bool already_received_memory = false;
 bool urpc_ram_is_initalized(void) { return already_received_memory; }
 
-// we define a very simple protocol
+// We define a very simple protocol.
 struct urpc_protocol {
     char master_state;
     char slave_state;
@@ -73,8 +77,7 @@ struct urpc_protocol {
     struct urpc slave_data;
 };
 
-// -------------------------------------
-// performance measurement
+/// Performance measurement function.
 static struct urpc2_data perf_func(void *data)
 {
     int *str = (int *) data;
@@ -83,16 +86,17 @@ static struct urpc2_data perf_func(void *data)
     reset_cycle_counter();
     return init_urpc2_data(rpc_perf_measurement, TODO_ID, *str, str);
 }
+
+/// Performance measurement call for URPC.
 void urpc_perf_measurement(void *payload)
 {
     urpc2_enqueue(perf_func, payload);
 }
-// -------------------------------------
 
 static void
 recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 {
-    // debug_printf("CCM: %s", send_string_obj->string);
+    debug_printf("CCM: %s", send_string_obj->string);
 }
 
 static void
@@ -127,7 +131,6 @@ recv_init_mem_alloc(__volatile struct urpc_bootinfo_package *bootinfo_package)
                               disp_get_core_id()));
         }
     }
-    // debug_printf("done with mem recv\n");
     already_received_memory = true;
 }
 
@@ -147,44 +150,38 @@ struct urpc_waiting_state {
     bool waiting;
     struct urpc2_data ret;
 };
+
 static struct urpc_waiting_state urpc_waiting_calls[255];
+
 struct urpc2_data urpc2_send_and_receive(struct urpc2_data (*func)(void *data),
                                          void *payload, char type)
 {
     uint32_t index = type;
-    // debug_printf("urpc2_send_and_receive type %d\n", index);
-    // debug_printf("lock is %d\n", urpc_waiting_calls[index].waiting);
-    // TODO: we rely on the type being equal to the one specified in func. this
-    // is potentially dangerous and may lead to unexpected behaviour when
-    // mismatched
 
-    // TODO: make this stuff threadsafe
-    // check that there is no other ongoing transmission with the same id
+    // TODO: We rely on the type being equal to the one specified in func. This
+    // is potentially dangerous and may lead to unexpected behaviour when
+    // mismatched.
+
+    // TODO: Make this stuff threadsafe.
+    // Check that there is no other ongoing transmission with the same id.
     __volatile bool *waiting = &urpc_waiting_calls[index].waiting;
-    while (*waiting) {
+    while (*waiting)
         thread_yield();
-    }
+
     DBG_LINE;
 
-    // add to table of waiting calls
+    // Add to table of waiting calls.
     urpc_waiting_calls[index].waiting = true;
-    // debug_printf("urpc2_send_and_receive 1\n");
-    // do the request
-    urpc2_enqueue(func, payload);
-    // debug_printf("urpc2_send_and_receive 2\n");
 
-    // wait for the answer
-    while (*waiting) {
+    // Do the request.
+    urpc2_enqueue(func, payload);
+
+    // Wait for the answer.
+    while (*waiting)
         thread_yield();
-    }
-    // debug_printf("sendandreceive index: %u size:
-    // %u\n",urpc_waiting_calls[index].ret.type,
-    // urpc_waiting_calls[index].ret.size_in_bytes);
-    // debug_printf("urpc2_send_and_receive 3\n");
+
     return urpc_waiting_calls[index].ret;
 }
-#include <lib_rpc.h>
-#include <aos/aos_rpc_shared.h>
 
 static void *urpc2_rpc_send_helper1(unsigned char rpc_type,
                                     unsigned char rpc_id, struct capref cap,
@@ -195,8 +192,6 @@ static void *urpc2_rpc_send_helper1(unsigned char rpc_type,
     transfer[4] = rpc_type;
     transfer[5] = rpc_id;
     memcpy(&transfer[6], payload, payloadsize);
-    // debug_printf("urpc copying: %u bytes -
-    // %s\n",payloadsize,(char*)&transfer[6]);
     return transfer;
 }
 
@@ -206,55 +201,52 @@ static struct urpc2_data urpc2_rpc_send_helper2(void *transfer)
     void *too_much_memcpy = malloc(payloadsize + 2);
     memcpy(too_much_memcpy, &((unsigned char *) transfer)[4], payloadsize + 2);
     free(transfer);
-    // debug_printf("sending %u -
-    // %s\n",payloadsize,&(((char*)too_much_memcpy)[2]));
-    return init_urpc2_data(rpc_over_urpc, 0 /*TODO_ID*/, payloadsize + 2,
-                           too_much_memcpy);
+    return init_urpc2_data(rpc_over_urpc, 0 /* TODO: TODO_ID */,
+                           payloadsize + 2, too_much_memcpy);
 }
 
 void urpc2_send_response(struct recv_list *rl, struct capref cap,
                          size_t payloadsize, void *payload)
 {
-    // todo: handle cap being other than NULL_CAP
+    // TODO: Handle cap being other than NULL_CAP.
     assert((rl->type & 1) == 0);
-    // debug_printf("D call of rpc type %u and id %u\n",(unsigned int)
-    // (rl->type&1), (unsigned int)rl->id);
+
     urpc2_enqueue(urpc2_rpc_send_helper2,
                   urpc2_rpc_send_helper1(rl->type & 1, rl->id, cap,
                                          payloadsize, payload));
 }
 
-// todo: we can make this a lot nicer by refactoring lib_rpc to be transmission
-// backend agnostic
+// TODO: We can make this a lot nicer by refactoring lib_rpc to be transmission
+// backend agnostic.
 static struct recv_list recv_rpc_over_urpc(struct urpc2_data *data)
 {
-    // we just assume that we can reconstruct it like the aos_rpc_shared thing.
-    // Which implies they should share code
-    struct recv_list k;
+    // We just assume that we can reconstruct it like the aos_rpc_shared thing.
+    // This implies they should share code.
+    struct recv_list recv_list_buff;
     unsigned char type = ((char *) data->data)[0];
     unsigned char id = ((char *) data->data)[1];
     size_t size = (data->size_in_bytes - 2) + ((data->size_in_bytes - 2) % 4);
-    k.type = type;
-    k.id = id; // todo: consider if this is sane, given that it comes from
-               // another core
-    k.payload = (uintptr_t *) &(((char *) data->data)[2]);
-    k.size = size;
-    k.index = size;
-    k.next = NULL;
-    k.chan = NULL; // consider having a response channel that this thread is
-                   // waiting on?
-    // hell, consider resending from here to the other thread as if it were a
+    recv_list_buff.type = type;
+
+    // TODO: Consider if this is sane, given that it comes from another core.
+    recv_list_buff.id = id;
+
+    recv_list_buff.payload = (uintptr_t *) &(((char *) data->data)[2]);
+    recv_list_buff.size = size;
+    recv_list_buff.index = size;
+    recv_list_buff.next = NULL;
+
+    // TODO: consider having a response channel that this thread is waiting on?
+    // Hell, consider resending from here to the other thread as if it were a
     // RPC? Or is that too insane?
-    // also we still need to figure out how to transfer caps
-    // debug_printf("received urpc call of rpc type %u and id %u\n",(unsigned
-    // int) type, (unsigned int)id);
-    return k;
+    // Also we still need to figure out how to transfer caps.
+    recv_list_buff.chan = NULL;
+
+    return recv_list_buff;
 }
 
 struct recv_list urpc2_rpc_over_urpc(struct recv_list *rl, struct capref cap)
 {
-    // debug_printf("sending urpc call of rpc type %u and id %u\n",(unsigned
-    // int) rl->type, (unsigned int)rl->id);
     struct urpc2_data ud = urpc2_send_and_receive(
         urpc2_rpc_send_helper2,
         urpc2_rpc_send_helper1(rl->type, rl->id, cap, rl->size * 4,
@@ -264,6 +256,7 @@ struct recv_list urpc2_rpc_over_urpc(struct recv_list *rl, struct capref cap)
 }
 
 static void urpc_register_process_reply(domainid_t *pid);
+
 static void recv(__volatile struct urpc *data)
 {
     domainid_t pid;
@@ -278,18 +271,14 @@ static void recv(__volatile struct urpc *data)
         recv_init_mem_alloc(&data->data.urpc_bootinfo);
         break;
     case register_process:
-        // TODO: this currently only works for two cores...
-        // check the core and drop message
-        // Core 1 doesn't have to do anything here
+        // TODO: This currently only works for two cores...
+        // Check the core and drop message.
+        // Core 1 doesn't have to do anything here.
         if (disp_get_core_id() != 0) {
-            // debug_printf("however, the value here would be: %d\n", (char*)
-            // data->data.send_string.string);
             return;
         }
-        // debug_printf("here I am... \n");
         pid = procman_register_process((char *) data->data.send_string.string,
                                        disp_get_core_id() == 1 ? 0 : 1, NULL);
-        // debug_printf("... the pony man %d\n", pid);
         urpc_register_process_reply(&pid);
         break;
     case rpc_over_urpc:
@@ -298,50 +287,42 @@ static void recv(__volatile struct urpc *data)
     }
 }
 
-// todo: this is a temp wrapper and should be changed asap because it contains
-// an entirely unnecessary memcpy
+// TODO: This is a temp wrapper and should be changed asap because it contains
+// an entirely unnecessary memcpy.
 static void recv_wrapper(struct urpc2_data *data)
 {
-    // debug_printf("xxxx>receive value:%d\n", *((uint32_t*) data->data));
     uint32_t index = data->type;
-    // check if we were waiting for this call
-    // debug_printf("waiting? %d\n", urpc_waiting_calls[index].waiting);
-    if (urpc_waiting_calls[index].waiting) {
-        // debug_printf("recv_wrapper 1 index: %u size: %u\n",index,
-        // data->size_in_bytes);
 
-        // debug_printf("the value here is: %d\n", *((uint32_t*) data->data));
+    // Check if we were waiting for this call.
+    if (urpc_waiting_calls[index].waiting) {
         urpc_waiting_calls[index].ret = *data;
-        // debug_printf("the value here is: %d\n", *((uint32_t*)
-        // urpc_waiting_calls[index].ret.data));
-        // we make a copy of the data, because threads and stacks and frees and
-        // stuff. Also I'm tired and todo: rethink all these mallocs
+
+        // We make a copy of the data, because threads and stacks and frees and
+        // stuff. Also I'm tired and TODO: rethink all these mallocs
         urpc_waiting_calls[index].ret.data = malloc(data->size_in_bytes);
         memcpy(urpc_waiting_calls[index].ret.data, data->data,
                data->size_in_bytes);
-        // debug_printf("the value here is: %d\n", *((uint32_t*)
-        // urpc_waiting_calls[index].ret.data));
+
         urpc_waiting_calls[index].waiting = false;
-    } else // todo: consider having an rpc_over_urpc_ack thing to make this all
-           // nicer
+    } else {
         if (data->type == rpc_over_urpc) {
-        // debug_printf("recv_wrapper 2\n");
-        struct recv_list ret = recv_rpc_over_urpc(data);
-        recv_deal_with_msg(&ret);
-        return;
+            struct recv_list ret = recv_rpc_over_urpc(data);
+            recv_deal_with_msg(&ret);
+            return;
+        }
     }
     if (data->type == rpc_perf_measurement) {
-        debug_printf("received bytes: %u\n",
-                     (unsigned int) data->size_in_bytes);
+        DBG(RELEASE, "received bytes: %u\n",
+            (unsigned int) data->size_in_bytes);
         if (disp_get_core_id() == 0) {
             unsigned int k = get_cycle_count();
             int j = ((int *) data->data)[1];
-            debug_printf("URPC_PERFORMANCE_CYCLES: %u for datasize %d\n", k,
-                         j);
+            DBG(RELEASE, "URPC_PERFORMANCE_CYCLES: %u for datasize %d\n", k,
+                j);
             if (j < 1024 * 1024 * 1) {
                 int *payload = malloc(1024 * 10 + j);
                 *payload = j + 10 * 1024;
-                debug_printf("payload: %d\n", *payload);
+                DBG(RELEASE, "payload: %d\n", *payload);
                 urpc_perf_measurement((void *) payload);
             }
         } else {
@@ -375,10 +356,9 @@ static struct urpc2_data send_register_process_func(void *data)
     char *name = (char *) data;
     return init_urpc2_data(register_process, TODO_ID, strlen(name) + 1, name);
 }
+
 static struct urpc2_data send_register_process_reply_func(void *data)
 {
-    // debug_printf("when sending, the value is still %d\n", *((uint32_t*)
-    // data));
     return init_urpc2_data(register_process, TODO_ID, sizeof(domainid_t),
                            data);
 }
@@ -386,29 +366,38 @@ static struct urpc2_data send_register_process_reply_func(void *data)
 static struct urpc2_data send_init_mem_alloc_func(void *data)
 {
     struct bootinfo *p_bi = (struct bootinfo *) data;
+
     assert(p_bi->regions_length <= 10);
+
     struct urpc_bootinfo_package *urpc_bootinfo =
         malloc(sizeof(struct urpc_bootinfo_package));
+
     memcpy((void *) &urpc_bootinfo->boot_info, p_bi, sizeof(struct bootinfo));
     memcpy((void *) urpc_bootinfo->regions, p_bi->regions,
            sizeof(struct mem_region) * p_bi->regions_length);
+
     struct capref mmstrings_cap = {
         .cnode = cnode_module, .slot = 0,
     };
+
     struct frame_identity mmstrings_id;
+
     CHECK(frame_identify(mmstrings_cap, &mmstrings_id));
+
     urpc_bootinfo->mmstrings_base = mmstrings_id.base;
     urpc_bootinfo->mmstrings_size = mmstrings_id.bytes;
+
     return init_urpc2_data(init_mem_alloc, TODO_ID,
                            sizeof(struct urpc_bootinfo_package),
                            urpc_bootinfo);
 }
 
-// we do the mem transfer before we go into the real protocol
+// We do the mem transfer before we go into the real protocol.
 static void slave_setup(void)
 {
     __volatile struct urpc_protocol *urpc_protocol =
         (struct urpc_protocol *) MON_URPC_VBASE;
+
     while (already_received_memory == false) {
         MEMORY_BARRIER;
         if (urpc_protocol->slave_state == needs_to_be_read) {
@@ -416,9 +405,11 @@ static void slave_setup(void)
             recv_init_mem_alloc(&urpc_protocol->slave_data.data.urpc_bootinfo);
         }
     }
-    // we clear it as a signal to the other side that it can go into the real
-    // protocol now
+
+    // We clear it as a signal to the other side that it can go into the real
+    // protocol now.
     urpc_protocol->slave_state = available;
+
     MEMORY_BARRIER;
 }
 
@@ -438,8 +429,8 @@ domainid_t urpc_register_process(char *str)
     DBG(DETAILED, "got answer to process register  request: %d\n",
         *((uint32_t *) ud.data));
     return *((uint32_t *) ud.data);
-    // urpc2_enqueue(send_register_process_func, str);
 }
+
 static void urpc_register_process_reply(domainid_t *pid)
 {
     DBG(DETAILED, "send process pid %d\n", *pid);
@@ -466,27 +457,33 @@ void urpc_spawn_process(char *name)
 }
 
 static void *slave_page_urpc_vaddr;
-// we do the mem transfer before we go into the real protocol
+
+// We do the mem transfer before we go into the real protocol.
 static void master_setup(void)
 {
     __volatile struct urpc_protocol *urpc_protocol =
         (struct urpc_protocol *) slave_page_urpc_vaddr;
+
     struct urpc2_data data = send_init_mem_alloc_func(bi);
+
     MEMORY_BARRIER;
+
     urpc_protocol->slave_data.type = init_mem_alloc;
     memcpy((void *) &urpc_protocol->slave_data.data.urpc_bootinfo, data.data,
            data.size_in_bytes);
     urpc_protocol->slave_state = needs_to_be_read;
-    // we wait for a signal of the other side that it can go into the real
-    // protocol now
+
+    // We wait for a signal of the other side that it can go into the real
+    // protocol now.
     while (urpc_protocol->slave_state != available)
         MEMORY_BARRIER;
+
     free(data.data);
 }
 
 void urpc_master_init_and_run(void *urpc_vaddr)
 {
-    // ugly hack
+    // XXX: Ugly hack.
     slave_page_urpc_vaddr = urpc_vaddr;
     urpc2_init_and_run(urpc_vaddr, urpc_vaddr + (32 * 64), recv_wrapper,
                        master_setup);

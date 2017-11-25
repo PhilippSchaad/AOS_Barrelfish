@@ -1,6 +1,8 @@
-#include "mem_alloc.h"
-#include <mm/mm.h>
 #include <aos/paging.h>
+
+#include <mm/mm.h>
+
+#include <mem_alloc.h>
 
 __attribute__((unused)) static int spawn_hello10(void)
 {

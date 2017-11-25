@@ -176,7 +176,6 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     sendargs[1] = (uintptr_t) &size;
     sendargs[2] = (uintptr_t) &align;
 
-    // CHECK(lmp_chan_alloc_recv_slot(&chan->chan));
     unsigned char id = request_fresh_id(RPC_MESSAGE(RPC_TYPE_RAM));
     sendargs[3] = (uintptr_t) id;
 
@@ -232,11 +231,6 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan)
     return SYS_ERR_OK;
 }
 
-/*errval_t aos_rpc_kill(struct aos_rpc *chan){
-    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_KILL, &chan->chan, NULL_CAP, 0,
-                  NULL, NULL_EVENT_CLOSURE);
-}*/
-
 static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 {
     // TODO: can this be removed or is there something useful that we should do
@@ -289,8 +283,6 @@ errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
     return SYS_ERR_OK;
 }
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL DETAILED
 static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
 {
     uint32_t *combinedArg = (uint32_t *) data->payload;
