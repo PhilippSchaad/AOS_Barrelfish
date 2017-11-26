@@ -160,9 +160,12 @@ domainid_t procman_finish_process_register(char *name, struct lmp_chan *chan)
         pi = pi->next;
     }
 
+    // there was no previous register of the process.
     // This situation might happen, if a process is spawned directly by the
     // init process.
-    assert(disp_get_core_id() == 0);
+    // This means that the spawn information is not saved. If you want to
+    // persist the spawninfo here, you should call procman_register_process
+    // from init (right before or after the spawning)
     procman_register_process(name, disp_get_core_id(), NULL);
     return procman_finish_process_register(name, chan);
 }
