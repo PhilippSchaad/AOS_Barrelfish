@@ -181,6 +181,18 @@ static errval_t process_get_name_recv_handler(struct recv_list *data,
     return SYS_ERR_OK;
 }
 
+static void getchar_recv_handler(struct recv_list *data, struct lmp_chan *chan)
+{
+    // TODO: This should be done better obv
+    char retchar;
+    while (1) {
+        sys_getchar(&retchar);
+        if (retchar) break;
+    }
+
+    send_response(data, chan, NULL_CAP, 1, (void *) &retchar);
+}
+
 static void process_register_recv_handler(struct recv_list *data,
                                           struct lmp_chan *chan)
 {
@@ -265,6 +277,9 @@ void recv_deal_with_msg(struct recv_list *data)
             break;
         }
         send_response(data, chan, NULL_CAP, 0, NULL);
+        break;
+    case RPC_MESSAGE(RPC_TYPE_GETCHAR):
+        getchar_recv_handler(data, chan);
         break;
     case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
         DBG(ERR, "Non handshake handler got handshake RPC. This should never "

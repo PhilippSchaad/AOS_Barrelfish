@@ -32,20 +32,21 @@
 // Bits 7-2    Message type
 // Bit  0       ACK if set
 
-#define RPC_MESSAGE(message_type) (message_type << 1)
-#define RPC_ACK_MESSAGE(message_type) ((message_type << 1) + 0x1)
-#define RPC_TYPE_NUMBER 0x2
-#define RPC_TYPE_STRING 0x3
-#define RPC_TYPE_STRING_DATA 0x4
-#define RPC_TYPE_RAM 0x5
-#define RPC_TYPE_PUTCHAR 0x6
-#define RPC_TYPE_HANDSHAKE 0x7
-#define RPC_TYPE_PROCESS_SPAWN 0x8
-#define RPC_TYPE_PROCESS_GET_NAME 0x9
-#define RPC_TYPE_PROCESS_GET_PIDS 0x10
-#define RPC_TYPE_PROCESS_KILL_ME 0x11
-#define RPC_TYPE_PROCESS_REGISTER 0x12
-#define RPC_TYPE_PROCESS_KILL 0x13
+#define RPC_MESSAGE(message_type)       (message_type << 1)
+#define RPC_ACK_MESSAGE(message_type)   ((message_type << 1) + 0x1)
+#define RPC_TYPE_NUMBER                 0x2
+#define RPC_TYPE_STRING                 0x3
+#define RPC_TYPE_STRING_DATA            0x4
+#define RPC_TYPE_RAM                    0x5
+#define RPC_TYPE_PUTCHAR                0x6
+#define RPC_TYPE_GETCHAR                0x7
+#define RPC_TYPE_HANDSHAKE              0x8
+#define RPC_TYPE_PROCESS_SPAWN          0x9
+#define RPC_TYPE_PROCESS_GET_NAME       0x10
+#define RPC_TYPE_PROCESS_GET_PIDS       0x11
+#define RPC_TYPE_PROCESS_KILL_ME        0x12
+#define RPC_TYPE_PROCESS_REGISTER       0x13
+#define RPC_TYPE_PROCESS_KILL           0x14
 
 struct recv_list {
     unsigned char type;

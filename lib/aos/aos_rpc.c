@@ -204,10 +204,18 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     return SYS_ERR_OK;
 }
 
+static void serial_getchar_recv(void *arg1, struct recv_list *data)
+{
+    char *retc = (char *) arg1;
+    *retc = data->payload[1];
+}
+
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 {
-    // TODO implement functionality to request a character from
-    // the serial driver.
+    DBG(VERBOSE, "aos_rpc_serial_getchar\n");
+    rpc_framework(serial_getchar_recv, retc, RPC_TYPE_GETCHAR, &chan->chan,
+                  NULL_CAP, 0, NULL, NULL_EVENT_CLOSURE);
+    DBG(VERBOSE, "ACK Received (getchar)\n");
     return SYS_ERR_OK;
 }
 
