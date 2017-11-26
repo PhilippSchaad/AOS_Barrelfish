@@ -10,9 +10,11 @@
 --
 --------------------------------------------------------------------------
 
-[ build application 
-  { 
-    target = "turtleback",
-    cFiles = [ "main.c" ]
-  }
+[ build application { target = "turtleback",
+                      cFiles = [
+                        "main.c"
+                      ],
+                      addIncludes = [ "include" ],
+                      architectures = allArchitectures
+                    }
 ]

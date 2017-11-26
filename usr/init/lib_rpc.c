@@ -193,6 +193,16 @@ static void getchar_recv_handler(struct recv_list *data, struct lmp_chan *chan)
     send_response(data, chan, NULL_CAP, 1, (void *) &retchar);
 }
 
+static void irq_cap_recv_handler(struct recv_list *data, struct lmp_chan *chan)
+{
+    struct capref irq_cap;
+
+    CHECK(slot_alloc(&irq_cap));
+    CHECK(cap_copy(irq_cap, cap_irq));
+
+    send_response(data, chan, irq_cap, 0, NULL);
+}
+
 static void process_register_recv_handler(struct recv_list *data,
                                           struct lmp_chan *chan)
 {
@@ -246,11 +256,11 @@ void recv_deal_with_msg(struct recv_list *data)
         break;
     case RPC_MESSAGE(RPC_TYPE_STRING):
         if (chan == NULL) { // XXX HACK: We are in URPC
-            printf("URPC Terminal: %s\n", (char *) data->payload);
+            printf((char *) data->payload);
             urpc2_send_response(data, NULL_CAP, 0, NULL);
             break;
         }
-        printf("Terminal: %s\n", (char *) data->payload);
+        printf((char *) data->payload);
         send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
@@ -280,6 +290,9 @@ void recv_deal_with_msg(struct recv_list *data)
         break;
     case RPC_MESSAGE(RPC_TYPE_GETCHAR):
         getchar_recv_handler(data, chan);
+        break;
+    case RPC_MESSAGE(RPC_TYPE_IRQ_CAP):
+        irq_cap_recv_handler(data, chan);
         break;
     case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
         DBG(ERR, "Non handshake handler got handshake RPC. This should never "

@@ -13,21 +13,15 @@
  * Attn: Systems Group.
  */
 
-#include <aos/aos.h>
-#include <aos/aos_rpc.h>
-
-#include <stdio.h>
-#include <stdlib.h>
+#include <turtleback.h>
 
 static struct aos_rpc *init_rpc;
 
-static void wait_for_input(void)
+static void handle_getchar_interrupt(void *args)
 {
-    while (true) {
-        char c;
-        aos_rpc_serial_getchar(init_rpc, &c);
-        debug_printf("got char: %c\n", c);
-    }
+    char c;
+    aos_rpc_serial_getchar(init_rpc, &c);
+    printf("got char: %c\n", c);
 }
 
 int main(int argc, char *argv[])
@@ -38,7 +32,12 @@ int main(int argc, char *argv[])
     if (!init_rpc)
         USER_PANIC("init RPC channel NULL?\n");
 
-    wait_for_input();
+    CHECK(aos_rpc_get_irq_cap(init_rpc, &cap_irq));
+    CHECK(inthandler_setup_arm(handle_getchar_interrupt, NULL, IRQ_ID_UART));
+
+    struct waitset *ws = get_default_waitset();
+    while (true)
+        CHECK(event_dispatch(ws));
 
     return 0;
 }

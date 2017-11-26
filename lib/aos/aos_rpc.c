@@ -281,6 +281,7 @@ static void aos_rpc_process_kill_recv(void *arg1, struct recv_list *data)
     uint32_t *success = (uint32_t *) arg1;
     *success = (uint32_t) data->payload[1];
 }
+
 errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
                               uint32_t *success)
 {
@@ -371,6 +372,21 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
                                 size_t bytes, struct capref *frame)
 {
     return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+static void irq_cap_recv(void *arg1, struct recv_list *data)
+{
+    struct capref *retcap = (struct capref *) arg1;
+    *retcap = data->cap;
+}
+
+errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap)
+{
+    DBG(VERBOSE, "aos_rpc_get_irq_cap\n");
+    rpc_framework(irq_cap_recv, retcap, RPC_TYPE_IRQ_CAP, &rpc->chan,
+                  NULL_CAP, 0, NULL, NULL_EVENT_CLOSURE);
+    DBG(VERBOSE, "ACK Received (get_irq_cap)\n");
+    return SYS_ERR_OK;
 }
 
 static void aos_rpc_recv_handler(struct recv_list *data)
