@@ -40,6 +40,7 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
+__attribute__((unused))
 static void print_fill_length(const char *format, ...)
 {
     int colwidth = 80;
@@ -66,6 +67,7 @@ static void print_fill_length(const char *format, ...)
     va_end(p_args);
 }
 
+__attribute__((unused))
 static void print_welcome_msg(void)
 {
     assert(OS_VERSION_MAJOR >= 0);
@@ -163,6 +165,9 @@ int main(int argc, char *argv[])
 #endif
 */
 
+        // Spawn the TurtleBack Shell.
+        struct spawninfo *si = malloc(sizeof(struct spawninfo));
+        CHECK(spawn_load_by_name("turtleback", si));
     } else {
         // Register ourselves as a slave server on the URPC master server.
         urpc_slave_init_and_run();
@@ -176,8 +181,10 @@ int main(int argc, char *argv[])
         procman_register_process("init", 1, NULL);
     }
 
+    /*
     if (my_core_id == 1)
         print_welcome_msg();
+        */
 
     // Hang around
     struct waitset *default_ws = get_default_waitset();

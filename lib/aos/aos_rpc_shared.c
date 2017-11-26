@@ -16,37 +16,34 @@ static errval_t actual_sending(struct lmp_chan *chan, struct capref cap,
     }
     switch (payloadcount) {
     case 0:
-        return (lmp_chan_send1(chan, LMP_FLAG_SYNC, cap, first_byte));
+        return lmp_chan_send1(chan, LMP_FLAG_SYNC, cap, first_byte);
     case 1:
-        return (
-            lmp_chan_send2(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0]));
+        return lmp_chan_send2(chan, LMP_FLAG_SYNC, cap, first_byte,
+                              payload[0]);
     case 2:
-        return (lmp_chan_send3(chan, LMP_FLAG_SYNC, cap, first_byte,
-                               payload[0], payload[1]));
+        return lmp_chan_send3(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0],
+                              payload[1]);
     case 3:
-        return (lmp_chan_send4(chan, LMP_FLAG_SYNC, cap, first_byte,
-                               payload[0], payload[1], payload[2]));
+        return lmp_chan_send4(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0],
+                              payload[1], payload[2]);
     case 4:
-        return (lmp_chan_send5(chan, LMP_FLAG_SYNC, cap, first_byte,
-                               payload[0], payload[1], payload[2],
-                               payload[3]));
+        return lmp_chan_send5(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0],
+                              payload[1], payload[2], payload[3]);
     case 5:
-        return (lmp_chan_send6(chan, LMP_FLAG_SYNC, cap, first_byte,
-                               payload[0], payload[1], payload[2], payload[3],
-                               payload[4]));
+        return lmp_chan_send6(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0],
+                              payload[1], payload[2], payload[3], payload[4]);
     case 6:
-        return (lmp_chan_send7(chan, LMP_FLAG_SYNC, cap, first_byte,
-                               payload[0], payload[1], payload[2], payload[3],
-                               payload[4], payload[5]));
+        return lmp_chan_send7(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0],
+                              payload[1], payload[2], payload[3], payload[4],
+                              payload[5]);
     case 7:
-        return (lmp_chan_send8(chan, LMP_FLAG_SYNC, cap, first_byte,
-                               payload[0], payload[1], payload[2], payload[3],
-                               payload[4], payload[5], payload[6]));
+        return lmp_chan_send8(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0],
+                              payload[1], payload[2], payload[3], payload[4],
+                              payload[5], payload[6]);
     case 8:
-        return (lmp_chan_send9(chan, LMP_FLAG_SYNC, cap, first_byte,
-                               payload[0], payload[1], payload[2], payload[3],
-                               payload[4], payload[5], payload[6],
-                               payload[7]));
+        return lmp_chan_send9(chan, LMP_FLAG_SYNC, cap, first_byte, payload[0],
+                              payload[1], payload[2], payload[3], payload[4],
+                              payload[5], payload[6], payload[7]);
     default:
         USER_PANIC("invalid argcount in actual_sending\n");
     }
