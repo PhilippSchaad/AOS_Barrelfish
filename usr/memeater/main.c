@@ -30,7 +30,7 @@ const char *str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
                   "Duis aute irure dolor in reprehenderit in voluptate velit "
                   "esse cillum dolore eu fugiat nulla pariatur. Excepteur "
                   "sint occaecat cupidatat non proident, sunt in culpa qui "
-                  "officia deserunt mollit anim id est laborum.";
+                  "officia deserunt mollit anim id est laborum.\n";
 
 static errval_t request_and_map_memory(void)
 {
@@ -129,7 +129,7 @@ static errval_t test_basic_rpc(void)
     }
 
     debug_printf("\033[33mRPC: sending small string...\033[0m\n");
-    err = aos_rpc_send_string(init_rpc, "Hello init");
+    err = aos_rpc_send_string(init_rpc, "Hello init\n");
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "\033[31mcould not send a string\033[0m\n");
         return err;

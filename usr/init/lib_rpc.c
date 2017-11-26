@@ -253,10 +253,12 @@ void recv_deal_with_msg(struct recv_list *data)
     case RPC_MESSAGE(RPC_TYPE_STRING):
         if (chan == NULL) { // XXX HACK: We are in URPC
             printf((char *) data->payload);
+            fflush(stdout);
             urpc2_send_response(data, NULL_CAP, 0, NULL);
             break;
         }
         printf((char *) data->payload);
+        fflush(stdout);
         send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
@@ -277,7 +279,7 @@ void recv_deal_with_msg(struct recv_list *data)
             DBG(DETAILED, "putchar request received via URPC\n");
         } else
             DBG(DETAILED, "putchar request received\n");
-        sys_print((char *) &data->payload[1], 1);
+        sys_print((char *) data->payload, 1);
         if (chan == NULL) { // XXX HACK: We are in URPC
             urpc2_send_response(data, NULL_CAP, 0, NULL);
             break;

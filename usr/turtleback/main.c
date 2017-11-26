@@ -57,12 +57,12 @@ static void handle_getchar_interrupt(void *args)
         if (buffer_pos == 0)
             return;
 
-        printf("\b \b");
-        fflush(stdout);
+        aos_rpc_serial_putchar(init_rpc, '\b');
+        aos_rpc_serial_putchar(init_rpc, ' ');
+        aos_rpc_serial_putchar(init_rpc, '\b');
         buffer_pos--;
     } else if (buffer_pos < INPUT_BUFFER_LENGTH) {
-        printf("%c", new_char);
-        fflush(stdout);
+        aos_rpc_serial_putchar(init_rpc, new_char);
         input_buffer[buffer_pos] = new_char;
         buffer_pos++;
     }

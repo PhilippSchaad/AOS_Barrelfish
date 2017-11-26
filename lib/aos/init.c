@@ -94,7 +94,6 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 }
 
 // use this function on all non serial domains
-/*
 static size_t serial_channel_write(const char *buf, size_t len)
 {
     if (len) {
@@ -103,8 +102,6 @@ static size_t serial_channel_write(const char *buf, size_t len)
     }
     return 0;
 }
-*/
-
 
 /*
 static size_t dummy_terminal_read(char *buf, size_t len)
@@ -121,13 +118,11 @@ void barrelfish_libc_glue_init(void)
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
     //_libc_terminal_read_func = dummy_terminal_read;
-    //if (init_domain){
+    if (init_domain){
         _libc_terminal_write_func = syscall_terminal_write;
-        /*
     } else {
         _libc_terminal_write_func = serial_channel_write;
     }
-    */
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
     /* morecore func is setup by morecore_init() */

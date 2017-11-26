@@ -146,11 +146,13 @@ int main(int argc, char *argv[])
 
         /*
 #ifndef PERF_MEASUREMENT
+*/
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
+        /*
 #endif
         procman_print_proc_list();
 
