@@ -29,4 +29,6 @@
 
 #define IRQ_ID_UART                 106
 
+#define INPUT_BUFFER_LENGTH         5000
+
 #endif /* _TURTLEBAC_H_ */
