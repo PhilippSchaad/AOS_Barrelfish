@@ -183,12 +183,8 @@ static errval_t process_get_name_recv_handler(struct recv_list *data,
 
 static void getchar_recv_handler(struct recv_list *data, struct lmp_chan *chan)
 {
-    // TODO: This should be done better obv
     char retchar;
-    while (1) {
-        sys_getchar(&retchar);
-        if (retchar) break;
-    }
+    sys_getchar(&retchar);
 
     send_response(data, chan, NULL_CAP, 1, (void *) &retchar);
 }
