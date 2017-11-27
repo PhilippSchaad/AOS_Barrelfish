@@ -27,7 +27,6 @@ static errval_t ram_alloc_remote(struct capref *ret, size_t size, size_t alignme
      * always have enough free slots available.
      */
 
-    debug_printf("we're sending an aos rpc to get ram\n");
     size_t bytes;
     struct aos_rpc *memchan = aos_rpc_get_memory_channel();
     errval_t err = aos_rpc_get_ram_cap(memchan, size, alignment, ret, &bytes);

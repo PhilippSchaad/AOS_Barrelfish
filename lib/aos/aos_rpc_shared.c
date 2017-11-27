@@ -161,7 +161,7 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
     assert(payloadsize < 65536); // Needed so we can encode the size in 16 bits
 
     bool need_to_start = false;
-    DBG(-1, "Sending message with: type 0x%x id %u\n", type >> 1, id);
+    DBG(DETAILED, "Sending message with: type 0x%x id %u\n", type >> 1, id);
     synchronized(rpc_send_queue.thread_mutex)
     {
         struct send_queue *sq = malloc(sizeof(struct send_queue));
@@ -197,7 +197,6 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
             MKCLOSURE((void *) send_loop, rpc_send_queue.fst->data)));
         CHECK(event_dispatch(get_default_waitset()));
     }
-    debug_printf("Response has been sent\n");
     return SYS_ERR_OK;
 }
 
@@ -308,7 +307,6 @@ static int refill_nono = 0;
 // TODO: error handling
 void recv_handling(void *args)
 {
-    debug_printf("recv_handling\n");
     refill_nono++;
     struct recv_chan *rc = (struct recv_chan *) args;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
@@ -330,14 +328,13 @@ void recv_handling(void *args)
     CHECK(lmp_chan_register_recv(rc->chan, get_default_waitset(),
                            MKCLOSURE(recv_handling, args)));
     slot_alloc_refill_preallocated_slots_conditional(refill_nono);
-    debug_printf("after lmp_chan_reg_recv\n");
 
     assert(msg.buf.msglen > 0);
 
     unsigned char type = msg.words[0] >> 24;
     unsigned char id = (msg.words[0] >> 16) & 0xFF;
     size_t size = msg.words[0] & 0xFFFF;
-    DBG(-1, "Received message with: type 0x%x id %u\n", type >> 1, id);
+    DBG(DETAILED, "Received message with: type 0x%x id %u\n", type >> 1, id);
 
     if (size < 9) // fast path for small messages
     {
@@ -399,7 +396,6 @@ errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
 
     lmp_chan_register_recv(rc->chan, get_default_waitset(),
                            MKCLOSURE(recv_handling, rc));
-    debug_printf("hi\n");
     return SYS_ERR_OK;
 }
 
