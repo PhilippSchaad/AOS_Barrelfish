@@ -36,6 +36,7 @@
 #include "../tests/test.h"
 
 //#define PERF_MEASUREMENT
+#define NDTESTS
 
 coreid_t my_core_id;
 struct bootinfo *bi;
@@ -146,11 +147,15 @@ int main(int argc, char *argv[])
 
         /*
 #ifndef PERF_MEASUREMENT
+*/
+#ifndef NDTESTS
         struct tester t;
         init_testing(&t);
         register_memory_tests(&t);
         register_spawn_tests(&t);
         tests_run(&t);
+#endif
+        /*
 #endif
         procman_print_proc_list();
 

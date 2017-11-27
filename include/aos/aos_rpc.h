@@ -105,6 +105,14 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
  */
 errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
                                 size_t bytes, struct capref *frame);
+
+/**
+ * \brief Gets a capability to Interrupt Receive Requests
+ * \param rpc  the rpc channel
+ * \param retcap returned irq capability
+ */
+errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap);
+
 /**
  * \brief Initialize given rpc channel.
  */
