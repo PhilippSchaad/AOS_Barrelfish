@@ -51,7 +51,7 @@ errval_t lmp_chan_register_send(struct lmp_chan *lc, struct waitset *ws,
                                 struct event_closure closure);
 errval_t lmp_chan_deregister_send(struct lmp_chan *lc);
 void lmp_chan_migrate_send(struct lmp_chan *lc, struct waitset *ws);
-errval_t lmp_chan_alloc_recv_slot(struct lmp_chan *lc);
+errval_t lmp_chan_alloc_recv_slot(struct lmp_chan *lc, bool use_buff);
 void lmp_channels_retry_send_disabled(dispatcher_handle_t handle);
 
 /**

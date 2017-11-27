@@ -161,7 +161,7 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
     assert(payloadsize < 65536); // Needed so we can encode the size in 16 bits
 
     bool need_to_start = false;
-    DBG(DETAILED, "Sending message with: type %u id %u\n", type, id);
+    DBG(-1, "Sending message with: type 0x%x id %u\n", type >> 1, id);
     synchronized(rpc_send_queue.thread_mutex)
     {
         struct send_queue *sq = malloc(sizeof(struct send_queue));
@@ -197,6 +197,7 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
             MKCLOSURE((void *) send_loop, rpc_send_queue.fst->data)));
         CHECK(event_dispatch(get_default_waitset()));
     }
+    debug_printf("Response has been sent\n");
     return SYS_ERR_OK;
 }
 
@@ -302,9 +303,13 @@ errval_t send_response(struct recv_list *rl, struct lmp_chan *chan,
                 request_fresh_id(rl->type + 1));
 }
 
+static int refill_nono = 0;
+
 // TODO: error handling
 void recv_handling(void *args)
 {
+    debug_printf("recv_handling\n");
+    refill_nono++;
     struct recv_chan *rc = (struct recv_chan *) args;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;
@@ -320,16 +325,19 @@ void recv_handling(void *args)
         cap_destroy(cap);
     }
 
-    lmp_chan_alloc_recv_slot(rc->chan);
-    lmp_chan_register_recv(rc->chan, get_default_waitset(),
-                           MKCLOSURE(recv_handling, args));
+    bool use_prealloc_slot_buff = true;
+    lmp_chan_alloc_recv_slot(rc->chan, use_prealloc_slot_buff);
+    CHECK(lmp_chan_register_recv(rc->chan, get_default_waitset(),
+                           MKCLOSURE(recv_handling, args)));
+    slot_alloc_refill_preallocated_slots_conditional(refill_nono);
+    debug_printf("after lmp_chan_reg_recv\n");
 
     assert(msg.buf.msglen > 0);
 
     unsigned char type = msg.words[0] >> 24;
     unsigned char id = (msg.words[0] >> 16) & 0xFF;
     size_t size = msg.words[0] & 0xFFFF;
-    DBG(DETAILED, "Received message with: type %u id %u\n", type, id);
+    DBG(-1, "Received message with: type 0x%x id %u\n", type >> 1, id);
 
     if (size < 9) // fast path for small messages
     {
@@ -371,6 +379,7 @@ void recv_handling(void *args)
             free(rl);
         }
     }
+    refill_nono--;
 }
 
 errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
@@ -381,7 +390,8 @@ errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
     // Create local endpoint.
     // Set remote endpoint to dest's endpoint.
     CHECK(lmp_chan_accept(chan, DEFAULT_LMP_BUF_WORDS, dest));
-    lmp_chan_alloc_recv_slot(chan);
+    bool use_prealloc_slot_buff = false;
+    lmp_chan_alloc_recv_slot(chan, use_prealloc_slot_buff);
     struct recv_chan *rc = malloc(sizeof(struct recv_chan));
     rc->chan = chan;
     rc->recv_deal_with_msg = recv_deal_with_msg;
@@ -389,6 +399,7 @@ errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
 
     lmp_chan_register_recv(rc->chan, get_default_waitset(),
                            MKCLOSURE(recv_handling, rc));
+    debug_printf("hi\n");
     return SYS_ERR_OK;
 }
 
@@ -398,7 +409,8 @@ errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
     thread_mutex_init(&rpc_send_queue.thread_mutex);
 
     CHECK(lmp_chan_accept(chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
-    CHECK(lmp_chan_alloc_recv_slot(chan));
+    bool use_prealloc_slot_buff = false;
+    CHECK(lmp_chan_alloc_recv_slot(chan, use_prealloc_slot_buff));
     CHECK(cap_copy(cap_initep, chan->local_cap));
     struct recv_chan *rc = malloc(sizeof(struct recv_chan));
     rc->chan = chan;

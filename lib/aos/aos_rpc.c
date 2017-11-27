@@ -391,6 +391,7 @@ errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap)
 
 static void aos_rpc_recv_handler(struct recv_list *data)
 {
+    debug_printf("in here\n");
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
