@@ -22,6 +22,7 @@
 #include <aos/caddr.h>
 #include "internal.h"
 
+#define SLOT_BUFF_SIZE 20
 
 /**
  * \brief Returns the default slot allocator for the caller
@@ -41,12 +42,12 @@ struct slot_allocator *get_default_slot_allocator(void)
  */
 static int slot_alloc_rec_depth = 0;
 
-static int usedslots = 31;
-static struct capref capbuffer[20];
+static int usedslots = (1 << SLOT_BUFF_SIZE) - 1;
+static struct capref capbuffer[SLOT_BUFF_SIZE];
 static bool refilling = false;
 
 static void sloc_alloc_refill_preallocated_with_cap(struct capref *cap) {
-    for(int i = 0; i < 20; i++) {
+    for(int i = 0; i < SLOT_BUFF_SIZE; i++) {
         if(usedslots & (1 << i)) {
             capbuffer[i] = *cap;
             usedslots -= (1 << i);
@@ -62,7 +63,7 @@ static void sloc_alloc_refill_preallocated_with_cap(struct capref *cap) {
 
 static void sloc_alloc_refill_preallocated_slots(void) {
     refilling = true;
-    for(int i = 0; i < 20; i++) {
+    for(int i = 0; i < SLOT_BUFF_SIZE; i++) {
         if(usedslots & (1 << i)) {
             if(slot_alloc(&capbuffer[i]) != SYS_ERR_OK) {
                 DBG(ERR, "we failed to refill in "
@@ -83,7 +84,7 @@ void slot_alloc_refill_preallocated_slots_conditional(int refill_nono) {
 
 void slot_alloc_use_prefilled_slot(struct capref *slot) {
     //assert(!refilling);
-    for(int i = 0; i < 20; i++) {
+    for(int i = 0; i < SLOT_BUFF_SIZE; i++) {
         if(usedslots & (1 << i))
             continue;
         *slot = capbuffer[i];
