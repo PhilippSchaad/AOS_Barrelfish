@@ -336,8 +336,6 @@ static void aos_rpc_process_get_name_recv(void *arg1, struct recv_list *data)
     strcpy(name, recv_name);
     name[length] = '\0';
     *ret_name = name;
-    debug_printf("in here we have: size %u and name %s\n", data->size,
-                 (char *) &data->payload[1]);
 }
 
 errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
@@ -345,7 +343,6 @@ errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
 {
     uintptr_t *payload = malloc(sizeof(uintptr_t));
     *payload = pid;
-    debug_printf("wanting to get the name of process with pid %u\n", *payload);
     rpc_framework(aos_rpc_process_get_name_recv, name,
                   RPC_TYPE_PROCESS_GET_NAME, &chan->chan, NULL_CAP, 1, payload,
                   NULL_EVENT_CLOSURE);

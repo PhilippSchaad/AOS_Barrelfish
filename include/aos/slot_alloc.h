@@ -96,6 +96,8 @@ errval_t two_level_slot_alloc_init_raw(struct multi_slot_allocator *ret,
 
 errval_t slot_alloc_init(void);
 struct slot_allocator *get_default_slot_allocator(void);
+void slot_alloc_refill_preallocated_slots_conditional(int refill_nono);
+void slot_alloc_use_prefilled_slot(struct capref *slot);
 errval_t slot_alloc(struct capref *ret);
 int get_slot_alloc_rec_depth(void);
 /// Root slot allocator functions
