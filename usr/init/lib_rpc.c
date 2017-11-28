@@ -198,6 +198,29 @@ static void irq_cap_recv_handler(struct recv_list *data, struct lmp_chan *chan)
 
     send_response(data, chan, irq_cap, 0, NULL);
 }
+static void dev_cap_recv_handler(struct recv_list *data, struct lmp_chan *chan)
+{
+    struct capref dev_cap;
+    lpaddr_t paddr = data->payload[0];
+    size_t bytes = data->payload[1];
+
+    // get the initial device cap
+    struct capref initial_dev_cap = {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_DEVCAP
+    };
+
+    // create slot
+    CHECK(slot_alloc(&dev_cap));
+
+    // get part of the device cap
+    DBG(VERBOSE,"retype cap with: source %"PRIxLVADDR" size: %u", paddr, bytes);
+    CHECK(cap_retype(dev_cap, initial_dev_cap, paddr - 0x40000000,
+                    ObjType_DevFrame, bytes, 1));
+
+    send_response(data, chan, dev_cap, 0, NULL);
+
+}
 
 static void process_register_recv_handler(struct recv_list *data,
                                           struct lmp_chan *chan)
@@ -291,6 +314,9 @@ void recv_deal_with_msg(struct recv_list *data)
         break;
     case RPC_MESSAGE(RPC_TYPE_IRQ_CAP):
         irq_cap_recv_handler(data, chan);
+        break;
+    case RPC_MESSAGE(RPC_TYPE_DEV_CAP):
+        dev_cap_recv_handler(data, chan);
         break;
     case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
         DBG(ERR, "Non handshake handler got handshake RPC. This should never "

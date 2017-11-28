@@ -365,10 +365,25 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
-errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
-                                size_t bytes, struct capref *frame)
+static void device_cap_recv(void *arg1, struct recv_list *data)
 {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    struct capref *retcap = (struct capref *) arg1;
+    *retcap = data->cap;
+}
+errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
+                                size_t bytes, struct capref *retcap)
+{
+    DBG(VERBOSE, "aos_rpc_get_dev_cap: paddr:0x%"PRIxLVADDR" size:%u\n", paddr, bytes);
+
+    uintptr_t *payload = malloc(2*sizeof(uintptr_t));
+    payload[0] = (uintptr_t) paddr;
+    payload[1] = (uintptr_t) bytes;
+
+    rpc_framework(device_cap_recv, retcap, RPC_TYPE_DEV_CAP, &rpc->chan,
+                  NULL_CAP, 2, payload, NULL_EVENT_CLOSURE);
+    DBG(VERBOSE, "ACK Received (get_dev_cap)\n");
+    free(payload);
+    return SYS_ERR_OK;
 }
 
 static void irq_cap_recv(void *arg1, struct recv_list *data)
