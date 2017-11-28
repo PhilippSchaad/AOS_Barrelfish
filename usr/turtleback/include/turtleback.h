@@ -23,6 +23,8 @@
 #include <aos/aos_rpc.h>
 #include <aos/inthandler.h>
 
+#include <builtins.h>
+
 #define TURTLEBACK_VERSION_MAJOR    0
 #define TURTLEBACK_VERSION_MINOR    0
 #define TURTLEBACK_PATCH_LEVEL      1
@@ -31,4 +33,14 @@
 
 #define INPUT_BUFFER_LENGTH         5000
 
-#endif /* _TURTLEBAC_H_ */
+#define TURTLEBACK_DEFAULT_PROMPT   ">\033[33mTurtleBack\033[0m$ \0"
+
+typedef void (*shell_cmd_handler)(int argc, char **argv);
+
+struct shell_cmd {
+    char *cmd;
+    char *help_text;
+    shell_cmd_handler invoke;
+};
+
+#endif /* _TURTLEBACK_H_ */
