@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 
         // Spawn the TurtleBack Shell.
         struct spawninfo *si = malloc(sizeof(struct spawninfo));
-        CHECK(spawn_load_by_name("turtleback", si));
+        CHECK(spawn_load_by_name("network", si));
     } else {
         // Register ourselves as a slave server on the URPC master server.
         urpc_slave_init_and_run();
