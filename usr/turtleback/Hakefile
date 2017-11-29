@@ -12,7 +12,8 @@
 
 [ build application { target = "turtleback",
                       cFiles = [
-                        "main.c"
+                        "main.c",
+                        "builtins.c"
                       ],
                       addIncludes = [ "include" ],
                       architectures = allArchitectures

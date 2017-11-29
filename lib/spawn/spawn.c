@@ -366,7 +366,7 @@ errval_t spawn_load_by_name(void *binary_name, struct spawninfo *si)
     DBG(DETAILED, "I: Getting the binary from the multiboot image.\n");
     struct mem_region *module = multiboot_find_module(bi, binary_name);
     if (module == NULL) {
-        DBG(ERR, "multiboot: Could not find module %s\n", binary_name);
+        DBG(VERBOSE, "multiboot: Could not find module %s\n", binary_name);
         return SPAWN_ERR_FIND_MODULE;
     }
 

@@ -31,4 +31,45 @@
 
 #define INPUT_BUFFER_LENGTH         5000
 
-#endif /* _TURTLEBAC_H_ */
+#define TURTLEBACK_DEFAULT_PROMPT   ">\033[33mTurtleBack\033[0m$ \0"
+
+typedef void (*shell_cmd_handler)(int argc, char **argv);
+
+struct shell_cmd {
+    char *cmd;
+    char *help_text;
+    shell_cmd_handler invoke;
+};
+
+// Declaration of TurtleBack builtin functions.
+void shell_invalid_command(char *cmd);
+void shell_help(int argc, char **argv);
+void shell_clear(int argc, char **argv);
+void shell_echo(int argc, char **argv);
+
+// List of TurtleBack builtin functions.
+static struct shell_cmd shell_builtins[] = {
+    {
+        .cmd = "echo",
+        .help_text = "Display a line of text",
+        .invoke = shell_echo
+    },
+    {
+        .cmd = "clear",
+        .help_text = "Clear the terminal screen",
+        .invoke = shell_clear
+    },
+    {
+        .cmd = "help",
+        .help_text = "Display the help text",
+        .invoke = shell_help
+    },
+    // Builtins list terminator.
+    {
+        .cmd = NULL,
+        .help_text = NULL,
+        .invoke = NULL
+    }
+};
+
+#endif /* _TURTLEBACK_H_ */

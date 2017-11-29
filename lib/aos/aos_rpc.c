@@ -241,12 +241,8 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan)
 
 static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 {
-    // TODO: can this be removed or is there something useful that we should do
-    // here?
     domainid_t *newpid = (domainid_t *) arg1;
-    debug_printf("spawned requested process. PID is %d\n", *newpid);
     *newpid = data->payload[1];
-    debug_printf("spawned requested process. PID is %d\n", *newpid);
 }
 
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
