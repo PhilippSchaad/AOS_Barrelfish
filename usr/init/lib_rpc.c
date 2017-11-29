@@ -143,11 +143,15 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     // This will create the process but the process does not know its PID yet
     // and we don't have a rpc channel.
     domainid_t pid;
-    if (chan == NULL && disp_get_core_id() != 0) { // XXX HACK: We are in URPC
-        pid = *((domainid_t *) (recv_name + strlen(recv_name) + 3));
-        procman_foreign_preregister(pid, name, core, si);
+    if (err == SPAWN_ERR_FIND_MODULE) {
+        pid = UINT32_MAX;
     } else {
-        pid = procman_register_process(name, core, si);
+        if (chan == NULL && disp_get_core_id() != 0) { // XXX HACK: We are in URPC
+            pid = *((domainid_t *) (recv_name + strlen(recv_name) + 3));
+            procman_foreign_preregister(pid, name, core, si);
+        } else {
+            pid = procman_register_process(name, core, si);
+        }
     }
 
     // This is done at a separate call, because some day we would want to split
