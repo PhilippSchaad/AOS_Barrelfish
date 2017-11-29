@@ -98,3 +98,8 @@ void shell_ps(int argc, char **argv)
 {
     CHECK(aos_rpc_print_process_list(aos_rpc_get_init_channel()));
 }
+
+void shell_led(int argc, char **argv)
+{
+    CHECK(aos_rpc_led_toggle(aos_rpc_get_init_channel()));
+}
