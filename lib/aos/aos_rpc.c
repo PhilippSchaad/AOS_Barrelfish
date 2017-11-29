@@ -359,11 +359,19 @@ errval_t aos_rpc_print_process_list(struct aos_rpc *chan)
     return SYS_ERR_OK;
 }
 
+errval_t aos_rpc_led_toggle(struct aos_rpc *chan)
+{
+    rpc_framework(NULL, NULL, RPC_TYPE_LED_TOGGLE, &chan->chan, NULL_CAP,
+                  0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
 static void device_cap_recv(void *arg1, struct recv_list *data)
 {
     struct capref *retcap = (struct capref *) arg1;
     *retcap = data->cap;
 }
+
 errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
                                 size_t bytes, struct capref *retcap)
 {

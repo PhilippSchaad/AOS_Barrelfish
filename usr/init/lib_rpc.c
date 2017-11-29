@@ -226,6 +226,27 @@ static void dev_cap_recv_handler(struct recv_list *data, struct lmp_chan *chan)
 
 }
 
+static void process_led_toggle(void)
+{
+    DBG(DETAILED, "Processing LED CTRL request\n");
+
+    genpaddr_t gpio_addr = (genpaddr_t) GPIO_1_BASE;
+
+    struct capref gpio_frame;
+    CHECK(slot_alloc(&gpio_frame));
+    CHECK(frame_forge(gpio_frame, gpio_addr, BASE_PAGE_SIZE, 0));
+
+    struct frame_identity gpio_frame_id;
+    CHECK(frame_identify(gpio_frame, &gpio_frame_id));
+
+    void *gpio_mapped_addr;
+    CHECK(paging_map_frame(get_current_paging_state(), &gpio_mapped_addr,
+                           BASE_PAGE_SIZE, gpio_frame, NULL, NULL));
+
+    CLR_BIT(gpio_mapped_addr, OFFSET_GPIO_OE, LED_D2_BIT);
+    TOGGLE_BIT(gpio_mapped_addr, OFFSET_GPIO_DATAOUT, LED_D2_BIT);
+}
+
 static void process_register_recv_handler(struct recv_list *data,
                                           struct lmp_chan *chan)
 {
@@ -374,6 +395,10 @@ void recv_deal_with_msg(struct recv_list *data)
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
         DBG(ERR, "No get PIDs handler implemented yet\n");
+        break;
+    case RPC_MESSAGE(RPC_TYPE_LED_TOGGLE):
+        process_led_toggle();
+        send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_PRINT_PROC_LIST):
         procman_print_proc_list();

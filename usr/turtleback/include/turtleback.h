@@ -53,6 +53,7 @@ void shell_clear(int argc, char **argv);
 void shell_echo(int argc, char **argv);
 void shell_oncore(int argc, char **argv);
 void shell_ps(int argc, char **argv);
+void shell_led(int argc, char **argv);
 
 // List of TurtleBack builtin functions.
 static struct shell_cmd shell_builtins[] = {
@@ -85,6 +86,12 @@ static struct shell_cmd shell_builtins[] = {
         .help_text = "Report a snapshot of the current processes",
         .usage = "ps",
         .invoke = shell_ps
+    },
+    {
+        .cmd = "led",
+        .help_text = "Toggle the D2 LED",
+        .usage = "led",
+        .invoke = shell_led
     },
     // Builtins list terminator.
     {
