@@ -104,7 +104,7 @@ static void parse_line(void)
     // Try spawning it as an application if it has not yet been handled.
     if (!handled) {
         domainid_t pid;
-        CHECK(aos_rpc_process_spawn(init_rpc, tokens[0], disp_get_core_id(),
+        CHECK(aos_rpc_process_spawn(init_rpc, input_buffer, disp_get_core_id(),
                                     &pid));
         // A PID of UINT32_MAX means the process was not found.
         if (pid != UINT32_MAX)
