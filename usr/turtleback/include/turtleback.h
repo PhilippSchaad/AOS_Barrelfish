@@ -23,8 +23,6 @@
 #include <aos/aos_rpc.h>
 #include <aos/inthandler.h>
 
-#include <builtins.h>
-
 #define TURTLEBACK_VERSION_MAJOR    0
 #define TURTLEBACK_VERSION_MINOR    0
 #define TURTLEBACK_PATCH_LEVEL      1
@@ -43,16 +41,28 @@ struct shell_cmd {
     shell_cmd_handler invoke;
 };
 
+// Declaration of TurtleBack builtin functions.
+void shell_invalid_command(char *cmd);
+void shell_help(int argc, char **argv);
+void shell_clear(int argc, char **argv);
+void shell_echo(int argc, char **argv);
+
+// List of TurtleBack builtin functions.
 static struct shell_cmd shell_builtins[] = {
     {
         .cmd = "echo",
-        .help_text = "display a line of text",
+        .help_text = "Display a line of text",
         .invoke = shell_echo
     },
     {
         .cmd = "clear",
-        .help_text = "clear the terminal screen",
+        .help_text = "Clear the terminal screen",
         .invoke = shell_clear
+    },
+    {
+        .cmd = "help",
+        .help_text = "Display the help text",
+        .invoke = shell_help
     },
     // Builtins list terminator.
     {
