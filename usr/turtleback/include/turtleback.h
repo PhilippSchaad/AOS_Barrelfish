@@ -52,6 +52,7 @@ void shell_help(int argc, char **argv);
 void shell_clear(int argc, char **argv);
 void shell_echo(int argc, char **argv);
 void shell_oncore(int argc, char **argv);
+void shell_ps(int argc, char **argv);
 
 // List of TurtleBack builtin functions.
 static struct shell_cmd shell_builtins[] = {
@@ -75,9 +76,15 @@ static struct shell_cmd shell_builtins[] = {
     },
     {
         .cmd = "oncore",
-        .help_text = "Run a process on a specific core [0|1]\n",
+        .help_text = "Run a process on a specific core [0|1]",
         .usage = ONCORE_USAGE,
         .invoke = shell_oncore
+    },
+    {
+        .cmd = "ps",
+        .help_text = "Report a snapshot of the current processes",
+        .usage = "ps",
+        .invoke = shell_ps
     },
     // Builtins list terminator.
     {

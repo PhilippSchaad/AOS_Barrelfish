@@ -226,16 +226,15 @@ void procman_print_proc_list(void)
     assert(pt != NULL);
     assert(pt->head != NULL);
 
-    debug_printf("Dumping process list:\n");
-    debug_printf("=====================================\n");
-    debug_printf("| %9s | %9s | %9s |\n", "ID", "NAME", "CORE");
-    debug_printf("=====================================\n");
+    printf("===========================================\n");
+    printf("| %-9s | %-20s | %-4s |\n", "ID", "NAME", "CORE");
+    printf("===========================================\n");
     struct process_info *pi = pt->head;
     while (pi != NULL) {
-        debug_printf("| %9d | %9s | %9d |\n", pi->id, pi->name, pi->core);
+        printf("| %-9d | %-20s | %-4d |\n", pi->id, pi->name, pi->core);
         pi = pi->next;
     }
-    debug_printf("=====================================\n");
+    printf("===========================================\n");
 }
 
 /// Kill a process.

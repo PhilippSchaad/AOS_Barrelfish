@@ -23,8 +23,8 @@ void shell_help(int argc, char **argv)
                TURTLEBACK_PATCH_LEVEL, OS_NAME, OS_VERSION_MAJOR,
                OS_VERSION_MINOR, OS_PATCH_LEVEL);
         printf("These shell commands are defined internally. "
-               "Type `help' to see this list.\n"
-               "Type `help name' to find out more about the function "
+               "Type `help' to see this list.\n");
+        printf("Type `help name' to find out more about the function "
                "`name'.\n");
         for (int i = 0; shell_builtins[i].cmd != NULL; i++) {
             printf(" %-10s - %s\n", shell_builtins[i].cmd,
@@ -92,4 +92,9 @@ void shell_oncore(int argc, char **argv)
         printf("Unable to find program %s\n", prog_name);
 
     free(bin_invocation);
+}
+
+void shell_ps(int argc, char **argv)
+{
+    CHECK(aos_rpc_print_process_list(aos_rpc_get_init_channel()));
 }
