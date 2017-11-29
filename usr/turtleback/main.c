@@ -108,8 +108,7 @@ static void parse_line(void)
 
     // Try matching against builtins on the first token.
     for (int i = 0; shell_builtins[i].cmd != NULL; i++) {
-        if (strncmp(tokens[0], shell_builtins[i].cmd,
-                    strlen(tokens[0])) == 0) {
+        if (strcmp(tokens[0], shell_builtins[i].cmd) == 0) {
             handled = true;
             shell_builtins[i].invoke(n_tokens, tokens);
             break;
