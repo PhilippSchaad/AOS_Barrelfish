@@ -20,6 +20,12 @@ static struct aos_rpc *init_rpc;
 static char input_buffer[INPUT_BUFFER_LENGTH];
 static int buffer_pos = 0;
 
+/*
+static char **shell_history;
+static int shell_history_max_length;
+static int shell_history_length;
+*/
+
 static char *shell_prompt;
 
 static inline bool is_endl(char c)
@@ -43,6 +49,55 @@ static inline bool is_space(char c)
 static void shell_mem_err(void)
 {
     USER_PANIC("The TurtleBack Shell has run out of memory! Aborting..\n");
+}
+
+static void print_fill_length(const char *format, ...)
+{
+    int colwidth = 80;
+
+    va_list p_args;
+    va_start(p_args, format);
+
+    char pre_formatted[colwidth];
+    vsprintf(pre_formatted, format, p_args);
+
+    char p_line[colwidth];
+    sprintf(p_line, "* %.*s\0", colwidth - 4, pre_formatted);
+
+    int p_line_length = strlen(p_line);
+    int spaces_to_fill = colwidth;
+    spaces_to_fill -= 2 + p_line_length;
+
+    char *filler =
+        "                                                                     "
+        "        ";
+
+    printf("%s%.*s *\n", p_line, spaces_to_fill, filler);
+
+    va_end(p_args);
+}
+
+static void shell_welcome_msg(void)
+{
+    assert(OS_VERSION_MAJOR >= 0);
+    assert(OS_VERSION_MINOR >= 0);
+    assert(OS_PATCH_LEVEL >= 0);
+
+    shell_clear(0, NULL);
+
+    printf("**************************************"
+           "******************************************\n");
+    printf("*********************************  Welcome  "
+           "************************************\n");
+    printf("**************************************"
+           "******************************************\n");
+    print_fill_length("%.20s v%u.%u.%u", OS_NAME, OS_VERSION_MAJOR,
+                      OS_VERSION_MINOR, OS_PATCH_LEVEL);
+    print_fill_length("Authors: %s", OS_AUTHORS);
+    print_fill_length("%s", OS_GROUP);
+    print_fill_length("");
+    printf("**************************************"
+           "******************************************\n");
 }
 
 static void shell_new_prompt(void)
@@ -153,8 +208,6 @@ static void handle_getchar_interrupt(void *args)
 
 int main(int argc, char **argv)
 {
-    debug_printf("TurtleBack version.. who am I kidding, this isn't even alpha..\n");
-
     shell_prompt = TURTLEBACK_DEFAULT_PROMPT;
 
     init_rpc = aos_rpc_get_init_channel();
@@ -164,7 +217,12 @@ int main(int argc, char **argv)
     CHECK(aos_rpc_get_irq_cap(init_rpc, &cap_irq));
     CHECK(inthandler_setup_arm(handle_getchar_interrupt, NULL, IRQ_ID_UART));
 
+    shell_welcome_msg();
     shell_new_prompt();
+    /*
+    domainid_t pid;
+    CHECK(aos_rpc_process_spawn(init_rpc, "hello", 1, &pid));
+    */
 
     struct waitset *ws = get_default_waitset();
     while (true)
