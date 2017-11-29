@@ -21,6 +21,10 @@
 
 #include <aos/aos.h>
 
+void shell_invalid_command(char *cmd);
+void shell_invalid_option(char *opt);
+void shell_help(int argc, char **argv);
+void shell_clear(int argc, char **argv);
 void shell_echo(int argc, char **argv);
 
 #endif /* _BUILTINS_H_ */

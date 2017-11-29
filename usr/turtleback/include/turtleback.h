@@ -43,4 +43,23 @@ struct shell_cmd {
     shell_cmd_handler invoke;
 };
 
+static struct shell_cmd shell_builtins[] = {
+    {
+        .cmd = "echo",
+        .help_text = "display a line of text",
+        .invoke = shell_echo
+    },
+    {
+        .cmd = "clear",
+        .help_text = "clear the terminal screen",
+        .invoke = shell_clear
+    },
+    // Builtins list terminator.
+    {
+        .cmd = NULL,
+        .help_text = NULL,
+        .invoke = NULL
+    }
+};
+
 #endif /* _TURTLEBACK_H_ */

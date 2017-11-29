@@ -22,19 +22,6 @@ static int buffer_pos = 0;
 
 static char *shell_prompt;
 
-static struct shell_cmd shell_builtins[] = {
-    {
-        .cmd = "echo",
-        .help_text = "display a line of text",
-        .invoke = shell_echo
-    },
-    {
-        .cmd = NULL,
-        .help_text = NULL,
-        .invoke = NULL
-    }
-};
-
 static inline bool is_endl(char c)
 {
     // 4 = EOL | 10 = NL | 13 = CR
@@ -80,13 +67,12 @@ static void parse_line(void)
     int token_length = 0;
     int n_tokens = 0;
     char *token_start = NULL;
-    char *iter = input_buffer;
     char **tokens = malloc(sizeof(char *));
     if (!tokens)
         shell_mem_err();
     for (int i = 0; i < buffer_pos + 1; i++) {
         if (is_space(input_buffer[i]) || input_buffer[i] == '\0') {
-            if (!is_space(*(iter - 1))) {
+            if (token_length > 0) {
                 tokens[n_tokens] = malloc((token_length + 1) * sizeof(char));
                 if (tokens[n_tokens] == NULL)
                     shell_mem_err();
@@ -120,6 +106,9 @@ static void parse_line(void)
     if (!handled) {
     }
     */
+
+    if (!handled)
+        shell_invalid_command(tokens[0]);
     
     // Cleanup.
     for (int i = 0; i < n_tokens; i++) {
@@ -134,8 +123,8 @@ static void handle_getchar_interrupt(void *args)
     aos_rpc_serial_getchar(init_rpc, &new_char);
     if (is_endl(new_char)) {
         input_buffer[buffer_pos] = '\0';
-        parse_line();
         printf("\n");
+        parse_line();
         shell_new_prompt();
         buffer_pos = 0;
         input_buffer[buffer_pos] = '\0';
