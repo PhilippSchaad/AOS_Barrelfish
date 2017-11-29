@@ -374,6 +374,11 @@ void recv_deal_with_msg(struct recv_list *data)
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_GET_PIDS):
         DBG(ERR, "No get PIDs handler implemented yet\n");
+        break;
+    case RPC_MESSAGE(RPC_TYPE_PRINT_PROC_LIST):
+        procman_print_proc_list();
+        send_response(data, chan, NULL_CAP, 0, NULL);
+        break;
     default:
         DBG(WARN, "Unable to handle RPC-receipt, expect badness! type: %u\n",
             (unsigned int) data->type);

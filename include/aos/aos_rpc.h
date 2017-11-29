@@ -97,6 +97,11 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
                                       size_t *pid_count);
 
 /**
+ * \brief Dump the list of running processes to the terminal
+ */
+errval_t aos_rpc_print_process_list(struct aos_rpc *chan);
+
+/**
  * \brief Gets a capability to device registers
  * \param rpc  the rpc channel
  * \param paddr physical address of the device

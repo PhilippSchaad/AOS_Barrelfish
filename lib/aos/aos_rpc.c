@@ -349,16 +349,14 @@ errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
 errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
                                       size_t *pid_count)
 {
-    /*    uintptr_t sendargs[3]; // 0+2
-        sendargs[0] = (uintptr_t) chan;
-
-        impl(process_get_pids_send_handler, process_get_pids_receive_handler,
-             true);
-
-        *pid_count = (size_t) sendargs[1];
-        *pids = (domainid_t *) sendargs[2];
-    */
     return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+errval_t aos_rpc_print_process_list(struct aos_rpc *chan)
+{
+    rpc_framework(NULL, NULL, RPC_TYPE_PRINT_PROC_LIST, &chan->chan, NULL_CAP,
+                  0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
 }
 
 static void device_cap_recv(void *arg1, struct recv_list *data)
