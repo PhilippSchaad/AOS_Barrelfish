@@ -94,16 +94,17 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 }
 
 // use this function on all non serial domains
-/*
 static size_t serial_channel_write(const char *buf, size_t len)
 {
     if (len) {
-        aos_rpc_send_string(aos_rpc_get_serial_channel(), buf);
+        char *buf_cpy = malloc((len + 1) * sizeof(char));
+        snprintf(buf_cpy, len + 1, "%s\0", buf);
+        aos_rpc_send_string(aos_rpc_get_serial_channel(), buf_cpy);
+        free(buf_cpy);
         return len;
     }
     return 0;
 }
-*/
 
 /*
 static size_t dummy_terminal_read(char *buf, size_t len)
@@ -123,7 +124,7 @@ void barrelfish_libc_glue_init(void)
     if (init_domain){
         _libc_terminal_write_func = syscall_terminal_write;
     } else {
-        _libc_terminal_write_func = syscall_terminal_write;
+        _libc_terminal_write_func = serial_channel_write;
     }
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
