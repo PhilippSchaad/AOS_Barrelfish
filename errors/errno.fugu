@@ -1261,6 +1261,11 @@ errors aos AOS_ERR_ {
     failure LMP_MSGTYPE_UNKNOWN     "Unknown message type for AOS LMP implementation",
 };
 
+// errors for AOS networking
+errors aos AOS_NET_ERR_ {
+    failure MESSAGE_BUF_OVERFLOW    "The message buffer is not large enough",
+};
+
 errors cpuid DEVQ_ERR_ {
     failure INIT_QUEUE              "Could not initalize queue",
     failure BUFFER_ID               "Could not get a buffer id.",

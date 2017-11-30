@@ -18,13 +18,53 @@
 #include <aos/aos.h>
 #include <maps/omap44xx_map.h>
 #include <driverkit/driverkit.h>
+#include <netutil/user_serial.h>
+#include <aos/aos_rpc.h>
+#include "message_buffer.h"
+#include "slip.h"
+
+// message buffer
+static struct net_msg_buf message_buffer;
+
+// handle the interrupt from serial
+void serial_input(uint8_t *buf, size_t len){
+    debug_printf("I received %d, l3n: %d\n", *buf, len);
+    CHECK(net_msg_buf_write(&message_buffer, buf, len));
+    debug_printf("call, buffer length is %d\n", net_msg_buf_length(&message_buffer));
+}
 
 int main(int argc, char *argv[])
 {
     printf("Welcome. I am your connection to the world.\n");
 
+    errval_t err;
+
+    // init the buffer
+    net_msg_buf_init(&message_buffer);
+    *message_buffer.start = 8;
     // map the required memory
-    void* uart_device_mapping;
-    DBG(-1, "aos_rpc_get_dev_cap: paddr:0x%"PRIxLVADDR" size:%u\n", OMAP44XX_MAP_L4_PER_UART4, OMAP44XX_MAP_L4_PER_UART4_SIZE);
-    map_device_register(OMAP44XX_MAP_L4_PER_UART4, OMAP44XX_MAP_L4_PER_UART4_SIZE, (lvaddr_t *) &uart_device_mapping);
+    lvaddr_t uart_device_mapping;
+    CHECK(map_device_register(OMAP44XX_MAP_L4_PER_UART4, OMAP44XX_MAP_L4_PER_UART4_SIZE, &uart_device_mapping));
+
+    // get the interrupt cap
+    CHECK(aos_rpc_get_irq_cap(aos_rpc_get_init_channel(), &cap_irq));
+
+    // init the driver
+    CHECK(serial_init(uart_device_mapping, UART4_IRQ));
+
+    printf("UART4 up\n");
+
+    // handle the receiving of packets
+    thread_create((thread_func_t) slip_receive, &message_buffer);
+
+    // Hang around
+    struct waitset *default_ws = get_default_waitset();
+    while (true) {
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    return EXIT_SUCCESS;
 }

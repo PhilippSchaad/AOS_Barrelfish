@@ -11,10 +11,11 @@
 --------------------------------------------------------------------------
 
 [ build application { target = "network",
-  		              cFiles = [ "main.c"],
+                      cFiles = (find withSuffices [".c"]),
                       addLinkFlags = [ "-e _start"],
                       addLibraries = libDeps [
-                        "driverkit"
+                        "driverkit" ,
+                        "netutil"
                       ],
                       architectures = allArchitectures
                     }
