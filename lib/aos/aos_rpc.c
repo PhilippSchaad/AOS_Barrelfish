@@ -241,12 +241,8 @@ errval_t aos_rpc_kill_me(struct aos_rpc *chan)
 
 static void aos_rpc_process_spawn_recv(void *arg1, struct recv_list *data)
 {
-    // TODO: can this be removed or is there something useful that we should do
-    // here?
     domainid_t *newpid = (domainid_t *) arg1;
-    debug_printf("spawned requested process. PID is %d\n", *newpid);
     *newpid = data->payload[1];
-    debug_printf("spawned requested process. PID is %d\n", *newpid);
 }
 
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name, coreid_t core,
@@ -353,16 +349,21 @@ errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
 errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
                                       size_t *pid_count)
 {
-    /*    uintptr_t sendargs[3]; // 0+2
-        sendargs[0] = (uintptr_t) chan;
-
-        impl(process_get_pids_send_handler, process_get_pids_receive_handler,
-             true);
-
-        *pid_count = (size_t) sendargs[1];
-        *pids = (domainid_t *) sendargs[2];
-    */
     return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+errval_t aos_rpc_print_process_list(struct aos_rpc *chan)
+{
+    rpc_framework(NULL, NULL, RPC_TYPE_PRINT_PROC_LIST, &chan->chan, NULL_CAP,
+                  0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
+errval_t aos_rpc_led_toggle(struct aos_rpc *chan)
+{
+    rpc_framework(NULL, NULL, RPC_TYPE_LED_TOGGLE, &chan->chan, NULL_CAP,
+                  0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
 }
 
 static void device_cap_recv(void *arg1, struct recv_list *data)
@@ -370,6 +371,7 @@ static void device_cap_recv(void *arg1, struct recv_list *data)
     struct capref *retcap = (struct capref *) arg1;
     *retcap = data->cap;
 }
+
 errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
                                 size_t bytes, struct capref *retcap)
 {

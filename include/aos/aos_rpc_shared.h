@@ -49,6 +49,8 @@
 #define RPC_TYPE_PROCESS_KILL           0x14
 #define RPC_TYPE_IRQ_CAP                0x15
 #define RPC_TYPE_DEV_CAP                0x16
+#define RPC_TYPE_PRINT_PROC_LIST        0x17
+#define RPC_TYPE_LED_TOGGLE             0x18
 
 struct recv_list {
     unsigned char type;

@@ -53,10 +53,20 @@
 #include <aos/lmp_chan.h>
 #include <aos/lmp_endpoints.h>
 
+#define TOGGLE_BIT(base, offset, bit) (*((volatile uint32_t *)                \
+            (base + offset)) ^= 0x1 << bit)
+#define CLR_BIT(base, offset, bit) (*((volatile uint32_t *)                   \
+            (base + offset)) &= ~(0x1 << bit))
+
 #define PAGING_STATE_PADDR      0x1000
 #define PAGING_VADDR_START      (1 << 25) //< = 0x2000000
 
 #define MEMORY_BARRIER          __asm volatile("dmb");__asm volatile("isb")
+
+#define GPIO_1_BASE             0x4A310000
+#define OFFSET_GPIO_OE          0x134
+#define OFFSET_GPIO_DATAOUT     0x13c
+#define LED_D2_BIT              0x8
 
 #define OS_NAME                 "Barrelfish"
 #define OS_VERSION_MAJOR        0

@@ -14,7 +14,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
@@ -40,58 +39,6 @@
 
 coreid_t my_core_id;
 struct bootinfo *bi;
-
-__attribute__((unused))
-static void print_fill_length(const char *format, ...)
-{
-    int colwidth = 80;
-
-    va_list p_args;
-    va_start(p_args, format);
-
-    char pre_formatted[colwidth];
-    vsprintf(pre_formatted, format, p_args);
-
-    char p_line[colwidth];
-    sprintf(p_line, "* %.*s\0", colwidth - 4, pre_formatted);
-
-    int p_line_length = strlen(p_line);
-    int spaces_to_fill = colwidth;
-    spaces_to_fill -= 2 + p_line_length;
-
-    char *filler =
-        "                                                                     "
-        "        ";
-
-    printf("%s%.*s *\n", p_line, spaces_to_fill, filler);
-
-    va_end(p_args);
-}
-
-__attribute__((unused))
-static void print_welcome_msg(void)
-{
-    assert(OS_VERSION_MAJOR >= 0);
-    assert(OS_VERSION_MINOR >= 0);
-    assert(OS_PATCH_LEVEL >= 0);
-
-    for (int i = 0; i < 1000; i++)
-        printf("\n");
-
-    printf("**************************************"
-           "******************************************\n");
-    printf("*********************************  Welcome  "
-           "************************************\n");
-    printf("**************************************"
-           "******************************************\n");
-    print_fill_length("%.20s v%u.%u.%u", OS_NAME, OS_VERSION_MAJOR,
-                      OS_VERSION_MINOR, OS_PATCH_LEVEL);
-    print_fill_length("Authors: %s", OS_AUTHORS);
-    print_fill_length("%s", OS_GROUP);
-    print_fill_length("");
-    printf("**************************************"
-           "******************************************\n");
-}
 
 int main(int argc, char *argv[])
 {
@@ -185,11 +132,6 @@ int main(int argc, char *argv[])
         // Register ourselves (init on core 1) with the process manager.
         procman_register_process("init", 1, NULL);
     }
-
-    /*
-    if (my_core_id == 1)
-        print_welcome_msg();
-        */
 
     // Hang around
     struct waitset *default_ws = get_default_waitset();

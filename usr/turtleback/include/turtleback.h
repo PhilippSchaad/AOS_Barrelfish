@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
@@ -31,4 +32,74 @@
 
 #define INPUT_BUFFER_LENGTH         5000
 
-#endif /* _TURTLEBAC_H_ */
+#define TURTLEBACK_DEFAULT_PROMPT   ">\033[33mTurtleBack\033[0m$ \0"
+
+#define HELP_USAGE                  "help [cmd]\0"
+#define ONCORE_USAGE                "onore [0|1] [cmd [..]]\0"
+
+typedef void (*shell_cmd_handler)(int argc, char **argv);
+
+struct shell_cmd {
+    char *cmd;
+    char *help_text;
+    char *usage;
+    shell_cmd_handler invoke;
+};
+
+// Declaration of TurtleBack builtin functions.
+void shell_invalid_command(char *cmd);
+void shell_help(int argc, char **argv);
+void shell_clear(int argc, char **argv);
+void shell_echo(int argc, char **argv);
+void shell_oncore(int argc, char **argv);
+void shell_ps(int argc, char **argv);
+void shell_led(int argc, char **argv);
+
+// List of TurtleBack builtin functions.
+static struct shell_cmd shell_builtins[] = {
+    {
+        .cmd = "echo",
+        .help_text = "Display a line of text",
+        .usage = "echo ..",
+        .invoke = shell_echo
+    },
+    {
+        .cmd = "clear",
+        .help_text = "Clear the terminal screen",
+        .usage = "clear",
+        .invoke = shell_clear
+    },
+    {
+        .cmd = "help",
+        .help_text = "Display the help text",
+        .usage = HELP_USAGE,
+        .invoke = shell_help
+    },
+    {
+        .cmd = "oncore",
+        .help_text = "Run a process on a specific core [0|1]",
+        .usage = ONCORE_USAGE,
+        .invoke = shell_oncore
+    },
+    {
+        .cmd = "ps",
+        .help_text = "Report a snapshot of the current processes",
+        .usage = "ps",
+        .invoke = shell_ps
+    },
+    {
+        .cmd = "led",
+        .help_text = "Toggle the D2 LED",
+        .usage = "led",
+        .invoke = shell_led
+    },
+    // Builtins list terminator.
+    {
+        .cmd = NULL,
+        .help_text = NULL,
+        .usage = NULL,
+        .invoke = NULL
+    }
+};
+
+#endif /* _TURTLEBACK_H_ */

@@ -195,11 +195,18 @@ static errval_t init_dispatcher(struct spawninfo *si)
 }
 
 /// Initialize the environment for a given module.
-static errval_t init_env(struct spawninfo *si, struct mem_region *module)
+static errval_t init_env(struct spawninfo *si, struct mem_region *module,
+                         char *arguments)
 {
-    DBG(DETAILED, " Retrieve arguments from the module and allocate memory "
-                  "for them.\n");
-    const char *args = multiboot_module_opts(module);
+    char *args;
+    if (arguments == NULL) {
+        DBG(DETAILED, " Retrieve arguments from the module and allocate memory "
+                      "for them.\n");
+        args = (char *) multiboot_module_opts(module);
+    } else {
+        args = arguments;
+    }
+
     DBG(DETAILED, " Found the following command line arguments: %s\n", args);
     size_t region_size = ROUND_UP(
         sizeof(struct spawn_domain_params) + strlen(args) + 1, BASE_PAGE_SIZE);
@@ -355,18 +362,38 @@ static errval_t map_paging_state_to_child(struct paging_state *st)
  * \param binary_name   Binary name of the process to spawn.
  * \param si            Struct holding information about the process to spawn.
  */
-errval_t spawn_load_by_name(void *binary_name, struct spawninfo *si)
+errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si)
 {
     DBG(VERBOSE, "spawn start_child: starting: %s\n", binary_name);
 
     // Init spawninfo.
     memset(si, 0, sizeof(*si));
-    si->binary_name = binary_name;
+
+    // Parse 'binary_name' to filter out program name and arguments.
+    char *actual_name = binary_name;
+    char *arguments = NULL;
+    int binary_name_length = strlen(binary_name);
+    for (int i = 0; i < binary_name_length; i++) {
+        if (binary_name[i] == ' ') {
+            actual_name = malloc((i + 1) * sizeof(char));
+            strncpy(actual_name, binary_name, i);
+            actual_name[i] = '\0';
+            if (i + 1 < binary_name_length && binary_name[i + 1] != '\0')
+                arguments = &binary_name[i + 1];
+            break;
+        }
+    }
+    si->binary_name = actual_name;
 
     DBG(DETAILED, "I: Getting the binary from the multiboot image.\n");
-    struct mem_region *module = multiboot_find_module(bi, binary_name);
+    struct mem_region *module;
+    if (arguments == NULL)
+        module = multiboot_find_module(bi, binary_name);
+    else
+        module = multiboot_find_module(bi, actual_name);
+
     if (module == NULL) {
-        DBG(ERR, "multiboot: Could not find module %s\n", binary_name);
+        DBG(VERBOSE, "multiboot: Could not find module %s\n", binary_name);
         return SPAWN_ERR_FIND_MODULE;
     }
 
@@ -413,7 +440,7 @@ errval_t spawn_load_by_name(void *binary_name, struct spawninfo *si)
     CHECK(init_dispatcher(si));
 
     DBG(DETAILED, "VII: Initialize the environment.\n");
-    CHECK(init_env(si, module));
+    CHECK(init_env(si, module, arguments));
 
     map_paging_state_to_child(&si->paging_state);
 

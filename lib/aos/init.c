@@ -94,6 +94,7 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 }
 
 // use this function on all non serial domains
+/*
 static size_t serial_channel_write(const char *buf, size_t len)
 {
     if (len) {
@@ -102,6 +103,7 @@ static size_t serial_channel_write(const char *buf, size_t len)
     }
     return 0;
 }
+*/
 
 /*
 static size_t dummy_terminal_read(char *buf, size_t len)
@@ -121,7 +123,7 @@ void barrelfish_libc_glue_init(void)
     if (init_domain){
         _libc_terminal_write_func = syscall_terminal_write;
     } else {
-        _libc_terminal_write_func = serial_channel_write;
+        _libc_terminal_write_func = syscall_terminal_write;
     }
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
@@ -188,15 +190,14 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     ram_alloc_set(NULL);
 
     // Register ourselves in the process manager.
-    debug_printf("We're gonna register ourself with the procman now\n");
-
+    DBG(VERBOSE, "We're gonna register ourself with the procman now\n");
     // The first cmdline argument holds our process domain name
     char *domain_name = (char *) params->argv[0];
     // TODO: This might need to be truncated if the process is spawned
     //       with path (eg /local/usr/bin/process instead of process)..
     aos_rpc_process_register(aos_rpc_get_process_channel(), domain_name);
 
-    debug_printf("Registration completed, running main now\n");
+    DBG(VERBOSE, "Registration completed, running main now\n");
     
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
