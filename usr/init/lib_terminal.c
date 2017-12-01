@@ -2,6 +2,7 @@
 #include <aos/dispatch.h>
 
 static struct fifo_input_queue *input_buff;
+static struct waitset *ws;
 
 static inline int input_buff_capacity(void)
 {
@@ -38,34 +39,26 @@ static inline void input_buff_advance_tail(void)
 
 static void handle_uart_getchar_interrupt(void *args)
 {
-    debug_printf("interrupt received\n");
     char c;
     sys_getchar(&c);
-    debug_printf("typed: %c\n", c);
 
     // If the buffer is full, just discard the caracter.
-    if (input_buff_is_full()) {
-        debug_printf("buffer is full\n");
+    if (input_buff_is_full())
         return;
-    }
 
     terminal_write_c(c);
 
     input_buff->buff[input_buff->head] = c;
-
     input_buff_advance_head();
 }
 
 void terminal_getchar(char *c)
 {
-    debug_printf("trying to read\n");
     while (input_buff_is_empty())
-        thread_yield();
+        event_dispatch(ws);
 
     *c = input_buff->buff[input_buff->tail];
-
     input_buff_advance_tail();
-    debug_printf("read\n");
 }
 
 void terminal_write(const char *buffer)
@@ -94,6 +87,10 @@ errval_t terminal_init(coreid_t core)
     input_buff->buff = malloc(input_buff->size * sizeof(char));
     input_buff->head = 0;
     input_buff->tail = 0;
+
+    ws = get_default_waitset();
+    if (!ws)
+        USER_PANIC("Waitset in terminal driver NULL?\n");
 
     // TODO: this is not true yet, but maybe that's what we need.
     // The terminal driver on core 0 gets interrupts initially. If
