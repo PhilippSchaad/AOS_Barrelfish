@@ -77,6 +77,7 @@ static void print_fill_length(const char *format, ...)
     va_end(p_args);
 }
 
+__attribute__((unused))
 static void shell_welcome_msg(void)
 {
     assert(OS_VERSION_MAJOR >= 0);
@@ -176,6 +177,7 @@ static void parse_line(void)
     free(tokens);
 }
 
+__attribute__((unused))
 static void handle_getchar_interrupt(void *args)
 {
     char new_char;
@@ -208,6 +210,7 @@ static void handle_getchar_interrupt(void *args)
 
 int main(int argc, char **argv)
 {
+    /*
     shell_prompt = TURTLEBACK_DEFAULT_PROMPT;
 
     init_rpc = aos_rpc_get_init_channel();
@@ -219,14 +222,15 @@ int main(int argc, char **argv)
 
     shell_welcome_msg();
     shell_new_prompt();
-    /*
-    domainid_t pid;
-    CHECK(aos_rpc_process_spawn(init_rpc, "hello", 1, &pid));
-    */
 
     struct waitset *ws = get_default_waitset();
     while (true)
         CHECK(event_dispatch(ws));
+        */
 
+    while (1) {
+        char c = getc(stdin);
+        debug_printf("char: %c\n", c);
+    }
     return 0;
 }
