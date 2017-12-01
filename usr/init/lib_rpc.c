@@ -7,6 +7,7 @@
 
 #include <lib_rpc.h>
 #include <lib_urpc.h>
+#include <lib_terminal.h>
 
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
@@ -188,7 +189,7 @@ static errval_t process_get_name_recv_handler(struct recv_list *data,
 static void getchar_recv_handler(struct recv_list *data, struct lmp_chan *chan)
 {
     char retchar;
-    sys_getchar(&retchar);
+    terminal_getchar(&retchar);
 
     send_response(data, chan, NULL_CAP, 1, (void *) &retchar);
 }
@@ -299,15 +300,11 @@ void recv_deal_with_msg(struct recv_list *data)
         send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_STRING):
-        if (chan == NULL) { // XXX HACK: We are in URPC
-            printf((char *) data->payload);
-            fflush(stdout);
+        terminal_write((char *) data->payload);
+        if (chan == NULL) // XXX HACK: We are in URPC
             urpc2_send_response(data, NULL_CAP, 0, NULL);
-            break;
-        }
-        printf((char *) data->payload);
-        fflush(stdout);
-        send_response(data, chan, NULL_CAP, 0, NULL);
+        else
+            send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
         debug_printf("RPC_TYPE_STRING_DATA is deprecated\n");
@@ -327,12 +324,11 @@ void recv_deal_with_msg(struct recv_list *data)
             DBG(DETAILED, "putchar request received via URPC\n");
         } else
             DBG(DETAILED, "putchar request received\n");
-        sys_print((char *) data->payload, 1);
-        if (chan == NULL) { // XXX HACK: We are in URPC
+        terminal_write_c(*((char *) data->payload));
+        if (chan == NULL) // XXX HACK: We are in URPC
             urpc2_send_response(data, NULL_CAP, 0, NULL);
-            break;
-        }
-        send_response(data, chan, NULL_CAP, 0, NULL);
+        else
+            send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_GETCHAR):
         getchar_recv_handler(data, chan);

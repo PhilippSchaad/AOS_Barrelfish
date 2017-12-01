@@ -20,12 +20,6 @@ static struct aos_rpc *init_rpc;
 static char input_buffer[INPUT_BUFFER_LENGTH];
 static int buffer_pos = 0;
 
-/*
-static char **shell_history;
-static int shell_history_max_length;
-static int shell_history_length;
-*/
-
 static char *shell_prompt;
 
 static inline bool is_endl(char c)
@@ -176,34 +170,36 @@ static void parse_line(void)
     free(tokens);
 }
 
-static void handle_getchar_interrupt(void *args)
+static void input_loop(void)
 {
-    char new_char;
-    aos_rpc_serial_getchar(init_rpc, &new_char);
-    if (is_endl(new_char)) {
-        input_buffer[buffer_pos] = '\0';
-        printf("\n");
-        parse_line();
-        shell_new_prompt();
-        buffer_pos = 0;
-        input_buffer[buffer_pos] = '\0';
-    } else if (is_backspace(new_char)) {
-        // If we try to delete beyond the first char, we are in kernel space.
-        // So let's not do this and return instead.
-        if (buffer_pos == 0)
-            return;
+    while (1) {
+        char new_char;
+        new_char = getc(stdin);
+        if (is_endl(new_char)) {
+            input_buffer[buffer_pos] = '\0';
+            printf("\n");
+            parse_line();
+            shell_new_prompt();
+            buffer_pos = 0;
+            input_buffer[buffer_pos] = '\0';
+        } else if (is_backspace(new_char)) {
+            // If we try to delete beyond the first char, we are in kernel space.
+            // So let's not do this and return instead.
+            if (buffer_pos == 0)
+                continue;
 
-        aos_rpc_serial_putchar(init_rpc, '\b');
-        aos_rpc_serial_putchar(init_rpc, ' ');
-        aos_rpc_serial_putchar(init_rpc, '\b');
-        input_buffer[buffer_pos] = '\0';
-        buffer_pos--;
-    } else if (buffer_pos < INPUT_BUFFER_LENGTH) {
-        aos_rpc_serial_putchar(init_rpc, new_char);
-        input_buffer[buffer_pos] = new_char;
-        buffer_pos++;
+            printf("\b \b");
+            fflush(stdout);
+            input_buffer[buffer_pos] = '\0';
+            buffer_pos--;
+        } else if (buffer_pos < INPUT_BUFFER_LENGTH) {
+            printf("%c", new_char);
+            fflush(stdout);
+            input_buffer[buffer_pos] = new_char;
+            buffer_pos++;
+        }
+        // If the buffer is full, ignore the char.
     }
-    // If the buffer is full, ignore the char.
 }
 
 int main(int argc, char **argv)
@@ -214,19 +210,20 @@ int main(int argc, char **argv)
     if (!init_rpc)
         USER_PANIC("init RPC channel NULL?\n");
 
+    /*
     CHECK(aos_rpc_get_irq_cap(init_rpc, &cap_irq));
     CHECK(inthandler_setup_arm(handle_getchar_interrupt, NULL, IRQ_ID_UART));
+    */
 
     shell_welcome_msg();
     shell_new_prompt();
-    /*
-    domainid_t pid;
-    CHECK(aos_rpc_process_spawn(init_rpc, "hello", 1, &pid));
-    */
+    input_loop();
 
+    /*
     struct waitset *ws = get_default_waitset();
     while (true)
         CHECK(event_dispatch(ws));
+        */
 
     return 0;
 }
