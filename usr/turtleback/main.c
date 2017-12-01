@@ -177,7 +177,7 @@ static void input_loop(void)
         new_char = getc(stdin);
         if (is_endl(new_char)) {
             input_buffer[buffer_pos] = '\0';
-            //printf("\n");
+            printf("\n");
             parse_line();
             shell_new_prompt();
             buffer_pos = 0;
@@ -186,13 +186,15 @@ static void input_loop(void)
             // If we try to delete beyond the first char, we are in kernel space.
             // So let's not do this and return instead.
             if (buffer_pos == 0)
-                return;
+                continue;
 
             printf("\b \b");
+            fflush(stdout);
             input_buffer[buffer_pos] = '\0';
             buffer_pos--;
         } else if (buffer_pos < INPUT_BUFFER_LENGTH) {
-            //aos_rpc_serial_putchar(init_rpc, new_char);
+            printf("%c", new_char);
+            fflush(stdout);
             input_buffer[buffer_pos] = new_char;
             buffer_pos++;
         }

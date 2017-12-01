@@ -46,7 +46,7 @@ static void handle_uart_getchar_interrupt(void *args)
     if (input_buff_is_full())
         return;
 
-    terminal_write_c(c);
+    //terminal_write_c(c);
 
     input_buff->buff[input_buff->head] = c;
     input_buff_advance_head();
