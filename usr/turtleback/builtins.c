@@ -36,6 +36,7 @@ void shell_help(int argc, char **argv)
 void shell_clear(int argc, char **argv)
 {
     printf("\033[2J\033[1;1H");
+    fflush(stdout);
 }
 
 void shell_echo(int argc, char **argv)

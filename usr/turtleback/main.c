@@ -193,7 +193,7 @@ static void input_loop(void)
             input_buffer[buffer_pos] = '\0';
             buffer_pos--;
         } else if (buffer_pos < INPUT_BUFFER_LENGTH) {
-            printf("%c", new_char);
+            putchar(new_char);
             fflush(stdout);
             input_buffer[buffer_pos] = new_char;
             buffer_pos++;
