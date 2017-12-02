@@ -57,6 +57,14 @@ void shell_oncore(int argc, char **argv)
         return;
     }
 
+    int core = atoi(argv[1]);
+
+    if (core != 0 && core != 1) {
+        printf("This system only has two cores, use `0' or `1'\n");
+        printf("Usage: %s\n", ONCORE_USAGE);
+        return;
+    }
+
     char *prog_name = argv[2];
     int prog_name_length = strlen(prog_name);
     int bin_invocation_length = prog_name_length;
@@ -83,7 +91,6 @@ void shell_oncore(int argc, char **argv)
         bin_invocation_length = new_invoc_length;
     }
 
-    int core = atoi(argv[1]);
     domainid_t pid;
 
     CHECK(aos_rpc_process_spawn(aos_rpc_get_init_channel(), bin_invocation,

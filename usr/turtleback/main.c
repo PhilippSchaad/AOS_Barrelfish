@@ -106,12 +106,6 @@ static void parse_line(void)
     if (buffer_pos == 0)
         return;
 
-    // If the first buffer position is a space, we have an invalid cmd.
-    if (is_space(input_buffer[0])) {
-        // TODO: print invalid use
-        return;
-    }
-
     // Gather all tokens from the input buffer.
     int token_length = 0;
     int n_tokens = 0;
@@ -210,20 +204,9 @@ int main(int argc, char **argv)
     if (!init_rpc)
         USER_PANIC("init RPC channel NULL?\n");
 
-    /*
-    CHECK(aos_rpc_get_irq_cap(init_rpc, &cap_irq));
-    CHECK(inthandler_setup_arm(handle_getchar_interrupt, NULL, IRQ_ID_UART));
-    */
-
     shell_welcome_msg();
     shell_new_prompt();
     input_loop();
-
-    /*
-    struct waitset *ws = get_default_waitset();
-    while (true)
-        CHECK(event_dispatch(ws));
-        */
 
     return 0;
 }
