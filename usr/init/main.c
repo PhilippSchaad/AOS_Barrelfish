@@ -87,8 +87,11 @@ int main(int argc, char *argv[])
     active_domains = malloc(sizeof(struct domain_list));
 
     init_rpc();
+
     CHECK(procman_init());
-    CHECK(terminal_init(my_core_id));
+
+    // Initialize the terminal driver.
+    terminal_init(my_core_id);
 
     if (my_core_id == 0) {
         // Initialize the master URPC server (aka core 0).

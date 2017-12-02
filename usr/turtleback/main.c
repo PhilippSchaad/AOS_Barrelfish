@@ -22,18 +22,6 @@ static int buffer_pos = 0;
 
 static char *shell_prompt;
 
-static inline bool is_endl(char c)
-{
-    // 4 = EOL | 10 = NL | 13 = CR
-    return (c == 4 || c == 10 || c == 13);
-}
-
-static inline bool is_backspace(char c)
-{
-    // 127 = Backspace
-    return c == 127;
-}
-
 static inline bool is_space(char c)
 {
     // 32 = Space
@@ -106,12 +94,6 @@ static void parse_line(void)
     if (buffer_pos == 0)
         return;
 
-    // If the first buffer position is a space, we have an invalid cmd.
-    if (is_space(input_buffer[0])) {
-        // TODO: print invalid use
-        return;
-    }
-
     // Gather all tokens from the input buffer.
     int token_length = 0;
     int n_tokens = 0;
@@ -175,30 +157,14 @@ static void input_loop(void)
     while (1) {
         char new_char;
         new_char = getc(stdin);
-        if (is_endl(new_char)) {
-            input_buffer[buffer_pos] = '\0';
-            printf("\n");
+        input_buffer[buffer_pos] = new_char;
+        if (new_char == '\0') {
             parse_line();
             shell_new_prompt();
             buffer_pos = 0;
-            input_buffer[buffer_pos] = '\0';
-        } else if (is_backspace(new_char)) {
-            // If we try to delete beyond the first char, we are in kernel space.
-            // So let's not do this and return instead.
-            if (buffer_pos == 0)
-                continue;
-
-            printf("\b \b");
-            fflush(stdout);
-            input_buffer[buffer_pos] = '\0';
-            buffer_pos--;
-        } else if (buffer_pos < INPUT_BUFFER_LENGTH) {
-            printf("%c", new_char);
-            fflush(stdout);
-            input_buffer[buffer_pos] = new_char;
+        } else {
             buffer_pos++;
         }
-        // If the buffer is full, ignore the char.
     }
 }
 
@@ -210,20 +176,9 @@ int main(int argc, char **argv)
     if (!init_rpc)
         USER_PANIC("init RPC channel NULL?\n");
 
-    /*
-    CHECK(aos_rpc_get_irq_cap(init_rpc, &cap_irq));
-    CHECK(inthandler_setup_arm(handle_getchar_interrupt, NULL, IRQ_ID_UART));
-    */
-
     shell_welcome_msg();
     shell_new_prompt();
     input_loop();
-
-    /*
-    struct waitset *ws = get_default_waitset();
-    while (true)
-        CHECK(event_dispatch(ws));
-        */
 
     return 0;
 }

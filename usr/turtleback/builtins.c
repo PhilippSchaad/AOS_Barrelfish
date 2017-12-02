@@ -36,6 +36,7 @@ void shell_help(int argc, char **argv)
 void shell_clear(int argc, char **argv)
 {
     printf("\033[2J\033[1;1H");
+    fflush(stdout);
 }
 
 void shell_echo(int argc, char **argv)
@@ -52,6 +53,14 @@ void shell_oncore(int argc, char **argv)
 {
     if (argc < 3) {
         printf("Too few arguments supplied..\n");
+        printf("Usage: %s\n", ONCORE_USAGE);
+        return;
+    }
+
+    int core = atoi(argv[1]);
+
+    if (core != 0 && core != 1) {
+        printf("This system only has two cores, use `0' or `1'\n");
         printf("Usage: %s\n", ONCORE_USAGE);
         return;
     }
@@ -82,7 +91,6 @@ void shell_oncore(int argc, char **argv)
         bin_invocation_length = new_invoc_length;
     }
 
-    int core = atoi(argv[1]);
     domainid_t pid;
 
     CHECK(aos_rpc_process_spawn(aos_rpc_get_init_channel(), bin_invocation,
