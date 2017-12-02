@@ -22,7 +22,7 @@
 #include <aos/caddr.h>
 #include "internal.h"
 
-#define SLOT_BUFF_SIZE 20
+#define SLOT_BUFF_SIZE 30
 
 /**
  * \brief Returns the default slot allocator for the caller

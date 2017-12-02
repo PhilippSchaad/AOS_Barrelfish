@@ -23,7 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define PAGEFAULT_STACK_SIZE 16384 // = 16 * 1024 = 16kb
+#define PAGEFAULT_STACK_SIZE (160 * 1024) // = 160kb
 
 //#define no_page_align_in_frame_alloc
 
