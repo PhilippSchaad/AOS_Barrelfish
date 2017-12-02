@@ -18,6 +18,18 @@ static inline bool is_backspace(char c)
     return c == 127;
 }
 
+static inline bool is_escape(char c)
+{
+    // 27 = ESC
+    return c == 27;
+}
+
+static inline bool is_opening_square_bracket(char c)
+{
+    // 91 = [
+    return c == 91;
+}
+
 static inline int input_buff_capacity(void)
 {
     return input_buff->size - 1;
@@ -78,11 +90,25 @@ static inline void line_buff_switch_lines(void)
     line_buff->write_buff = tmp;
 }
 
+static bool escape_sequence_initializer = false;
+static bool escape_sequence_finalizer = false;
 static void feed_line_buff(char c)
 {
     // If the write-line in the buffer is full, discard the character.
     if (line_buff_is_full())
         return;
+
+    if (escape_sequence_initializer && is_opening_square_bracket(c)) {
+        escape_sequence_finalizer = true;
+        escape_sequence_initializer = false;
+        return;
+    }
+
+    if (escape_sequence_finalizer) {
+        // TODO: process escape sequence.
+        escape_sequence_finalizer = false;
+        return;
+    }
 
     if (is_endl(c)) {
         // If the read-line is not yet empty, we just do nothing, essentially
@@ -104,6 +130,8 @@ static void feed_line_buff(char c)
         line_buff->write_buff[line_buff->write_pos] = '\0';
         line_buff->write_pos--;
         terminal_write("\b \b");
+    } else if (is_escape(c)) {
+        escape_sequence_initializer = true;
     } else {
         line_buff->write_buff[line_buff->write_pos] = c;
         line_buff->write_pos++;
