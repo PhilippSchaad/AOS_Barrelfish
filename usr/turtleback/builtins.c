@@ -111,3 +111,46 @@ void shell_led(int argc, char **argv)
 {
     CHECK(aos_rpc_led_toggle(aos_rpc_get_init_channel()));
 }
+
+void shell_memtest(int argc, char **argv)
+{
+    if (argc != 2) {
+        printf("Invalid number of arguments..\n");
+        printf("Usage: %s\n", MEMTEST_USAGE);
+        return;
+    }
+
+    int size_mb = atoi(argv[1]);
+    if (size_mb < 0 || size_mb > 1000) {
+        printf("The size you entered is invalid..\n");
+        printf("Hint: Your system may not have this much memory\n");
+        printf("Please enter a size in the range of [0..1000] MBs\n");
+        return;
+    }
+
+    int size = size_mb * 1024 * 1024;
+
+    printf("\033[95mRunning memtest on %d MB region..\033[0m\n", size_mb);
+    char *array = malloc(size * sizeof(char));
+    if (!array) {
+        printf("\033[31mFailed to allocate memory, aborting\033[0m\n");
+        return;
+    }
+    printf("\033[95mWriting to region..\033[0m\n", size);
+    for (int i = 0; i < size; i++)
+        array[i] = 'x';
+    printf("\033[95mDone writing\033[0m\n", size);
+    printf("\033[95mChecking written values..\033[0m\n", size);
+    int errs = 0;
+    for (int i = 0; i < size; i++)
+        if (array[i] != 'x')
+            errs++;
+    printf("\033[95mDone\033[0m\n", size);
+
+    free(array);
+
+    if (errs == 0)
+        printf("\033[32mSUCCESS\033[0m\n");
+    else
+        printf("\033[31mEncountered %d erroneous values!\033[0m\n", errs);
+}
