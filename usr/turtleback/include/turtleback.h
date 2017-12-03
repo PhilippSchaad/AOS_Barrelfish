@@ -32,10 +32,11 @@
 
 #define INPUT_BUFFER_LENGTH         5000
 
-#define TURTLEBACK_DEFAULT_PROMPT   ">\033[33mTurtleBack\033[0m$ \0"
+#define TURTLEBACK_DEFAULT_PROMPT   ">\033[33mTurtleBack\033[0m$ "
 
-#define HELP_USAGE                  "help [cmd]\0"
-#define ONCORE_USAGE                "onore [0|1] [cmd [..]]\0"
+#define HELP_USAGE                  "help [cmd]"
+#define ONCORE_USAGE                "onore [0|1] [cmd [..]]"
+#define MEMTEST_USAGE               "memtest [size (MB)]"
 
 typedef void (*shell_cmd_handler)(int argc, char **argv);
 
@@ -54,6 +55,7 @@ void shell_echo(int argc, char **argv);
 void shell_oncore(int argc, char **argv);
 void shell_ps(int argc, char **argv);
 void shell_led(int argc, char **argv);
+void shell_memtest(int argc, char **argv);
 
 // List of TurtleBack builtin functions.
 static struct shell_cmd shell_builtins[] = {
@@ -92,6 +94,12 @@ static struct shell_cmd shell_builtins[] = {
         .help_text = "Toggle the D2 LED",
         .usage = "led",
         .invoke = shell_led
+    },
+    {
+        .cmd = "memtest",
+        .help_text = "Test a region of memory for read/write errors",
+        .usage = MEMTEST_USAGE,
+        .invoke = shell_memtest
     },
     // Builtins list terminator.
     {
