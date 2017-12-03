@@ -102,7 +102,8 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 
 errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
-    size_t tempsize = strlen(string);
+    // + 1 because we need to include the null terminator!!
+    size_t tempsize = strlen(string) + 1;
     uintptr_t *payload2;
     size_t payloadsize2;
     convert_charptr_to_uintptr_with_padding_and_copy(string, tempsize,
