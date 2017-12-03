@@ -154,3 +154,8 @@ void shell_memtest(int argc, char **argv)
     else
         printf("\033[31mEncountered %d erroneous values!\033[0m\n", errs);
 }
+
+void shell_run_testsuite(int argc, char **argv)
+{
+    CHECK(aos_rpc_run_testsuite(aos_rpc_get_init_channel()));
+}

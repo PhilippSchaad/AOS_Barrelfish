@@ -36,7 +36,7 @@
 #define RPC_ACK_MESSAGE(message_type)   ((message_type << 1) + 0x1)
 #define RPC_TYPE_NUMBER                 0x2
 #define RPC_TYPE_STRING                 0x3
-#define RPC_TYPE_STRING_DATA            0x4
+#define RPC_TYPE_RUN_TESTSUITE          0x4
 #define RPC_TYPE_RAM                    0x5
 #define RPC_TYPE_PUTCHAR                0x6
 #define RPC_TYPE_GETCHAR                0x7

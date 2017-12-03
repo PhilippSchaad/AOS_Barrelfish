@@ -35,7 +35,7 @@
 #define TURTLEBACK_DEFAULT_PROMPT   ">\033[33mTurtleBack\033[0m$ "
 
 #define HELP_USAGE                  "help [cmd]"
-#define ONCORE_USAGE                "onore [0|1] [cmd [..]]"
+#define ONCORE_USAGE                "oncore [0|1] [cmd [..]]"
 #define MEMTEST_USAGE               "memtest [size (MB)]"
 
 typedef void (*shell_cmd_handler)(int argc, char **argv);
@@ -56,6 +56,7 @@ void shell_oncore(int argc, char **argv);
 void shell_ps(int argc, char **argv);
 void shell_led(int argc, char **argv);
 void shell_memtest(int argc, char **argv);
+void shell_run_testsuite(int argc, char **argv);
 
 // List of TurtleBack builtin functions.
 static struct shell_cmd shell_builtins[] = {
@@ -100,6 +101,12 @@ static struct shell_cmd shell_builtins[] = {
         .help_text = "Test a region of memory for read/write errors",
         .usage = MEMTEST_USAGE,
         .invoke = shell_memtest
+    },
+    {
+        .cmd = "testsuite",
+        .help_text = "Run the included testsuite",
+        .usage = "testsuite",
+        .invoke = shell_run_testsuite
     },
     // Builtins list terminator.
     {

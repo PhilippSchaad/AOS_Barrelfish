@@ -102,6 +102,11 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
 errval_t aos_rpc_print_process_list(struct aos_rpc *chan);
 
 /**
+ * \brief Run the standard testsuite in init
+ */
+errval_t aos_rpc_run_testsuite(struct aos_rpc *chan);
+
+/**
  * \brief Toggle the D2 LED
  */
 errval_t aos_rpc_led_toggle(struct aos_rpc *chan);

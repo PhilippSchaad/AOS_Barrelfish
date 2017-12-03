@@ -360,6 +360,13 @@ errval_t aos_rpc_print_process_list(struct aos_rpc *chan)
     return SYS_ERR_OK;
 }
 
+errval_t aos_rpc_run_testsuite(struct aos_rpc *chan)
+{
+    rpc_framework(NULL, NULL, RPC_TYPE_RUN_TESTSUITE, &chan->chan, NULL_CAP,
+                  0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_led_toggle(struct aos_rpc *chan)
 {
     rpc_framework(NULL, NULL, RPC_TYPE_LED_TOGGLE, &chan->chan, NULL_CAP,

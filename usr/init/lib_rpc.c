@@ -9,6 +9,8 @@
 #include <lib_urpc.h>
 #include <lib_terminal.h>
 
+#include "../tests/test.h"
+
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
 {
@@ -282,6 +284,15 @@ static void process_register_recv_handler(struct recv_list *data,
         send_response(data, chan, NULL_CAP, 2, (void *) combinedArg);
 }
 
+static void handle_run_testsuite(void)
+{
+    struct tester t;
+    init_testing(&t);
+    register_memory_tests(&t);
+    register_spawn_tests(&t);
+    tests_run(&t);
+}
+
 void recv_deal_with_msg(struct recv_list *data)
 {
     // Check the message type and handle it accordingly.
@@ -306,13 +317,13 @@ void recv_deal_with_msg(struct recv_list *data)
         else
             send_response(data, chan, NULL_CAP, 0, NULL);
         break;
-    case RPC_MESSAGE(RPC_TYPE_STRING_DATA):
-        debug_printf("RPC_TYPE_STRING_DATA is deprecated\n");
+    case RPC_MESSAGE(RPC_TYPE_RUN_TESTSUITE):
+        handle_run_testsuite();
         if (chan == NULL) { // XXX HACK: We are in URPC
             urpc2_send_response(data, NULL_CAP, 0, NULL);
-            break;
+        } else {
+            send_response(data, chan, NULL_CAP, 0, NULL);
         }
-        send_response(data, chan, NULL_CAP, 0, NULL);
         break;
     case RPC_MESSAGE(RPC_TYPE_RAM):
         assert(chan != NULL &&
