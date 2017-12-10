@@ -24,6 +24,8 @@
 #include <aos/aos_rpc.h>
 #include <aos/inthandler.h>
 
+#include <barrelfish_kpi/asm_inlines_arch.h>
+
 #define TURTLEBACK_VERSION_MAJOR    0
 #define TURTLEBACK_VERSION_MINOR    0
 #define TURTLEBACK_PATCH_LEVEL      1
@@ -37,6 +39,9 @@
 #define HELP_USAGE                  "help [cmd]"
 #define ONCORE_USAGE                "oncore [0|1] [cmd [..]]"
 #define MEMTEST_USAGE               "memtest [size (MB)]"
+#define TIME_USAGE                  "time [cmd [..]]"
+
+#define CLOCK_FREQUENCY             1200000000 // PB_ES CLK Frequency (Hz)
 
 typedef void (*shell_cmd_handler)(int argc, char **argv);
 
@@ -57,6 +62,7 @@ void shell_ps(int argc, char **argv);
 void shell_led(int argc, char **argv);
 void shell_memtest(int argc, char **argv);
 void shell_run_testsuite(int argc, char **argv);
+void shell_time(int argc, char **argv);
 
 // List of TurtleBack builtin functions.
 static struct shell_cmd shell_builtins[] = {
@@ -107,6 +113,12 @@ static struct shell_cmd shell_builtins[] = {
         .help_text = "Run the included testsuite",
         .usage = "testsuite",
         .invoke = shell_run_testsuite
+    },
+    {
+        .cmd = "time",
+        .help_text = "Time a certain program or command",
+        .usage = TIME_USAGE,
+        .invoke = shell_time
     },
     // Builtins list terminator.
     {
