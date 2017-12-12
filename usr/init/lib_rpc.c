@@ -481,8 +481,7 @@ static errval_t handshake_recv_handler(struct capref *child_cap)
         rc->chan = &dom->chan;
         rc->recv_deal_with_msg = recv_deal_with_msg;
         rc->rpc_recv_list = NULL;
-        bool use_prealloc_slot_buff = false;
-        lmp_chan_alloc_recv_slot(rc->chan, use_prealloc_slot_buff);
+        lmp_chan_alloc_recv_slot(rc->chan);
 
         CHECK(lmp_chan_register_recv(rc->chan, get_default_waitset(),
                                      MKCLOSURE(recv_handling, rc)));

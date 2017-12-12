@@ -208,8 +208,14 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
                   &retvals);
 
                   */
-
-    lmp_chan_alloc_recv_slot(&chan->chan, false);
+    struct slot_allocator* sa = get_default_slot_allocator();
+    //we are out, so we need to 1. use from buffer
+    //and 2. refill
+    if(sa->space == 0) {
+        USER_PANIC("fix me \n");
+//        lmp_chan_set_recv_slot(&chan->chan,todo);
+    } else
+        lmp_chan_alloc_recv_slot(&chan->chan);
 
     lmp_chan_register_recv(&chan->chan, ws,
                            MKCLOSURE((void *) aos_rpc_ram_recv, sendargs));
@@ -579,7 +585,7 @@ static void complete_mem_server_setup(void)
     uintptr_t sendargs[2];
     sendargs[0] = (uintptr_t) mem_chan;
     sendargs[1] = (uintptr_t) &done;
-    lmp_chan_alloc_recv_slot(&mem_chan->chan, false);
+    lmp_chan_alloc_recv_slot(&mem_chan->chan);
     lmp_chan_register_recv(&mem_chan->chan, ws,
                            MKCLOSURE((void *) mem_server_setup_recv, sendargs));
 
