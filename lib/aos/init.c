@@ -190,8 +190,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     DBG(VERBOSE, "We're gonna register ourself with the procman now\n");
     // The first cmdline argument holds our process domain name
     char *domain_name = (char *) params->argv[0];
-    // TODO: This might need to be truncated if the process is spawned
-    //       with path (eg /local/usr/bin/process instead of process)..
     aos_rpc_process_register(aos_rpc_get_process_channel(), domain_name);
 
     DBG(VERBOSE, "Registration completed, running main now\n");

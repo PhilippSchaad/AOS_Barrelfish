@@ -199,13 +199,10 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module,
                          char *arguments)
 {
     char *args;
-    if (arguments == NULL) {
-        DBG(DETAILED, " Retrieve arguments from the module and allocate memory "
-                      "for them.\n");
+    if (arguments == NULL)
         args = (char *) multiboot_module_opts(module);
-    } else {
+    else
         args = arguments;
-    }
 
     DBG(DETAILED, " Found the following command line arguments: %s\n", args);
     size_t region_size = ROUND_UP(
@@ -379,7 +376,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si)
             strncpy(actual_name, binary_name, i);
             actual_name[i] = '\0';
             if (i + 1 < binary_name_length && binary_name[i + 1] != '\0')
-                arguments = &binary_name[i + 1];
+                arguments = binary_name;
             break;
         }
     }
@@ -387,11 +384,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si)
 
     DBG(DETAILED, "I: Getting the binary from the multiboot image.\n");
     struct mem_region *module;
-    if (arguments == NULL)
-        module = multiboot_find_module(bi, binary_name);
-    else
-        module = multiboot_find_module(bi, actual_name);
-
+    module = multiboot_find_module(bi, actual_name);
     if (module == NULL) {
         DBG(VERBOSE, "multiboot: Could not find module %s\n", binary_name);
         return SPAWN_ERR_FIND_MODULE;

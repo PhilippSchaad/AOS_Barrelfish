@@ -7,7 +7,6 @@
 __attribute__((unused)) static int spawn_hello10(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Start the hello process 10 times");
 
     errval_t err;
@@ -28,7 +27,6 @@ __attribute__((unused)) static int spawn_hello10(void)
 __attribute__((unused)) static int spawn_hello1(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Start the hello process");
 
     errval_t err;
@@ -47,7 +45,6 @@ __attribute__((unused)) static int spawn_hello1(void)
 __attribute__((unused)) static int spawn_memeater(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Start the memeater process");
 
     errval_t err;
