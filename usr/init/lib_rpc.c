@@ -11,6 +11,8 @@
 
 #include "../tests/test.h"
 
+struct lmp_chan init_chan;
+
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
 {
@@ -358,6 +360,10 @@ void recv_deal_with_msg(struct recv_list *data)
                "we can not handle cap transfer across cores via urpc yet");
         CHECK(ram_recv_handler(data, chan));
         break;
+    case RPC_MESSAGE(RPC_TYPE_GET_MEM_SERVER):
+        //send_response(data, chan, cap_selfep, 0, NULL);
+        send_response(data, chan, init_chan.local_cap, 0, NULL);
+        break;
     case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
         if (chan == NULL) { // XXX HACK: We are in URPC
             DBG(DETAILED, "putchar request received via URPC\n");
@@ -506,8 +512,6 @@ static void recv_handshake_handler(struct recv_list *data)
         return;
     }
 }
-
-struct lmp_chan init_chan;
 
 void init_rpc(void)
 {

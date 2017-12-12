@@ -317,7 +317,7 @@ static errval_t elf_alloc_sect_func(void *state, genvaddr_t base, size_t size,
 }
 
 /// Helper function to pass the paging state to the spawned process.
-static errval_t map_paging_state_to_child(struct paging_state *st)
+__attribute__((unused)) static errval_t map_paging_state_to_child(struct paging_state *st)
 {
     struct capref frame;
     size_t ret;
@@ -435,7 +435,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si)
     DBG(DETAILED, "VII: Initialize the environment.\n");
     CHECK(init_env(si, module, arguments));
 
-    map_paging_state_to_child(&si->paging_state);
+    //map_paging_state_to_child(&si->paging_state);
 
     // Check the registers...
     DBG(DETAILED, "dump stuff...\n");

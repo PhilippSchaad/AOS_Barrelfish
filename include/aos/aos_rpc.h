@@ -136,6 +136,11 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
 errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap);
 
 /**
+ * TODO: do this
+ */
+errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap);
+
+/**
  * \brief Initialize given rpc channel.
  */
 errval_t aos_rpc_init(struct aos_rpc *rpc);
