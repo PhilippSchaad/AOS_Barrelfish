@@ -82,6 +82,7 @@ static errval_t send_loop(void *args)
         actual_sending(sq->chan, cap, first_byte,
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);
     if (err_is_fail(err)) {
+        debug_printf("send loop error: %s\n",err_getstring(err));
         // Reregister if failed.
         CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                      MKCLOSURE((void *) send_loop, args)));
@@ -96,7 +97,6 @@ static errval_t send_loop(void *args)
         } else {
             if (sq->callback_when_done.handler != NULL)
                 sq->callback_when_done.handler(sq->callback_when_done.arg);
-
             bool done = true;
             synchronized(rpc_send_queue.thread_mutex)
             {
@@ -120,6 +120,7 @@ static errval_t send_loop(void *args)
                     done = false;
                 else
                     rpc_send_queue.last = NULL;
+
             }
             if (!done) {
                 CHECK(lmp_chan_register_send(

@@ -15,9 +15,6 @@
 #include <aos/aos_rpc.h>
 #include <aos/generic_threadsafe_queue.h>
 
-#undef DEBUG_LEVEL
-#define DEBUG_LEVEL 100
-
 struct thread_mutex aos_rpc_mutex;
 
 struct rpc_call {
@@ -169,6 +166,7 @@ static void aos_rpc_ram_recv(void *arg1, struct recv_list *data)
 
 static void aos_rpc_ram_recv(void *arg1, struct recv_list *data)
 {
+    DBG(VERBOSE,"aos_rpc_ram_recv\n");
     uintptr_t *uargs = (uintptr_t *) arg1;
     struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
     struct capref *retcap = (struct capref *) uargs[3];
@@ -181,6 +179,7 @@ static void aos_rpc_ram_recv(void *arg1, struct recv_list *data)
 
     bool *done = (bool *) uargs[5];
     *done = true;
+    DBG(VERBOSE,"aos_rpc_ram_recv complete\n");
 }
 
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
@@ -204,13 +203,13 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
     bool done = false;
     sendargs[5] = (uintptr_t) &done;
-    struct aos_rpc_ram_recv_struct retvals;
     /*
     register_recv(id, RPC_ACK_MESSAGE(RPC_TYPE_RAM), &done, aos_rpc_ram_recv,
                   &retvals);
 
                   */
 
+    lmp_chan_alloc_recv_slot(&chan->chan, false);
 
     lmp_chan_register_recv(&chan->chan, ws,
                            MKCLOSURE((void *) aos_rpc_ram_recv, sendargs));
@@ -227,8 +226,8 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     while (!done)
         event_dispatch(ws);
 
-    *retcap = retvals.ram_cap;
-    *ret_size = retvals.size;
+
+    DBG(DETAILED, "rpc_get_ram_cap done\n");
 
     thread_mutex_unlock(&chan->mutex);
 
@@ -453,6 +452,7 @@ errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap)
 
 static void aos_rpc_recv_handler(struct recv_list *data)
 {
+    DBG(VERBOSE,"aos_rpc_recv_handler\n");
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
@@ -525,7 +525,7 @@ static void aos_rpc_recv_handler(struct recv_list *data)
 
 static errval_t mem_server_setup_send(uintptr_t *args)
 {
-    DBG(DETAILED, "rpc_ram_send_handler\n");
+    DBG(DETAILED, "mem_server_setup_send\n");
 
     struct aos_rpc *rpc = (struct aos_rpc *) args[0];
 
@@ -539,7 +539,7 @@ static errval_t mem_server_setup_send(uintptr_t *args)
         err = lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap, first_byte);
     } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
     if (!err_is_ok(err))
-        debug_printf("tried to send ram request, ran into issue: %s\n",
+        debug_printf("tried to send mem server setup request, ran into issue: %s\n",
                      err_getstring(err));
 
     return SYS_ERR_OK;
@@ -547,6 +547,8 @@ static errval_t mem_server_setup_send(uintptr_t *args)
 
 static void mem_server_setup_recv(void *arg1, struct recv_list *data)
 {
+    DBG(DETAILED, "mem_server_setup_recv\n");
+
     uintptr_t *uargs = (uintptr_t *) arg1;
     struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
@@ -577,7 +579,7 @@ static void complete_mem_server_setup(void)
     uintptr_t sendargs[2];
     sendargs[0] = (uintptr_t) mem_chan;
     sendargs[1] = (uintptr_t) &done;
-
+    lmp_chan_alloc_recv_slot(&mem_chan->chan, false);
     lmp_chan_register_recv(&mem_chan->chan, ws,
                            MKCLOSURE((void *) mem_server_setup_recv, sendargs));
 
