@@ -33,6 +33,9 @@ void serial_input(uint8_t *buf, size_t len){
     //debug_printf("call, buffer length is %d\n", net_msg_buf_length(&message_buffer));
 }
 
+static void sample_fun(int* arg){
+}
+
 int main(int argc, char *argv[])
 {
     printf("Welcome. I am your connection to the world.\n");
@@ -53,6 +56,10 @@ int main(int argc, char *argv[])
     CHECK(serial_init(uart_device_mapping, UART4_IRQ));
 
     printf("UART4 up\n");
+
+    // TODO: fix this properly!!!
+    int retval;
+    thread_join(thread_create((thread_func_t) sample_fun, NULL), &retval);
 
     // start slip (sending and receiveing of packets)
     slip_init(&message_buffer);

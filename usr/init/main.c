@@ -34,6 +34,7 @@
 #include <mem_alloc.h>
 
 #include "../tests/test.h"
+#include "../networking/slip.h"
 
 //#define PERF_MEASUREMENT
 #define NDTESTS

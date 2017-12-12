@@ -88,28 +88,34 @@ static union ip_packet* packet_to_send = NULL;
 
 void slip_packet_send(union ip_packet* packet){
     debug_printf("slip send new packet\n");
+    packet_to_send = packet;
     while(packet_to_send){
         thread_yield();
     }
-    packet_to_send = packet_to_send;
+    debug_printf("slip packet sent\n");
 }
 
 __attribute__((unused))
 // should get called async
 static void slip_send(void){
+    debug_printf("slip start sending thread\n");
+    while(true){
     while(!packet_to_send){
         thread_yield();
     }
+    debug_printf("slip start sending packet\n");
 
-    uint8_t* end = packet_to_send->payload + packet_to_send->header.length;
+    uint8_t* end = packet_to_send->payload + ntohs(packet_to_send->header.length);
 
     uint8_t slip_end = SLIP_END;
     uint8_t slip_esc = SLIP_ESC;
     uint8_t slip_esc_end = SLIP_ESC_END;
     uint8_t slip_esc_esc = SLIP_ESC_ESC;
     uint8_t slip_esc_nul = SLIP_ESC_NUL;
+        debug_printf("slip send packet with version size : %u\n", ntohs(packet_to_send->header.length));
 
     for (uint8_t* current_byte = packet_to_send->payload; current_byte < end; ++current_byte){
+        debug_printf("slip send the following byte: %u\n", *current_byte);
         switch(*current_byte){
             case SLIP_END:
                 serial_write(&slip_esc, 1);
@@ -134,6 +140,7 @@ static void slip_send(void){
 
     free(packet_to_send);
     packet_to_send = NULL;
+    }
 }
 
 void slip_init(struct net_msg_buf *message_buffer){

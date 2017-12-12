@@ -33,19 +33,21 @@ void ip_packet_send(uint8_t *payload, size_t payload_size, uint32_t dst, uint8_t
 
     // assemble the header
     // TODO: support options?
-    packet->header.version_ihl = htons((4<<4) + IP_HEADER_MIN_SIZE);
+    packet->header.version_ihl = (4<<4) + IP_HEADER_MIN_SIZE;
     packet->header.tos = 0;
-    packet->header.length = htons(IP_HEADER_MIN_SIZE + payload_size);
+    packet->header.length = htons(IP_HEADER_MIN_SIZE*4 + payload_size);
     packet->header.id = 0;
     packet->header.flags_fragmentoffset = 0;
-    packet->header.ttl = htons(64);
-    packet->header.protocol = htons(protocol);
+    packet->header.ttl = 64;
+    packet->header.protocol = protocol;
     packet->header.source = htonl(MY_IP);
     packet->header.destination = htonl(dst);
-    packet->header.header_checksum = inet_checksum(packet, IP_HEADER_MIN_SIZE);
+    packet->header.header_checksum = inet_checksum(packet, IP_HEADER_MIN_SIZE*4);
+
+    debug_printf("ip send packet with version ihl: %u\n", packet->header.version_ihl);
 
     // add the payload
-    memcpy(packet->payload + IP_HEADER_MIN_SIZE, payload, payload_size);
+    memcpy(packet->payload + IP_HEADER_MIN_SIZE*4, payload, payload_size);
     free(payload);
     payload = NULL;
 
