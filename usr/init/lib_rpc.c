@@ -11,6 +11,9 @@
 
 #include "../tests/test.h"
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL 100
+
 struct lmp_chan init_chan;
 
 /// Try to find the correct domain identified by cap.

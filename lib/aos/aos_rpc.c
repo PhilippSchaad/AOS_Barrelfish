@@ -15,6 +15,9 @@
 #include <aos/aos_rpc.h>
 #include <aos/generic_threadsafe_queue.h>
 
+#undef DEBUG_LEVEL
+#define DEBUG_LEVEL 100
+
 struct thread_mutex aos_rpc_mutex;
 
 struct rpc_call {
@@ -530,10 +533,10 @@ static errval_t mem_server_setup_send(uintptr_t *args)
 
     errval_t err;
     do {
-        DBG(DETAILED, "calling lmp_chan_send3 in rpc_ram_send_handler\n");
+        DBG(DETAILED, "calling lmp_chan_send1 in mem_server_setup_send\n");
         // Check if sender is currently busy
         // TODO: could we implement some kind of buffer for this?
-        err = lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, NULL_CAP, first_byte);
+        err = lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap, first_byte);
     } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
     if (!err_is_ok(err))
         debug_printf("tried to send ram request, ran into issue: %s\n",
@@ -565,7 +568,7 @@ static void complete_mem_server_setup(void)
 
     mem_chan = malloc(sizeof(struct aos_rpc));
 
-    CHECK(lmp_chan_accept(&mem_chan->chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
+    CHECK(lmp_chan_accept(&mem_chan->chan, DEFAULT_LMP_BUF_WORDS, retcap));
 
     struct waitset *ws = get_default_waitset();
 
