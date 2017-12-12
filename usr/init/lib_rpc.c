@@ -217,9 +217,12 @@ static void dev_cap_recv_handler(struct recv_list *data, struct lmp_chan *chan)
     // create slot
     CHECK(slot_alloc(&dev_cap));
 
+    struct frame_identity initial_dev_cap_id;
+    CHECK(frame_identify(initial_dev_cap, &initial_dev_cap_id));
+
     // get part of the device cap
     DBG(VERBOSE,"retype cap with: source %"PRIxLVADDR" size: %u", paddr, bytes);
-    CHECK(cap_retype(dev_cap, initial_dev_cap, paddr - 0x40000000,
+    CHECK(cap_retype(dev_cap, initial_dev_cap, paddr - initial_dev_cap_id.base,
                     ObjType_DevFrame, bytes, 1));
 
     send_response(data, chan, dev_cap, 0, NULL);

@@ -28,9 +28,9 @@ static struct net_msg_buf message_buffer;
 
 // handle the interrupt from serial
 void serial_input(uint8_t *buf, size_t len){
-    debug_printf("I received %d, l3n: %d\n", *buf, len);
+    //debug_printf("I received %#04x,\n", *buf);
     CHECK(net_msg_buf_write(&message_buffer, buf, len));
-    debug_printf("call, buffer length is %d\n", net_msg_buf_length(&message_buffer));
+    //debug_printf("call, buffer length is %d\n", net_msg_buf_length(&message_buffer));
 }
 
 int main(int argc, char *argv[])
@@ -54,8 +54,8 @@ int main(int argc, char *argv[])
 
     printf("UART4 up\n");
 
-    // handle the receiving of packets
-    thread_create((thread_func_t) slip_receive, &message_buffer);
+    // start slip (sending and receiveing of packets)
+    slip_init(&message_buffer);
 
     // Hang around
     struct waitset *default_ws = get_default_waitset();

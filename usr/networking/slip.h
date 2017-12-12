@@ -4,7 +4,7 @@
 #include <aos/aos.h>
 #include <stdlib.h>
 #include "ip.h"
-//#include "util.h"
+#include "message_buffer.h"
 
 #define SLIP_END        0xc0
 #define SLIP_ESC        0xdb
@@ -12,7 +12,7 @@
 #define SLIP_ESC_ESC    0xdd
 #define SLIP_ESC_NUL    0xde
 
-void slip_receive(struct net_msg_buf* buf);
-void slip_send(struct net_msg_buf* buf);
+void slip_packet_send(union ip_packet* packet);
+void slip_init(struct net_msg_buf *message_buffer);
 
 #endif

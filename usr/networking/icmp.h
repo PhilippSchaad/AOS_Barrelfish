@@ -1,15 +1,22 @@
 #ifndef _USR_NETWORK_ICMP_H_
 #define _USR_NETWORK_ICMP_H_
 
+#include <aos/aos.h>
+#include <stdlib.h>
+
 // supported protocols
 #define ECHO_REPLY 0
+#define ECHO_REQUEST 8
+
+#define ICMP_HEADER_SIZE 4
 
 struct icmp_header{
-    uint8_t typ;
+    uint8_t type;
     uint8_t code;
     uint16_t checksum;
-} (__attribute__((packed));
+} __attribute__((packed));
 
-void icmp_receive(uint8_t* payload, size_t size);
+void icmp_receive(uint8_t* payload, size_t size, uint32_t src);
+void icmp_send(uint8_t type, uint8_t code, uint8_t* payload, size_t payload_size, uint32_t dst);
 
 #endif

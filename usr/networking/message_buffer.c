@@ -5,43 +5,31 @@ void net_msg_buf_init(struct net_msg_buf *buf){
     buf->start = buf->buf;
     buf->end = buf->buf;
 }
+
+static inline void write_byte(struct net_msg_buf *buf, uint8_t *src){
+    // write buffer
+    *buf->start = *src;
+
+    // book keeping
+    buf->start += 1;
+
+    // wrap around if needed
+    if(buf->buf + NET_BUF_SIZE <= buf->start){
+        buf->start = buf->buf;
+    }
+
+    // check if full
+    assert(buf->start != buf->end);
+
+}
+
+
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL DETAILED
 errval_t net_msg_buf_write(struct net_msg_buf *buf, uint8_t *src, size_t len){
-    errval_t err;
-    // check if we reach the end of the buffer
-    if(buf->start + len > buf->buf + (NET_BUF_SIZE-1)){
-        // should wrap around
-        // recurse with new parameters
-        size_t size_to_write = 1 + buf->buf + (NET_BUF_SIZE-1) - buf->start;
-        err = net_msg_buf_write(buf, src, size_to_write);
-        if (err_is_fail(err)){
-            return err;
-        }
-        err = net_msg_buf_write(buf, src + size_to_write, len - size_to_write);
-        return err;
+    for (int i=0; i<len; ++i){
+        write_byte(buf, src+i);
     }
-
-    // make sure that there is enought space in the buffer
-    if (buf->start < buf->end && buf->start + len > buf->end){
-        return AOS_NET_ERR_MESSAGE_BUF_OVERFLOW;
-    }
-
-    // finally, write the buffer
-    memcpy(buf->start, src, len);
-
-    // book keeping
-    buf->start += len;
-
-    // some asserts
-    assert(buf->start <= buf->buf + NET_BUF_SIZE);
-
-    // if we reached the end of the buffer, go to the beginning again
-    if (buf->start == buf->buf + NET_BUF_SIZE){
-        buf->start = buf->buf;
-    }
-    assert(buf->end != buf->start);
-
     return SYS_ERR_OK;
 }
 bool net_msg_buf_read_byte(struct net_msg_buf *buf, uint8_t *retval){
