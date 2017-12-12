@@ -97,6 +97,13 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
                                       size_t *pid_count);
 
 /**
+ * \brief Block for as long as a process with ID pid is running
+ * \arg pid The process id of the process in question
+ */
+errval_t aos_rpc_process_await_completion(struct aos_rpc *chan,
+                                          domainid_t pid);
+
+/**
  * \brief Dump the list of running processes to the terminal
  */
 errval_t aos_rpc_print_process_list(struct aos_rpc *chan);

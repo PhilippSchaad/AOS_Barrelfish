@@ -353,6 +353,16 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
+errval_t aos_rpc_process_await_completion(struct aos_rpc *chan, domainid_t pid)
+{
+    uintptr_t *payload = malloc(sizeof(uintptr_t));
+    *payload = pid;
+    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_AWAIT_COMPL, &chan->chan,
+                  NULL_CAP, 1, payload, NULL_EVENT_CLOSURE);
+    free(payload);
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_print_process_list(struct aos_rpc *chan)
 {
     rpc_framework(NULL, NULL, RPC_TYPE_PRINT_PROC_LIST, &chan->chan, NULL_CAP,

@@ -91,7 +91,18 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     strcpy(name, recv_name);
     name[length] = '\0';
 
-    DBG(DETAILED, "receive spawn request: name: %s, core %d\n", recv_name,
+    int bin_name_end = length;
+    for (int i = 0; i < length; i++) {
+        if (name[i] == ' ') {
+            bin_name_end = i;
+            break;
+        }
+    }
+    char *bin_name = malloc(bin_name_end + 1);
+    strncpy(bin_name, name, bin_name_end);
+    bin_name[bin_name_end] = '\0';
+
+    DBG(DETAILED, "receive spawn request: name: %s, core %d\n", name,
         core);
     DBG(DETAILED, "spawninfo: %s size %u\n", (char *) data->payload,
         data->size);
@@ -110,7 +121,7 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         // If we are on core 0 we can (and have to) preset the pid.
         domainid_t pid = 0;
         if (disp_get_core_id() == 0) {
-            pid = procman_register_process(name, core, NULL);
+            pid = procman_register_process(bin_name, core, NULL);
         }
 
         void *sto_data = data->payload;
@@ -151,9 +162,9 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     } else {
         if (chan == NULL && disp_get_core_id() != 0) { // XXX HACK: We are in URPC
             pid = *((domainid_t *) (recv_name + strlen(recv_name) + 3));
-            procman_foreign_preregister(pid, name, core, si);
+            procman_foreign_preregister(pid, bin_name, core, si);
         } else {
-            pid = procman_register_process(name, core, si);
+            pid = procman_register_process(bin_name, core, si);
         }
     }
 
@@ -185,6 +196,23 @@ static errval_t process_get_name_recv_handler(struct recv_list *data,
     } else
         send_response(data, chan, NULL_CAP, payloadsize2, payload2);
     free(payload2);
+    return SYS_ERR_OK;
+}
+
+static errval_t process_await_completion_recv_handler(struct recv_list *data,
+                                                      struct lmp_chan *chan)
+{
+    domainid_t pid = (domainid_t) data->payload[0];
+
+    // Wait until the process terminates.
+    while (procman_lookup_name_by_id(pid) != NULL)
+        event_dispatch(get_default_waitset());
+
+    if (chan == NULL) // XXX HACK: We are in URPC
+        urpc2_send_response(data, NULL_CAP, 0, NULL);
+    else
+        send_response(data, chan, NULL_CAP, 0, NULL);
+
     return SYS_ERR_OK;
 }
 
@@ -410,6 +438,9 @@ void recv_deal_with_msg(struct recv_list *data)
     case RPC_MESSAGE(RPC_TYPE_PRINT_PROC_LIST):
         procman_print_proc_list();
         send_response(data, chan, NULL_CAP, 0, NULL);
+        break;
+    case RPC_MESSAGE(RPC_TYPE_PROCESS_AWAIT_COMPL):
+        CHECK(process_await_completion_recv_handler(data, chan));
         break;
     default:
         DBG(WARN, "Unable to handle RPC-receipt, expect badness! type: %u\n",

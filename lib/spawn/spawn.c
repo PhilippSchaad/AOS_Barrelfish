@@ -199,13 +199,10 @@ static errval_t init_env(struct spawninfo *si, struct mem_region *module,
                          char *arguments)
 {
     char *args;
-    if (arguments == NULL) {
-        DBG(DETAILED, " Retrieve arguments from the module and allocate memory "
-                      "for them.\n");
+    if (arguments == NULL)
         args = (char *) multiboot_module_opts(module);
-    } else {
+    else
         args = arguments;
-    }
 
     DBG(DETAILED, " Found the following command line arguments: %s\n", args);
     size_t region_size = ROUND_UP(
@@ -379,7 +376,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si)
             strncpy(actual_name, binary_name, i);
             actual_name[i] = '\0';
             if (i + 1 < binary_name_length && binary_name[i + 1] != '\0')
-                arguments = &binary_name[i + 1];
+                arguments = binary_name;
             break;
         }
     }
