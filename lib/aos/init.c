@@ -84,34 +84,35 @@ static void libc_assert(const char *expression, const char *file,
     sys_print(buf, len < sizeof(buf) ? len : sizeof(buf));
 }
 
-// use this function for serial domain
-static size_t syscall_terminal_write(const char *buf, size_t len)
+/* Write to the terminal */
+static size_t terminal_write(const char *buf, size_t len)
 {
     if (len) {
-        return sys_print(buf, len);
+        if (init_domain) {
+            // If we are the init domain, write via syscall.
+            sys_print(buf, len);
+        } else {
+            // If we are NOT init, write via rpc -> init.
+            char *buf_cpy = malloc((len + 1) * sizeof(char));
+            snprintf(buf_cpy, len + 1, "%s\0", buf);
+            CHECK(aos_rpc_send_string(aos_rpc_get_serial_channel(), buf_cpy));
+            free(buf_cpy);
+        }
     }
-    return 0;
-}
-
-// use this function on all non serial domains
-/*
-static size_t serial_channel_write(const char *buf, size_t len)
-{
-    if (len) {
-        aos_rpc_send_string(aos_rpc_get_serial_channel(), buf);
-        return len;
-    }
-    return 0;
-}
-*/
-
-/*
-static size_t dummy_terminal_read(char *buf, size_t len)
-{
-    debug_printf("terminal read NYI! returning %d characters read\n", len);
     return len;
 }
-*/
+
+static size_t terminal_read(char *buf, size_t len)
+{
+    if (len) {
+        if (init_domain) {
+            sys_getchar(buf);
+        } else {
+            CHECK(aos_rpc_serial_getchar(aos_rpc_get_serial_channel(), buf));
+        }
+    }
+    return 1;
+}
 
 /* Set libc function pointers */
 void barrelfish_libc_glue_init(void)
@@ -119,12 +120,8 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
-    //_libc_terminal_read_func = dummy_terminal_read;
-    if (init_domain){
-        _libc_terminal_write_func = syscall_terminal_write;
-    } else {
-        _libc_terminal_write_func = syscall_terminal_write;
-    }
+    _libc_terminal_read_func = terminal_read;
+    _libc_terminal_write_func = terminal_write;
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
     /* morecore func is setup by morecore_init() */
@@ -193,8 +190,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     DBG(VERBOSE, "We're gonna register ourself with the procman now\n");
     // The first cmdline argument holds our process domain name
     char *domain_name = (char *) params->argv[0];
-    // TODO: This might need to be truncated if the process is spawned
-    //       with path (eg /local/usr/bin/process instead of process)..
     aos_rpc_process_register(aos_rpc_get_process_channel(), domain_name);
 
     DBG(VERBOSE, "Registration completed, running main now\n");

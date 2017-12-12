@@ -30,6 +30,7 @@
 #include <lib_rpc.h>
 #include <lib_urpc.h>
 #include <lib_procman.h>
+#include <lib_terminal.h>
 #include <mem_alloc.h>
 
 #include "../tests/test.h"
@@ -86,7 +87,11 @@ int main(int argc, char *argv[])
     active_domains = malloc(sizeof(struct domain_list));
 
     init_rpc();
+
     CHECK(procman_init());
+
+    // Initialize the terminal driver.
+    terminal_init(my_core_id);
 
     if (my_core_id == 0) {
         // Initialize the master URPC server (aka core 0).

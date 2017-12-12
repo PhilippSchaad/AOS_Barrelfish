@@ -68,7 +68,7 @@
 #define OFFSET_GPIO_DATAOUT     0x13c
 #define LED_D2_BIT              0x8
 
-#define OS_NAME                 "Barrelfish"
+#define OS_NAME                 "Clownfish"
 #define OS_VERSION_MAJOR        0
 #define OS_VERSION_MINOR        1
 #define OS_PATCH_LEVEL          0

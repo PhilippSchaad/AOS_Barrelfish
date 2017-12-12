@@ -6,9 +6,7 @@
 __attribute__((unused)) static int mm_alloc_300f(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Allocate 300 frames (sizes 30 + 100*i).\n"
-                    "           "
                     "This will also demonstrate slab refills.");
 
     errval_t err;
@@ -38,7 +36,6 @@ __attribute__((unused)) static int mm_alloc_300f(void)
 __attribute__((unused)) static int mm_alloc_and_map_10f(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Allocate 10 frames of different sizes and map them.");
 
     errval_t err;
@@ -87,7 +84,6 @@ __attribute__((unused)) static int mm_alloc_and_map_large_10f(void)
 {
     TEST_PRINT_INFO(
         "\n"
-        "           "
         "Allocate 10 large frames of different sizes and map them.");
 
     errval_t err;
@@ -136,9 +132,7 @@ __attribute__((unused)) static int mm_alloc_and_map_large_10f(void)
 __attribute__((unused)) static int mm_alloc_free_20(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Allocate 20 chunks of ram (sizes 30 + 500*i).\n"
-                    "           "
                     "Repeated twice.");
 
     errval_t err;
@@ -168,9 +162,7 @@ __attribute__((unused)) static int mm_alloc_free_20(void)
 __attribute__((unused)) static int mm_alloc_free_600(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Allocate 600 chunks of ram (size 30) and free again.\n"
-                    "           "
                     "This also uses slot alloc.");
 
     errval_t err;
@@ -200,11 +192,8 @@ __attribute__((unused)) static int mm_alloc_free_10(void)
 {
     TEST_PRINT_INFO(
         "\n"
-        "           "
         "Allocate 10 chunks of ram (sizes 30 + 1000*i).\n"
-        "           "
         "Free every second.\n"
-        "           "
         "Allocate 10 chunks of different size again and free all.");
 
     errval_t err;
@@ -263,7 +252,6 @@ __attribute__((unused)) static int mm_alloc_free_10(void)
 __attribute__((unused)) static int mm_paging_map_fixed_attr_cursize_test(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Regression test for issue #21");
 
     struct capref frame;
@@ -288,7 +276,6 @@ __attribute__((unused)) static int
 mm_paging_alloc_aligned_allignment_test(void)
 {
     TEST_PRINT_INFO("\n"
-                    "           "
                     "Regression test for alignment issue");
 
     errval_t err;

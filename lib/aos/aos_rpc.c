@@ -26,6 +26,8 @@ struct rpc_call {
     struct rpc_call *next;
 };
 
+struct aos_rpc *mem_chan;
+
 struct rpc_call *rpc_call_buffer_head = NULL;
 
 bool rpc_type_ram_call_buffer_in_use[10];
@@ -102,7 +104,8 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 
 errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
-    size_t tempsize = strlen(string);
+    // + 1 because we need to include the null terminator!!
+    size_t tempsize = strlen(string) + 1;
     uintptr_t *payload2;
     size_t payloadsize2;
     convert_charptr_to_uintptr_with_padding_and_copy(string, tempsize,
@@ -151,12 +154,32 @@ struct aos_rpc_ram_recv_struct {
     size_t size;
 };
 
+/*
 static void aos_rpc_ram_recv(void *arg1, struct recv_list *data)
 {
     struct aos_rpc_ram_recv_struct *arrrs =
         (struct aos_rpc_ram_recv_struct *) arg1;
     arrrs->ram_cap = data->cap;
     arrrs->size = data->payload[1];
+}
+*/
+
+static void aos_rpc_ram_recv(void *arg1, struct recv_list *data)
+{
+    DBG(VERBOSE,"aos_rpc_ram_recv\n");
+    uintptr_t *uargs = (uintptr_t *) arg1;
+    struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
+    struct capref *retcap = (struct capref *) uargs[3];
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    CHECK(lmp_chan_recv(&rpc->chan, &msg, retcap));
+
+    size_t *retsize = (size_t *) uargs[4];
+    *retsize = msg.words[2];
+
+    bool *done = (bool *) uargs[5];
+    *done = true;
+    DBG(VERBOSE,"aos_rpc_ram_recv complete\n");
 }
 
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
@@ -170,19 +193,32 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
     struct waitset *ws = get_default_waitset();
 
-    uintptr_t sendargs[4];
+    uintptr_t sendargs[6];
 
     sendargs[0] = (uintptr_t) chan;
     sendargs[1] = (uintptr_t) &size;
     sendargs[2] = (uintptr_t) &align;
-
-    unsigned char id = request_fresh_id(RPC_MESSAGE(RPC_TYPE_RAM));
-    sendargs[3] = (uintptr_t) id;
+    sendargs[3] = (uintptr_t) retcap;
+    sendargs[4] = (uintptr_t) ret_size;
 
     bool done = false;
-    struct aos_rpc_ram_recv_struct retvals;
+    sendargs[5] = (uintptr_t) &done;
+    /*
     register_recv(id, RPC_ACK_MESSAGE(RPC_TYPE_RAM), &done, aos_rpc_ram_recv,
                   &retvals);
+
+                  */
+    struct slot_allocator* sa = get_default_slot_allocator();
+    //we are out, so we need to 1. use from buffer
+    //and 2. refill
+    if(sa->space == 0) {
+        USER_PANIC("fix me \n");
+//        lmp_chan_set_recv_slot(&chan->chan,todo);
+    } else
+        lmp_chan_alloc_recv_slot(&chan->chan);
+
+    lmp_chan_register_recv(&chan->chan, ws,
+                           MKCLOSURE((void *) aos_rpc_ram_recv, sendargs));
 
     errval_t err = lmp_chan_register_send(
         &chan->chan, ws, MKCLOSURE((void *) ram_send_handler, sendargs));
@@ -196,8 +232,8 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     while (!done)
         event_dispatch(ws);
 
-    *retcap = retvals.ram_cap;
-    *ret_size = retvals.size;
+
+    DBG(DETAILED, "rpc_get_ram_cap done\n");
 
     thread_mutex_unlock(&chan->mutex);
 
@@ -352,9 +388,26 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
+errval_t aos_rpc_process_await_completion(struct aos_rpc *chan, domainid_t pid)
+{
+    uintptr_t *payload = malloc(sizeof(uintptr_t));
+    *payload = pid;
+    rpc_framework(NULL, NULL, RPC_TYPE_PROCESS_AWAIT_COMPL, &chan->chan,
+                  NULL_CAP, 1, payload, NULL_EVENT_CLOSURE);
+    free(payload);
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_print_process_list(struct aos_rpc *chan)
 {
     rpc_framework(NULL, NULL, RPC_TYPE_PRINT_PROC_LIST, &chan->chan, NULL_CAP,
+                  0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
+errval_t aos_rpc_run_testsuite(struct aos_rpc *chan)
+{
+    rpc_framework(NULL, NULL, RPC_TYPE_RUN_TESTSUITE, &chan->chan, NULL_CAP,
                   0, NULL, NULL_EVENT_CLOSURE);
     return SYS_ERR_OK;
 }
@@ -405,6 +458,7 @@ errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap)
 
 static void aos_rpc_recv_handler(struct recv_list *data)
 {
+    DBG(VERBOSE,"aos_rpc_recv_handler\n");
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
@@ -475,12 +529,103 @@ static void aos_rpc_recv_handler(struct recv_list *data)
     }
 }
 
+static errval_t mem_server_setup_send(uintptr_t *args)
+{
+    DBG(DETAILED, "mem_server_setup_send\n");
+
+    struct aos_rpc *rpc = (struct aos_rpc *) args[0];
+
+    unsigned int first_byte = (RPC_MESSAGE(RPC_TYPE_HANDSHAKE) << 24);
+
+    errval_t err;
+    do {
+        DBG(DETAILED, "calling lmp_chan_send1 in mem_server_setup_send\n");
+        // Check if sender is currently busy
+        // TODO: could we implement some kind of buffer for this?
+        err = lmp_chan_send1(&rpc->chan, LMP_FLAG_SYNC, rpc->chan.local_cap, first_byte);
+    } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+    if (!err_is_ok(err))
+        debug_printf("tried to send mem server setup request, ran into issue: %s\n",
+                     err_getstring(err));
+
+    return SYS_ERR_OK;
+}
+
+static void mem_server_setup_recv(void *arg1, struct recv_list *data)
+{
+    DBG(DETAILED, "mem_server_setup_recv\n");
+
+    uintptr_t *uargs = (uintptr_t *) arg1;
+    struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    struct capref retcap;
+    
+    CHECK(lmp_chan_recv(&rpc->chan, &msg, &retcap));
+
+    rpc->chan.remote_cap = retcap;
+
+    bool *done = (bool *) uargs[1];
+    *done = true;
+}
+
+static void complete_mem_server_setup(void)
+{
+    struct capref retcap;
+    aos_rpc_get_mem_server(get_init_rpc(), &retcap);
+
+    mem_chan = malloc(sizeof(struct aos_rpc));
+
+    CHECK(lmp_chan_accept(&mem_chan->chan, DEFAULT_LMP_BUF_WORDS, retcap));
+
+    struct waitset *ws = get_default_waitset();
+
+    bool done = false;
+
+    uintptr_t sendargs[2];
+    sendargs[0] = (uintptr_t) mem_chan;
+    sendargs[1] = (uintptr_t) &done;
+    lmp_chan_alloc_recv_slot(&mem_chan->chan);
+    lmp_chan_register_recv(&mem_chan->chan, ws,
+                           MKCLOSURE((void *) mem_server_setup_recv, sendargs));
+
+    errval_t err = lmp_chan_register_send(
+        &mem_chan->chan, ws, MKCLOSURE((void *) mem_server_setup_send, sendargs));
+    while (err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
+        CHECK(event_dispatch(ws));
+        err = lmp_chan_register_send(
+            &mem_chan->chan, ws, MKCLOSURE((void *) mem_server_setup_send, sendargs));
+    }
+    CHECK(err);
+
+    while (!done)
+        event_dispatch(ws);
+
+    mem_chan->init = true;
+    mem_chan->id = 911;
+    thread_mutex_init(&mem_chan->mutex);
+}
+
 static void handshake_recv(void *arg1, struct recv_list *data)
 {
     struct aos_rpc *rpc = (struct aos_rpc *) arg1;
     DBG(VERBOSE, "ACK Received (handshake) \n");
     data->chan->remote_cap = data->cap;
     rpc->init = true;
+}
+
+static void get_mem_server_recv_handler(void *arg1, struct recv_list *data)
+{
+    struct capref *retcap = (struct capref *) arg1;
+    *retcap = data->cap;
+}
+
+errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap)
+{
+    rpc_framework(get_mem_server_recv_handler, (void *) retcap,
+                  RPC_TYPE_GET_MEM_SERVER, &rpc->chan, NULL_CAP, 0, NULL,
+                  NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
 }
 
 unsigned int id = 1337;
@@ -511,6 +656,8 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     set_init_rpc(rpc);
 
+    complete_mem_server_setup();
+
     return SYS_ERR_OK;
 }
 
@@ -528,8 +675,7 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
  */
 struct aos_rpc *aos_rpc_get_memory_channel(void)
 {
-    // TODO check if we want to create a separate mem server
-    return get_init_rpc();
+    return mem_chan;
 }
 
 /**

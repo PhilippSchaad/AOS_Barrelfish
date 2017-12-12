@@ -82,6 +82,7 @@ static errval_t send_loop(void *args)
         actual_sending(sq->chan, cap, first_byte,
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);
     if (err_is_fail(err)) {
+        debug_printf("send loop error: %s\n",err_getstring(err));
         // Reregister if failed.
         CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                      MKCLOSURE((void *) send_loop, args)));
@@ -96,7 +97,6 @@ static errval_t send_loop(void *args)
         } else {
             if (sq->callback_when_done.handler != NULL)
                 sq->callback_when_done.handler(sq->callback_when_done.arg);
-
             bool done = true;
             synchronized(rpc_send_queue.thread_mutex)
             {
@@ -120,6 +120,7 @@ static errval_t send_loop(void *args)
                     done = false;
                 else
                     rpc_send_queue.last = NULL;
+
             }
             if (!done) {
                 CHECK(lmp_chan_register_send(
@@ -323,8 +324,7 @@ void recv_handling(void *args)
         cap_destroy(cap);
     }
 
-    bool use_prealloc_slot_buff = true;
-    lmp_chan_alloc_recv_slot(rc->chan, use_prealloc_slot_buff);
+    lmp_chan_alloc_recv_slot(rc->chan);
     CHECK(lmp_chan_register_recv(rc->chan, get_default_waitset(),
                            MKCLOSURE(recv_handling, args)));
     slot_alloc_refill_preallocated_slots_conditional(refill_nono);
@@ -387,8 +387,7 @@ errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
     // Create local endpoint.
     // Set remote endpoint to dest's endpoint.
     CHECK(lmp_chan_accept(chan, DEFAULT_LMP_BUF_WORDS, dest));
-    bool use_prealloc_slot_buff = false;
-    lmp_chan_alloc_recv_slot(chan, use_prealloc_slot_buff);
+    lmp_chan_alloc_recv_slot(chan);
     struct recv_chan *rc = malloc(sizeof(struct recv_chan));
     rc->chan = chan;
     rc->recv_deal_with_msg = recv_deal_with_msg;
@@ -405,8 +404,7 @@ errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
     thread_mutex_init(&rpc_send_queue.thread_mutex);
 
     CHECK(lmp_chan_accept(chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
-    bool use_prealloc_slot_buff = false;
-    CHECK(lmp_chan_alloc_recv_slot(chan, use_prealloc_slot_buff));
+    CHECK(lmp_chan_alloc_recv_slot(chan));
     CHECK(cap_copy(cap_initep, chan->local_cap));
     struct recv_chan *rc = malloc(sizeof(struct recv_chan));
     rc->chan = chan;

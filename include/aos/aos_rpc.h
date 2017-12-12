@@ -97,9 +97,21 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan, domainid_t **pids,
                                       size_t *pid_count);
 
 /**
+ * \brief Block for as long as a process with ID pid is running
+ * \arg pid The process id of the process in question
+ */
+errval_t aos_rpc_process_await_completion(struct aos_rpc *chan,
+                                          domainid_t pid);
+
+/**
  * \brief Dump the list of running processes to the terminal
  */
 errval_t aos_rpc_print_process_list(struct aos_rpc *chan);
+
+/**
+ * \brief Run the standard testsuite in init
+ */
+errval_t aos_rpc_run_testsuite(struct aos_rpc *chan);
 
 /**
  * \brief Toggle the D2 LED
@@ -122,6 +134,11 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr,
  * \param retcap returned irq capability
  */
 errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap);
+
+/**
+ * TODO: do this
+ */
+errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap);
 
 /**
  * \brief Initialize given rpc channel.
