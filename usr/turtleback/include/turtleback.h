@@ -38,7 +38,7 @@
 
 #define HELP_USAGE                  "help [cmd]"
 #define ONCORE_USAGE                "oncore [0|1] [cmd [..]]"
-#define MEMTEST_USAGE               "memtest [size (MB)]"
+#define MEMTEST_USAGE               "memtest [size (bytes)]"
 #define TIME_USAGE                  "time [cmd [..]]"
 #define DETACHED_USAGE              "detached [cmd [..]]"
 #define THREADS_USAGE              "threads [n]"
