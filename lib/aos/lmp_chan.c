@@ -198,14 +198,10 @@ void lmp_chan_migrate_send(struct lmp_chan *lc, struct waitset *ws)
  * \param lc LMP channel
  */
 
-errval_t lmp_chan_alloc_recv_slot(struct lmp_chan *lc, bool use_buff)
+errval_t lmp_chan_alloc_recv_slot(struct lmp_chan *lc)
 {
     struct capref slot;
-    errval_t err = SYS_ERR_OK;
-    if (use_buff)
-        slot_alloc_use_prefilled_slot(&slot);
-    else
-        err = slot_alloc(&slot);
+    errval_t err = slot_alloc(&slot);
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_SLOT_ALLOC);
     }

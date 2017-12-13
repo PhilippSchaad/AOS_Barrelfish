@@ -11,6 +11,8 @@
 
 #include "../tests/test.h"
 
+struct lmp_chan init_chan;
+
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
 {
@@ -59,7 +61,7 @@ static errval_t ram_recv_handler(struct recv_list *data, struct lmp_chan *chan)
     }
 
     CHECK(send_response(data, chan, ram_cap, 1, &size));
-
+    DBG(DETAILED, "sent ram response\n");
     return SYS_ERR_OK;
 }
 
@@ -358,6 +360,10 @@ void recv_deal_with_msg(struct recv_list *data)
                "we can not handle cap transfer across cores via urpc yet");
         CHECK(ram_recv_handler(data, chan));
         break;
+    case RPC_MESSAGE(RPC_TYPE_GET_MEM_SERVER):
+        //send_response(data, chan, cap_selfep, 0, NULL);
+        send_response(data, chan, init_chan.local_cap, 0, NULL);
+        break;
     case RPC_MESSAGE(RPC_TYPE_PUTCHAR):
         if (chan == NULL) { // XXX HACK: We are in URPC
             DBG(DETAILED, "putchar request received via URPC\n");
@@ -475,8 +481,7 @@ static errval_t handshake_recv_handler(struct capref *child_cap)
         rc->chan = &dom->chan;
         rc->recv_deal_with_msg = recv_deal_with_msg;
         rc->rpc_recv_list = NULL;
-        bool use_prealloc_slot_buff = false;
-        lmp_chan_alloc_recv_slot(rc->chan, use_prealloc_slot_buff);
+        lmp_chan_alloc_recv_slot(rc->chan);
 
         CHECK(lmp_chan_register_recv(rc->chan, get_default_waitset(),
                                      MKCLOSURE(recv_handling, rc)));
@@ -485,8 +490,8 @@ static errval_t handshake_recv_handler(struct capref *child_cap)
 
     // Send ACK to the child including new cap to bind to
     send(&dom->chan, dom->chan.local_cap, RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE),
-         0, NULL, NULL_EVENT_CLOSURE,
-         request_fresh_id(RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
+         0, NULL, NULL_EVENT_CLOSURE,0);
+//         request_fresh_id(RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
 
     DBG(DETAILED, "successfully received cap\n");
     return SYS_ERR_OK;
@@ -506,8 +511,6 @@ static void recv_handshake_handler(struct recv_list *data)
         return;
     }
 }
-
-struct lmp_chan init_chan;
 
 void init_rpc(void)
 {

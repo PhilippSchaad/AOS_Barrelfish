@@ -52,6 +52,7 @@
 #define RPC_TYPE_PRINT_PROC_LIST        0x17
 #define RPC_TYPE_LED_TOGGLE             0x18
 #define RPC_TYPE_PROCESS_AWAIT_COMPL    0x19
+#define RPC_TYPE_GET_MEM_SERVER         0x20
 
 struct recv_list {
     unsigned char type;
