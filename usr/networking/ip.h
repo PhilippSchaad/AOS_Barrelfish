@@ -6,6 +6,7 @@
 
 // Supported protocols
 #define PROTOCOL_ICMP 1
+#define PROTOCOL_UDP 17
 
 
 #define VERSION_MASK 0xf0

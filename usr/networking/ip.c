@@ -3,6 +3,7 @@
 #include <netutil/htons.h>
 #include "slip.h"
 #include "icmp.h"
+#include "udp.h"
 
 void ip_handle_packet(union ip_packet* packet){
     // TODO: add check if the payload size is really as we expect
@@ -20,9 +21,13 @@ void ip_handle_packet(union ip_packet* packet){
         case PROTOCOL_ICMP:
             icmp_receive(payload, payload_size, src);
             break;
+        case PROTOCOL_UDP:
+            udp_receive(payload, payload_size, src);
+            break;
         default:
             debug_printf("received not supported protocol. drop. protocol was %d\n", packet->header.protocol);
             // TODO: error: non supported protocol. drop
+            free(packet);
     }
 }
 

@@ -1264,6 +1264,8 @@ errors aos AOS_ERR_ {
 // errors for AOS networking
 errors aos AOS_NET_ERR_ {
     failure MESSAGE_BUF_OVERFLOW    "The message buffer is not large enough",
+    failure UDP_NO_SUCH_PORT        "The specified port does not exist",
+    failure UDP_PORT_EXISTS         "The specified port already exists",
 };
 
 errors cpuid DEVQ_ERR_ {

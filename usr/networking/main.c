@@ -22,6 +22,7 @@
 #include <aos/aos_rpc.h>
 #include "message_buffer.h"
 #include "slip.h"
+#include "udp.h"
 
 // message buffer
 static struct net_msg_buf message_buffer;
@@ -34,6 +35,11 @@ void serial_input(uint8_t *buf, size_t len){
 }
 
 static void sample_fun(int* arg){
+}
+
+static errval_t testfun(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port){
+    debug_printf("The server received the message \n");
+    return SYS_ERR_OK;
 }
 
 int main(int argc, char *argv[])
@@ -56,6 +62,13 @@ int main(int argc, char *argv[])
     CHECK(serial_init(uart_device_mapping, UART4_IRQ));
 
     printf("UART4 up\n");
+    
+    // enable udp
+    udp_init();
+    // TODO: remove from here
+    // open new udp port
+    udp_register_port(55,testfun);
+
 
     // TODO: fix this properly!!!
     int retval;
