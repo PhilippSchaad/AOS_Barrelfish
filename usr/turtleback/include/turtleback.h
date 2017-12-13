@@ -24,6 +24,8 @@
 #include <aos/aos_rpc.h>
 #include <aos/inthandler.h>
 
+#include <ascii_codes.h>
+
 #include <barrelfish_kpi/asm_inlines_arch.h>
 
 #define TURTLEBACK_VERSION_MAJOR    1

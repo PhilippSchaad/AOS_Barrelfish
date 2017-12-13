@@ -6,30 +6,6 @@ static struct line_input_queue *line_buff;
 static struct waitset *ws;
 static enum input_feed_mode feed_mode;
 
-static inline bool is_endl(char c)
-{
-    // 4 = EOT | 10 = LF | 13 = CR
-    return (c == 4 || c == 10 || c == 13);
-}
-
-static inline bool is_backspace(char c)
-{
-    // 127 = DEL (backspace)
-    return c == 127;
-}
-
-static inline bool is_escape(char c)
-{
-    // 27 = ESC
-    return c == 27;
-}
-
-static inline bool is_opening_square_bracket(char c)
-{
-    // 91 = [
-    return c == 91;
-}
-
 static inline int input_buff_capacity(void)
 {
     return input_buff->size - 1;
@@ -98,7 +74,8 @@ static void feed_line_buff(char c)
     if (line_buff_is_full())
         return;
 
-    if (escape_sequence_initializer && is_opening_square_bracket(c)) {
+    if (escape_sequence_initializer &&
+            c == ASCII_CODE_OPENING_SQUARE_BRACKET) {
         escape_sequence_finalizer = true;
         escape_sequence_initializer = false;
         return;
@@ -122,7 +99,7 @@ static void feed_line_buff(char c)
         line_buff->write_pos = 0;
         line_buff->read_pos = 0;
         terminal_write_c('\n');
-    } else if (is_backspace(c)) {
+    } else if (c == ASCII_CODE_DEL) {
         // Disallow deleting more than what we have written.
         if (line_buff->write_pos == 0)
             return;
@@ -130,7 +107,7 @@ static void feed_line_buff(char c)
         line_buff->write_buff[line_buff->write_pos] = '\0';
         line_buff->write_pos--;
         terminal_write("\b \b");
-    } else if (is_escape(c)) {
+    } else if (c == ASCII_CODE_ESC) {
         escape_sequence_initializer = true;
     } else {
         line_buff->write_buff[line_buff->write_pos] = c;
@@ -250,7 +227,7 @@ void terminal_init(coreid_t core)
     if (!ws)
         USER_PANIC("Waitset in terminal driver NULL?\n");
 
-    set_feed_mode_line();
+    set_feed_mode_direct();
 
     // TODO: this is not true yet, but maybe that's what we need.
     // The terminal driver on core 0 gets interrupts initially. If

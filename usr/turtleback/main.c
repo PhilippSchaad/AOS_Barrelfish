@@ -22,12 +22,6 @@ static int buffer_pos = 0;
 
 static char *shell_prompt;
 
-static inline bool is_space(char c)
-{
-    // 32 = Space
-    return c == 32;
-}
-
 static void shell_mem_err(void)
 {
     USER_PANIC("The TurtleBack Shell has run out of memory! Aborting..\n");
@@ -102,7 +96,7 @@ static void parse_line(void)
     if (!tokens)
         shell_mem_err();
     for (int i = 0; i < buffer_pos + 1; i++) {
-        if (is_space(input_buffer[i]) || input_buffer[i] == '\0') {
+        if (input_buffer[i] == ASCII_CODE_SPACE || input_buffer[i] == '\0') {
             if (token_length > 0) {
                 tokens[n_tokens] = malloc((token_length + 1) * sizeof(char));
                 if (tokens[n_tokens] == NULL)
@@ -155,7 +149,43 @@ static void parse_line(void)
     free(tokens);
 }
 
-static void input_loop(void)
+static void input_loop_direct(void)
+{
+    while (1) {
+        char new_char;
+        new_char = getc(stdin);
+
+        // If the buffer is full, discard the character.
+        if (buffer_pos >= INPUT_BUFFER_LENGTH - 1)
+            continue;
+        if (is_endl(new_char)) {
+            input_buffer[buffer_pos] = '\0';
+            putc('\n', stdout);
+            parse_line();
+            shell_new_prompt();
+            buffer_pos = 0;
+        } else if (new_char == ASCII_CODE_TAB) {
+            // TODO: Handle autocomplete?
+        } else if (new_char == ASCII_CODE_DEL) {
+            if (buffer_pos == 0)
+                continue;
+
+            buffer_pos--;
+            input_buffer[buffer_pos] = '\0';
+            printf("\b \b");
+        } else {
+            input_buffer[buffer_pos] = new_char;
+            buffer_pos++;
+            input_buffer[buffer_pos] = '\0';
+            putc(new_char, stdout);
+        }
+
+        fflush(stdout);
+    }
+}
+
+__attribute__((unused))
+static void input_loop_line(void)
 {
     while (1) {
         char new_char;
@@ -181,7 +211,7 @@ int main(int argc, char **argv)
 
     shell_welcome_msg();
     shell_new_prompt();
-    input_loop();
+    input_loop_direct();
 
     return 0;
 }

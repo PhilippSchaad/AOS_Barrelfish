@@ -7,6 +7,8 @@
 #include <aos/aos.h>
 #include <aos/inthandler.h>
 
+#include <ascii_codes.h>
+
 #define IRQ_ID_UART             106
 #define FIFO_CIRC_QUEUE_SIZE    100
 #define LINE_BUFF_LINE_SIZE     500
