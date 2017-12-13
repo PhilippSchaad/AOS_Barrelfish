@@ -171,6 +171,7 @@ void shell_detached(int argc, char **argv)
     if (argc < 2) {
         printf("Too few arguments supplied..\n");
         printf("Usage: %s\n", DETACHED_USAGE);
+        return;
     }
 
     char *bin_invocation = consolidate_args(argc - 1, &argv[1]);
@@ -241,4 +242,45 @@ void shell_time(int argc, char **argv)
 
     double seconds = (double) cycles / CLOCK_FREQUENCY;
     printf("\nTime: %.4lfs\n", seconds);
+}
+
+static void dummy_hello_world_func(void)
+{
+    struct thread *me = thread_self();
+    char id[32] = "-";
+    if (me)
+        snprintf(id, sizeof(id), "%"PRIuPTR, thread_get_id(me));
+
+    printf("Hello world from thread %s\n", id);
+}
+
+void shell_threads(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Too few arguments supplied..\n");
+        printf("Usage: %s\n", THREADS_USAGE);
+        return;
+    }
+
+    int n_threads = atoi(argv[1]);
+
+    if (n_threads < 0) {
+        printf("Please supply a positive number of threads\n");
+        printf("Usage: %s\n", THREADS_USAGE);
+        return;
+    }
+
+    if (n_threads > 1000) {
+        printf("Ok, come on. More than 1000? Let's not kill ourselves here\n");
+        printf("Usage: %s\n", THREADS_USAGE);
+        return;
+    }
+
+    struct thread *threads[n_threads];
+    for (int i = 0; i < n_threads; i++)
+        threads[i] = thread_create((thread_func_t) dummy_hello_world_func,
+                                   NULL);
+
+    for (int i = 0; i < n_threads; i++)
+        thread_join(threads[i], NULL);
 }

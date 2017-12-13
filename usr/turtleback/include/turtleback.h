@@ -26,9 +26,9 @@
 
 #include <barrelfish_kpi/asm_inlines_arch.h>
 
-#define TURTLEBACK_VERSION_MAJOR    0
+#define TURTLEBACK_VERSION_MAJOR    1
 #define TURTLEBACK_VERSION_MINOR    0
-#define TURTLEBACK_PATCH_LEVEL      1
+#define TURTLEBACK_PATCH_LEVEL      0
 
 #define IRQ_ID_UART                 106
 
@@ -41,6 +41,7 @@
 #define MEMTEST_USAGE               "memtest [size (MB)]"
 #define TIME_USAGE                  "time [cmd [..]]"
 #define DETACHED_USAGE              "detached [cmd [..]]"
+#define THREADS_USAGE              "threads [n]"
 
 #define CLOCK_FREQUENCY             1200000000 // PB_ES CLK Frequency (Hz)
 
@@ -65,6 +66,7 @@ void shell_memtest(int argc, char **argv);
 void shell_run_testsuite(int argc, char **argv);
 void shell_detached(int argc, char **argv);
 void shell_time(int argc, char **argv);
+void shell_threads(int argc, char **argv);
 
 // List of TurtleBack builtin functions.
 static struct shell_cmd shell_builtins[] = {
@@ -127,6 +129,12 @@ static struct shell_cmd shell_builtins[] = {
         .help_text = "Time a certain program or command",
         .usage = TIME_USAGE,
         .invoke = shell_time
+    },
+    {
+        .cmd = "threads",
+        .help_text = "Run [n] threads that print some stuff as a demo",
+        .usage = THREADS_USAGE,
+        .invoke = shell_threads
     },
     // Builtins list terminator.
     {
