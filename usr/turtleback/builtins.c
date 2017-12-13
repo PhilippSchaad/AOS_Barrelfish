@@ -118,25 +118,11 @@ void shell_led(int argc, char **argv)
     CHECK(aos_rpc_led_toggle(aos_rpc_get_init_channel()));
 }
 
-void shell_memtest(int argc, char **argv)
+static void memtest_func(void *arg)
 {
-    if (argc != 2) {
-        printf("Invalid number of arguments..\n");
-        printf("Usage: %s\n", MEMTEST_USAGE);
-        return;
-    }
+    int size = *((int *) arg);
 
-    int size_mb = atoi(argv[1]);
-    if (size_mb < 0 || size_mb > 1000) {
-        printf("The size you entered is invalid..\n");
-        printf("Hint: Your system may not have this much memory\n");
-        printf("Please enter a size in the range of [0..1000] MBs\n");
-        return;
-    }
-
-    int size = size_mb * 1024 * 1024;
-
-    printf("\033[95mRunning memtest on %d MB region..\033[0m\n", size_mb);
+    printf("\033[95mRunning memtest on %d byte region..\033[0m\n", size);
     char *array = malloc(size * sizeof(char));
     if (!array) {
         printf("\033[31mFailed to allocate memory, aborting\033[0m\n");
@@ -159,6 +145,28 @@ void shell_memtest(int argc, char **argv)
         printf("\033[32mSUCCESS\033[0m\n");
     else
         printf("\033[31mEncountered %d erroneous values!\033[0m\n", errs);
+}
+
+void shell_memtest(int argc, char **argv)
+{
+    if (argc != 2) {
+        printf("Invalid number of arguments..\n");
+        printf("Usage: %s\n", MEMTEST_USAGE);
+        return;
+    }
+
+    int size = atoi(argv[1]);
+    if (size < 0 || size > 10000000) {
+        printf("The size you entered is invalid..\n");
+        printf("Hint: Your system may not have this much memory\n");
+        printf("      or it might simply take too long.\n");
+        printf("      Do individual tests.\n");
+        printf("Please enter a size in the range of [0..10'000'000] bytes\n");
+        return;
+    }
+
+    thread_join(thread_create((thread_func_t) memtest_func, (void *) &size),
+                NULL);
 }
 
 void shell_run_testsuite(int argc, char **argv)
