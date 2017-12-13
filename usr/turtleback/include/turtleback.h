@@ -40,6 +40,7 @@
 #define ONCORE_USAGE                "oncore [0|1] [cmd [..]]"
 #define MEMTEST_USAGE               "memtest [size (MB)]"
 #define TIME_USAGE                  "time [cmd [..]]"
+#define DETACHED_USAGE              "detached [cmd [..]]"
 
 #define CLOCK_FREQUENCY             1200000000 // PB_ES CLK Frequency (Hz)
 
@@ -62,6 +63,7 @@ void shell_ps(int argc, char **argv);
 void shell_led(int argc, char **argv);
 void shell_memtest(int argc, char **argv);
 void shell_run_testsuite(int argc, char **argv);
+void shell_detached(int argc, char **argv);
 void shell_time(int argc, char **argv);
 
 // List of TurtleBack builtin functions.
@@ -113,6 +115,12 @@ static struct shell_cmd shell_builtins[] = {
         .help_text = "Run the included testsuite",
         .usage = "testsuite",
         .invoke = shell_run_testsuite
+    },
+    {
+        .cmd = "detached",
+        .help_text = "Run a given program without waiting for its completion",
+        .usage = DETACHED_USAGE,
+        .invoke = shell_detached
     },
     {
         .cmd = "time",

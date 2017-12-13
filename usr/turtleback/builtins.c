@@ -166,6 +166,25 @@ void shell_run_testsuite(int argc, char **argv)
     CHECK(aos_rpc_run_testsuite(aos_rpc_get_init_channel()));
 }
 
+void shell_detached(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Too few arguments supplied..\n");
+        printf("Usage: %s\n", DETACHED_USAGE);
+    }
+
+    char *bin_invocation = consolidate_args(argc - 1, &argv[1]);
+
+    domainid_t pid;
+    CHECK(aos_rpc_process_spawn(get_init_rpc(), bin_invocation,
+                                disp_get_core_id(), &pid));
+
+    if (pid == UINT32_MAX)
+        printf("The program %s was not found\n", argv[1]);
+
+    free(bin_invocation);
+}
+
 void shell_time(int argc, char **argv)
 {
     if (argc < 2) {
