@@ -202,12 +202,16 @@ void shell_time(int argc, char **argv)
         reset_cycle_counter();
         CHECK(aos_rpc_process_spawn(get_init_rpc(), bin_invocation,
                                     disp_get_core_id(), &pid));
+
+        if (pid != UINT32_MAX) {
+            handled = true;
+
+            CHECK(aos_rpc_process_await_completion(get_init_rpc(), pid));
+        }
+
         cycles = get_cycle_count();
 
         free(bin_invocation);
-
-        if (pid != UINT32_MAX)
-            handled = true;
     }
 
     if (!handled) {
