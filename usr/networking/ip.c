@@ -34,6 +34,7 @@ void ip_handle_packet(union ip_packet* packet){
     IP_PACKET_CHECK(payload_header_length < IP_HEADER_MIN_SIZE*4, "packet header is too small, drop\n");
 
     // detect fragmentation (fragment offset of flag set)
+    debug_printf("fragmentation: %d\n", packet->header.flags_fragmentoffset);
     IP_PACKET_CHECK((packet->header.flags_fragmentoffset & 0xbf) != 0, "Fragmentation is not supported, drop")
 
     // handle according to protocol
@@ -62,11 +63,12 @@ void ip_packet_send(uint8_t *payload, size_t payload_size, uint32_t dst, uint8_t
     packet->header.tos = 0;
     packet->header.length = htons(IP_HEADER_MIN_SIZE*4 + payload_size);
     packet->header.id = 0;
-    packet->header.flags_fragmentoffset = 0;
+    packet->header.flags_fragmentoffset = 0x0040;
     packet->header.ttl = 64;
     packet->header.protocol = protocol;
     packet->header.source = htonl(MY_IP);
     packet->header.destination = htonl(dst);
+    packet->header.header_checksum = 0;
     packet->header.header_checksum = inet_checksum(packet, IP_HEADER_MIN_SIZE*4);
 
     debug_printf("ip send packet with version ihl: %u and length: %u\n", packet->header.version_ihl, IP_HEADER_MIN_SIZE*4 + payload_size);
