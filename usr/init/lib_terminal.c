@@ -1,6 +1,7 @@
 #include <lib_terminal.h>
 #include <aos/dispatch.h>
 
+static bool is_master = false;
 static struct fifo_input_queue *input_buff;
 static struct line_input_queue *line_buff;
 static struct waitset *ws;
@@ -41,6 +42,10 @@ static inline void input_buff_advance_tail(void)
 
 static inline void do_feeding_input_buff(char c) {
     input_buff->buff[input_buff->head] = c;
+
+    if (is_master)
+        urpc_term_sendchar(&input_buff->buff[input_buff->head]);
+
     input_buff_advance_head();
 }
 
@@ -153,11 +158,8 @@ static void feed_line_buff(char c)
     }
 }
 
-static void handle_uart_getchar_interrupt(void *args)
+void terminal_feed_buffer(char c)
 {
-    char c;
-    sys_getchar(&c);
-
     switch (feed_mode) {
     case FEED_MODE_DIRECT:
         feed_input_buff(c);
@@ -168,10 +170,22 @@ static void handle_uart_getchar_interrupt(void *args)
     }
 }
 
+static void handle_uart_getchar_interrupt(void *args)
+{
+    char c;
+    sys_getchar(&c);
+
+    terminal_feed_buffer(c);
+}
+
 static void feed_mode_direct_getchar(char *c)
 {
-    while (input_buff_is_empty())
-        event_dispatch(ws);
+    if (is_master)
+        while (input_buff_is_empty())
+            event_dispatch(ws);
+    else
+        while (input_buff_is_empty())
+            thread_yield();
 
     *c = input_buff->buff[input_buff->tail];
     input_buff_advance_tail();
@@ -265,11 +279,10 @@ void terminal_init(coreid_t core)
 
     set_feed_mode_direct();
 
-    // TODO: this is not true yet, but maybe that's what we need.
-    // The terminal driver on core 0 gets interrupts initially. If
-    // someone else wants to read on core 1, that one gets registered on
-    // demand.
     if (core == 0)
+        is_master = true;
+
+    if (is_master)
         CHECK(inthandler_setup_arm(handle_uart_getchar_interrupt, NULL,
                                    IRQ_ID_UART));
 }
