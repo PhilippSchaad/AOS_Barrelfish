@@ -1,0 +1,164 @@
+/*
+ * Copyright (c) 2007, 2008, 2009, 2010, ETH Zurich.
+ * All rights reserved.
+ *
+ * This file is distributed under the terms in the attached LICENSE file.
+ * If you do not find this file, copies can be found by writing to:
+ * ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
+ */
+
+#ifndef ASCII_CODES_H
+#define ASCII_CODES_H
+
+enum ascii_code {
+    ASCII_CODE_NULL,
+    ASCII_CODE_SOH,
+    ASCII_CODE_STX,
+    ASCII_CODE_ETX,
+    ASCII_CODE_EOT,
+    ASCII_CODE_ENQ,
+    ASCII_CODE_ACK,
+    ASCII_CODE_BEL,
+    ASCII_CODE_BS,
+    ASCII_CODE_TAB,
+    ASCII_CODE_LF,
+    ASCII_CODE_VT,
+    ASCII_CODE_FF,
+    ASCII_CODE_CR,
+    ASCII_CODE_SO,
+    ASCII_CODE_SI,
+    ASCII_CODE_DLE,
+    ASCII_CODE_DC1,
+    ASCII_CODE_DC2,
+    ASCII_CODE_DC3,
+    ASCII_CODE_DC4,
+    ASCII_CODE_NAK,
+    ASCII_CODE_SYN,
+    ASCII_CODE_ETB,
+    ASCII_CODE_CAN,
+    ASCII_CODE_EM,
+    ASCII_CODE_SUB,
+    ASCII_CODE_ESC,
+    ASCII_CODE_FS,
+    ASCII_CODE_GS,
+    ASCII_CODE_RS,
+    ASCII_CODE_US,
+
+    ASCII_CODE_SPACE,
+    ASCII_CODE_EXCLAMATION_MARK,
+    ASCII_CODE_DOUBLE_QUOTE,
+    ASCII_CODE_HASH,
+    ASCII_CODE_DOLLAR,
+    ASCII_CODE_PERCENT,
+    ASCII_CODE_AND,
+    ASCII_CODE_SINGLE_QUOTE,
+    ASCII_CODE_OPENING_BRACES,
+    ASCII_CODE_CLOSING_BRACES,
+    ASCII_CODE_STAR,
+    ASCII_CODE_PLUS,
+    ASCII_CODE_COMMA,
+    ASCII_CODE_MINUS,
+    ASCII_CODE_PERIOD,
+    ASCII_CODE_SLASH,
+
+    ASCII_CODE_0,
+    ASCII_CODE_1,
+    ASCII_CODE_2,
+    ASCII_CODE_3,
+    ASCII_CODE_4,
+    ASCII_CODE_5,
+    ASCII_CODE_6,
+    ASCII_CODE_7,
+    ASCII_CODE_8,
+    ASCII_CODE_9,
+
+    ASCII_CODE_COLON,
+    ASCII_CODE_SEMICOLON,
+    ASCII_CODE_LESS_THAN,
+    ASCII_CODE_EQUALS,
+    ASCII_CODE_GREATER_THAN,
+    ASCII_CODE_QUESTION_MARK,
+    ASCII_CODE_AT,
+
+    ASCII_CODE_A,
+    ASCII_CODE_B,
+    ASCII_CODE_C,
+    ASCII_CODE_D,
+    ASCII_CODE_E,
+    ASCII_CODE_F,
+    ASCII_CODE_G,
+    ASCII_CODE_H,
+    ASCII_CODE_I,
+    ASCII_CODE_J,
+    ASCII_CODE_K,
+    ASCII_CODE_L,
+    ASCII_CODE_M,
+    ASCII_CODE_N,
+    ASCII_CODE_O,
+    ASCII_CODE_P,
+    ASCII_CODE_Q,
+    ASCII_CODE_R,
+    ASCII_CODE_S,
+    ASCII_CODE_T,
+    ASCII_CODE_U,
+    ASCII_CODE_V,
+    ASCII_CODE_W,
+    ASCII_CODE_X,
+    ASCII_CODE_Y,
+    ASCII_CODE_Z,
+
+    ASCII_CODE_OPENING_SQUARE_BRACKET,
+    ASCII_CODE_BACKSLASH,
+    ASCII_CODE_CLOSING_SQUARE_BRACKET,
+    ASCII_CODE_ROOF,
+    ASCII_CODE_UNDERSCORE,
+    ASCII_CODE_APOSTROPHE,
+
+    ASCII_CODE_a,
+    ASCII_CODE_b,
+    ASCII_CODE_c,
+    ASCII_CODE_d,
+    ASCII_CODE_e,
+    ASCII_CODE_f,
+    ASCII_CODE_g,
+    ASCII_CODE_h,
+    ASCII_CODE_i,
+    ASCII_CODE_j,
+    ASCII_CODE_k,
+    ASCII_CODE_l,
+    ASCII_CODE_m,
+    ASCII_CODE_n,
+    ASCII_CODE_o,
+    ASCII_CODE_p,
+    ASCII_CODE_q,
+    ASCII_CODE_r,
+    ASCII_CODE_s,
+    ASCII_CODE_t,
+    ASCII_CODE_u,
+    ASCII_CODE_v,
+    ASCII_CODE_w,
+    ASCII_CODE_x,
+    ASCII_CODE_y,
+    ASCII_CODE_z,
+
+    ASCII_CODE_OPENING_CURLY_BRACES,
+    ASCII_CODE_VERTICAL_LINE,
+    ASCII_CODE_CLOSING_CURLY_BRACES,
+    ASCII_CODE_TILDE,
+
+    ASCII_CODE_DEL,
+
+    // The following are not official ascii codes, but we abuse them to send
+    // special escape sequences.
+    ASCII_CODE_ARROW_L,
+    ASCII_CODE_ARROW_R,
+    ASCII_CODE_ARROW_U,
+    ASCII_CODE_ARROW_D
+};
+
+inline bool is_endl(char c)
+{
+    return (c == ASCII_CODE_EOT || c == ASCII_CODE_LF || c == ASCII_CODE_CR);
+}
+
+#endif /* ASCII_CODES_H */

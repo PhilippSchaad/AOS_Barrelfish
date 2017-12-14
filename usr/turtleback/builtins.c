@@ -252,14 +252,20 @@ void shell_time(int argc, char **argv)
     printf("\nTime: %.4lfs\n", seconds);
 }
 
-static void dummy_hello_world_func(void)
+static void dummy_hello_world_func(void *arg)
 {
+    int n_threads = *((int *) arg);
     struct thread *me = thread_self();
     char id[32] = "-";
     if (me)
-        snprintf(id, sizeof(id), "%"PRIuPTR, thread_get_id(me));
+        snprintf(id, sizeof(id), "%"PRIuPTR,
+                 (thread_get_id(me) % n_threads) + 1);
 
     printf("Hello world from thread %s\n", id);
+}
+
+static void sample_func(void)
+{
 }
 
 void shell_threads(int argc, char **argv)
@@ -269,6 +275,9 @@ void shell_threads(int argc, char **argv)
         printf("Usage: %s\n", THREADS_USAGE);
         return;
     }
+
+    thread_join(thread_create((thread_func_t) sample_func, NULL), NULL);
+    thread_yield();
 
     int n_threads = atoi(argv[1]);
 
@@ -287,7 +296,7 @@ void shell_threads(int argc, char **argv)
     struct thread *threads[n_threads];
     for (int i = 0; i < n_threads; i++)
         threads[i] = thread_create((thread_func_t) dummy_hello_world_func,
-                                   NULL);
+                                   (void *) &n_threads);
 
     for (int i = 0; i < n_threads; i++)
         thread_join(threads[i], NULL);

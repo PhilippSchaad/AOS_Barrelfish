@@ -1,34 +1,11 @@
 #include <lib_terminal.h>
 #include <aos/dispatch.h>
 
+static bool is_master = false;
 static struct fifo_input_queue *input_buff;
 static struct line_input_queue *line_buff;
 static struct waitset *ws;
 static enum input_feed_mode feed_mode;
-
-static inline bool is_endl(char c)
-{
-    // 4 = EOT | 10 = LF | 13 = CR
-    return (c == 4 || c == 10 || c == 13);
-}
-
-static inline bool is_backspace(char c)
-{
-    // 127 = DEL (backspace)
-    return c == 127;
-}
-
-static inline bool is_escape(char c)
-{
-    // 27 = ESC
-    return c == 27;
-}
-
-static inline bool is_opening_square_bracket(char c)
-{
-    // 91 = [
-    return c == 91;
-}
 
 static inline int input_buff_capacity(void)
 {
@@ -63,14 +40,54 @@ static inline void input_buff_advance_tail(void)
     input_buff->tail = (input_buff->tail + 1) % input_buff->size;
 }
 
+static inline void do_feeding_input_buff(char c) {
+    input_buff->buff[input_buff->head] = c;
+
+    if (is_master)
+        urpc_term_sendchar(&input_buff->buff[input_buff->head]);
+
+    input_buff_advance_head();
+}
+
+static bool direct_esc_init = false;
+static bool direct_ctrl_init = false;
 static void feed_input_buff(char c)
 {
     // If the buffer is full, just discard the character.
     if (input_buff_is_full())
         return;
 
-    input_buff->buff[input_buff->head] = c;
-    input_buff_advance_head();
+    if (direct_esc_init && c == ASCII_CODE_OPENING_SQUARE_BRACKET) {
+        direct_ctrl_init = true;
+        direct_esc_init = false;
+        return;
+    }
+
+    if (direct_ctrl_init) {
+        switch (c) {
+        case ASCII_CODE_A:
+            do_feeding_input_buff(ASCII_CODE_ARROW_U);
+            break;
+        case ASCII_CODE_B:
+            do_feeding_input_buff(ASCII_CODE_ARROW_D);
+            break;
+        case ASCII_CODE_C:
+            do_feeding_input_buff(ASCII_CODE_ARROW_R);
+            break;
+        case ASCII_CODE_D:
+            do_feeding_input_buff(ASCII_CODE_ARROW_L);
+            break;
+        }
+        direct_ctrl_init = false;
+        return;
+    }
+
+    if (c == ASCII_CODE_ESC) {
+        direct_esc_init = true;
+        return;
+    }
+
+    do_feeding_input_buff(c);
 }
 
 static inline bool line_buff_is_empty(void)
@@ -98,7 +115,8 @@ static void feed_line_buff(char c)
     if (line_buff_is_full())
         return;
 
-    if (escape_sequence_initializer && is_opening_square_bracket(c)) {
+    if (escape_sequence_initializer &&
+            c == ASCII_CODE_OPENING_SQUARE_BRACKET) {
         escape_sequence_finalizer = true;
         escape_sequence_initializer = false;
         return;
@@ -122,7 +140,7 @@ static void feed_line_buff(char c)
         line_buff->write_pos = 0;
         line_buff->read_pos = 0;
         terminal_write_c('\n');
-    } else if (is_backspace(c)) {
+    } else if (c == ASCII_CODE_DEL) {
         // Disallow deleting more than what we have written.
         if (line_buff->write_pos == 0)
             return;
@@ -130,7 +148,7 @@ static void feed_line_buff(char c)
         line_buff->write_buff[line_buff->write_pos] = '\0';
         line_buff->write_pos--;
         terminal_write("\b \b");
-    } else if (is_escape(c)) {
+    } else if (c == ASCII_CODE_ESC) {
         escape_sequence_initializer = true;
     } else {
         line_buff->write_buff[line_buff->write_pos] = c;
@@ -140,11 +158,8 @@ static void feed_line_buff(char c)
     }
 }
 
-static void handle_uart_getchar_interrupt(void *args)
+void terminal_feed_buffer(char c)
 {
-    char c;
-    sys_getchar(&c);
-
     switch (feed_mode) {
     case FEED_MODE_DIRECT:
         feed_input_buff(c);
@@ -155,10 +170,22 @@ static void handle_uart_getchar_interrupt(void *args)
     }
 }
 
+static void handle_uart_getchar_interrupt(void *args)
+{
+    char c;
+    sys_getchar(&c);
+
+    terminal_feed_buffer(c);
+}
+
 static void feed_mode_direct_getchar(char *c)
 {
-    while (input_buff_is_empty())
-        event_dispatch(ws);
+    if (is_master)
+        while (input_buff_is_empty())
+            event_dispatch(ws);
+    else
+        while (input_buff_is_empty())
+            thread_yield();
 
     *c = input_buff->buff[input_buff->tail];
     input_buff_advance_tail();
@@ -250,13 +277,12 @@ void terminal_init(coreid_t core)
     if (!ws)
         USER_PANIC("Waitset in terminal driver NULL?\n");
 
-    set_feed_mode_line();
+    set_feed_mode_direct();
 
-    // TODO: this is not true yet, but maybe that's what we need.
-    // The terminal driver on core 0 gets interrupts initially. If
-    // someone else wants to read on core 1, that one gets registered on
-    // demand.
     if (core == 0)
+        is_master = true;
+
+    if (is_master)
         CHECK(inthandler_setup_arm(handle_uart_getchar_interrupt, NULL,
                                    IRQ_ID_UART));
 }
