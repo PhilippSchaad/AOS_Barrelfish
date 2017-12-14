@@ -39,14 +39,50 @@ static inline void input_buff_advance_tail(void)
     input_buff->tail = (input_buff->tail + 1) % input_buff->size;
 }
 
+static inline void do_feeding_input_buff(char c) {
+    input_buff->buff[input_buff->head] = c;
+    input_buff_advance_head();
+}
+
+static bool direct_esc_init = false;
+static bool direct_ctrl_init = false;
 static void feed_input_buff(char c)
 {
     // If the buffer is full, just discard the character.
     if (input_buff_is_full())
         return;
 
-    input_buff->buff[input_buff->head] = c;
-    input_buff_advance_head();
+    if (direct_esc_init && c == ASCII_CODE_OPENING_SQUARE_BRACKET) {
+        direct_ctrl_init = true;
+        direct_esc_init = false;
+        return;
+    }
+
+    if (direct_ctrl_init) {
+        switch (c) {
+        case ASCII_CODE_A:
+            do_feeding_input_buff(ASCII_CODE_ARROW_U);
+            break;
+        case ASCII_CODE_B:
+            do_feeding_input_buff(ASCII_CODE_ARROW_D);
+            break;
+        case ASCII_CODE_C:
+            do_feeding_input_buff(ASCII_CODE_ARROW_R);
+            break;
+        case ASCII_CODE_D:
+            do_feeding_input_buff(ASCII_CODE_ARROW_L);
+            break;
+        }
+        direct_ctrl_init = false;
+        return;
+    }
+
+    if (c == ASCII_CODE_ESC) {
+        direct_esc_init = true;
+        return;
+    }
+
+    do_feeding_input_buff(c);
 }
 
 static inline bool line_buff_is_empty(void)

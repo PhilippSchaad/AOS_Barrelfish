@@ -146,7 +146,14 @@ enum ascii_code {
     ASCII_CODE_CLOSING_CURLY_BRACES,
     ASCII_CODE_TILDE,
 
-    ASCII_CODE_DEL
+    ASCII_CODE_DEL,
+
+    // The following are not official ascii codes, but we abuse them to send
+    // special escape sequences.
+    ASCII_CODE_ARROW_L,
+    ASCII_CODE_ARROW_R,
+    ASCII_CODE_ARROW_U,
+    ASCII_CODE_ARROW_D
 };
 
 inline bool is_endl(char c)

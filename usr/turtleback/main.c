@@ -166,6 +166,15 @@ static void input_loop_direct(void)
             buffer_pos = 0;
         } else if (new_char == ASCII_CODE_TAB) {
             // TODO: Handle autocomplete?
+        } else if (new_char == ASCII_CODE_ARROW_U) {
+            // TODO: Handle history?
+            //printf("\033[A");
+        } else if (new_char == ASCII_CODE_ARROW_D) {
+            //printf("\033[B");
+        } else if (new_char == ASCII_CODE_ARROW_R) {
+            //printf("\033[C");
+        } else if (new_char == ASCII_CODE_ARROW_L) {
+            //printf("\033[D");
         } else if (new_char == ASCII_CODE_DEL) {
             if (buffer_pos == 0)
                 continue;
