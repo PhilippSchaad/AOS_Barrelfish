@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
     printf("Hello world using terminal service\n");
 
     domainid_t ret;
-    aos_rpc_process_spawn(init_rpc, "hello", 1, &ret);
+    aos_rpc_process_spawn(init_rpc, "hello", disp_get_core_id(), &ret);
     char *name;
     aos_rpc_process_get_name(init_rpc, ret, &name);
     debug_printf("\033[33mWe spawned 'hello' and then requested the name of "
