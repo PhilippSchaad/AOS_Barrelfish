@@ -9,7 +9,7 @@
 #include <aos/aos.h>
 #include <stdlib.h>
 
-#define NET_BUF_SIZE 100
+#define NET_BUF_SIZE 200
 
 struct net_msg_buf {
     uint8_t buf[NET_BUF_SIZE];
