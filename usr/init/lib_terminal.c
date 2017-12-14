@@ -150,12 +150,16 @@ static void feed_line_buff(char c)
         terminal_write("\b \b");
     } else if (c == ASCII_CODE_ESC) {
         escape_sequence_initializer = true;
+        return;
     } else {
         line_buff->write_buff[line_buff->write_pos] = c;
         line_buff->write_pos++;
         line_buff->write_buff[line_buff->write_pos] = '\0';
         terminal_write_c(c);
     }
+
+    if (is_master)
+        urpc_term_sendchar(&line_buff->write_buff[line_buff->write_pos]);
 }
 
 void terminal_feed_buffer(char c)
