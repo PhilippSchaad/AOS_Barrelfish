@@ -1,5 +1,8 @@
 #include "udp.h"
 #include <netutil/htons.h>
+#include "ip.h"
+
+// TODO: check that we can add multiple listeners (ports)
 
 // sorted linked list
 struct udp_port{
@@ -82,17 +85,36 @@ static errval_t search_udp_port(uint16_t portnum, struct udp_port **port){
 }
 
 void udp_receive(uint8_t* payload, size_t size, uint32_t src){
+    errval_t err;
     struct udp_datagram* datagram = (struct udp_datagram*) payload;
     debug_printf("received UDP packet to from port %d to port %d\n", ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
 
     struct udp_port *port = NULL;
-    CHECK(search_udp_port(ntohs(datagram->header.dest_port), &port));
-    port->handler(datagram->payload, size - UDP_HEADER_SIZE, src, datagram->header.source_port, datagram->header.dest_port);
+    err = search_udp_port(ntohs(datagram->header.dest_port), &port);
+
+    if(err_is_fail(err)){
+        printf("%s\n",err_getstring(err));
+        free(datagram);
+        return;
+    }
+
+    port->handler(datagram->payload, size - UDP_HEADER_SIZE, src, ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
 
     free(datagram);
 }
 void udp_send(uint16_t source_port, uint16_t dest_port, uint8_t* payload, size_t payload_size, uint32_t dst){
+    debug_printf("Sending new udp packet\n");
 
+    struct udp_datagram* datagram = malloc(sizeof(struct udp_datagram));
+    datagram->header.source_port = htons(source_port);
+    datagram->header.dest_port = htons(dest_port);
+    datagram->header.length = htons(payload_size + UDP_HEADER_SIZE);
+    // the checksum is not mandatory in ipv4
+    datagram->header.checksum = 0;
+    memcpy(datagram->payload, payload, payload_size);
+    free(payload);
+
+    ip_packet_send((uint8_t*) datagram, payload_size+UDP_HEADER_SIZE, dst, PROTOCOL_UDP);
 }
 
 void udp_register_port(uint16_t portnum, errval_t (*handler)(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port)){
@@ -100,12 +122,22 @@ void udp_register_port(uint16_t portnum, errval_t (*handler)(uint8_t* payload, s
     port->portnum = portnum;
     port->handler = handler;
     port->next = NULL;
-    CHECK(udp_port_insert_ordered(port));
+
+    errval_t err;
+    err = udp_port_insert_ordered(port);
+    if(err_is_fail(err)){
+        printf("%s\n",err_getstring(err));
+        return;
+    }
     printf("registered port %u\n", portnum);
 }
-
 void udp_deregister_port(uint16_t port){
-    CHECK(udp_port_remove(port));
+    errval_t err;
+    err = udp_port_remove(port);
+    if(err_is_fail(err)){
+        printf("%s\n",err_getstring(err));
+        return;
+    }
 }
 
 void udp_init(void){
