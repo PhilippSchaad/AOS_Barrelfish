@@ -39,6 +39,7 @@ static void sample_fun(int* arg){
 
 static errval_t testfun(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port){
     debug_printf("The server received the message \n");
+    udp_send(dest_port, source_port, payload, size, src);
     return SYS_ERR_OK;
 }
 
