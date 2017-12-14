@@ -7,6 +7,10 @@
 #include <aos/aos.h>
 #include <aos/inthandler.h>
 
+#include <lib_urpc.h>
+
+#include <ascii_codes.h>
+
 #define IRQ_ID_UART             106
 #define FIFO_CIRC_QUEUE_SIZE    100
 #define LINE_BUFF_LINE_SIZE     500
@@ -30,6 +34,8 @@ enum input_feed_mode {
     FEED_MODE_DIRECT,
     FEED_MODE_LINE
 };
+
+void terminal_feed_buffer(char c);
 
 void terminal_getchar(char *c);
 

@@ -118,25 +118,11 @@ void shell_led(int argc, char **argv)
     CHECK(aos_rpc_led_toggle(aos_rpc_get_init_channel()));
 }
 
-void shell_memtest(int argc, char **argv)
+static void memtest_func(void *arg)
 {
-    if (argc != 2) {
-        printf("Invalid number of arguments..\n");
-        printf("Usage: %s\n", MEMTEST_USAGE);
-        return;
-    }
+    int size = *((int *) arg);
 
-    int size_mb = atoi(argv[1]);
-    if (size_mb < 0 || size_mb > 1000) {
-        printf("The size you entered is invalid..\n");
-        printf("Hint: Your system may not have this much memory\n");
-        printf("Please enter a size in the range of [0..1000] MBs\n");
-        return;
-    }
-
-    int size = size_mb * 1024 * 1024;
-
-    printf("\033[95mRunning memtest on %d MB region..\033[0m\n", size_mb);
+    printf("\033[95mRunning memtest on %d byte region..\033[0m\n", size);
     char *array = malloc(size * sizeof(char));
     if (!array) {
         printf("\033[31mFailed to allocate memory, aborting\033[0m\n");
@@ -161,9 +147,51 @@ void shell_memtest(int argc, char **argv)
         printf("\033[31mEncountered %d erroneous values!\033[0m\n", errs);
 }
 
+void shell_memtest(int argc, char **argv)
+{
+    if (argc != 2) {
+        printf("Invalid number of arguments..\n");
+        printf("Usage: %s\n", MEMTEST_USAGE);
+        return;
+    }
+
+    int size = atoi(argv[1]);
+    if (size < 0 || size > 10000000) {
+        printf("The size you entered is invalid..\n");
+        printf("Hint: Your system may not have this much memory\n");
+        printf("      or it might simply take too long.\n");
+        printf("      Do individual tests.\n");
+        printf("Please enter a size in the range of [0..10'000'000] bytes\n");
+        return;
+    }
+
+    thread_join(thread_create((thread_func_t) memtest_func, (void *) &size),
+                NULL);
+}
+
 void shell_run_testsuite(int argc, char **argv)
 {
     CHECK(aos_rpc_run_testsuite(aos_rpc_get_init_channel()));
+}
+
+void shell_detached(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Too few arguments supplied..\n");
+        printf("Usage: %s\n", DETACHED_USAGE);
+        return;
+    }
+
+    char *bin_invocation = consolidate_args(argc - 1, &argv[1]);
+
+    domainid_t pid;
+    CHECK(aos_rpc_process_spawn(get_init_rpc(), bin_invocation,
+                                disp_get_core_id(), &pid));
+
+    if (pid == UINT32_MAX)
+        printf("The program %s was not found\n", argv[1]);
+
+    free(bin_invocation);
 }
 
 void shell_time(int argc, char **argv)
@@ -202,12 +230,16 @@ void shell_time(int argc, char **argv)
         reset_cycle_counter();
         CHECK(aos_rpc_process_spawn(get_init_rpc(), bin_invocation,
                                     disp_get_core_id(), &pid));
+
+        if (pid != UINT32_MAX) {
+            handled = true;
+
+            CHECK(aos_rpc_process_await_completion(get_init_rpc(), pid));
+        }
+
         cycles = get_cycle_count();
 
         free(bin_invocation);
-
-        if (pid != UINT32_MAX)
-            handled = true;
     }
 
     if (!handled) {
@@ -218,4 +250,54 @@ void shell_time(int argc, char **argv)
 
     double seconds = (double) cycles / CLOCK_FREQUENCY;
     printf("\nTime: %.4lfs\n", seconds);
+}
+
+static void dummy_hello_world_func(void *arg)
+{
+    int n_threads = *((int *) arg);
+    struct thread *me = thread_self();
+    char id[32] = "-";
+    if (me)
+        snprintf(id, sizeof(id), "%"PRIuPTR,
+                 (thread_get_id(me) % n_threads) + 1);
+
+    printf("Hello world from thread %s\n", id);
+}
+
+static void sample_func(void)
+{
+}
+
+void shell_threads(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Too few arguments supplied..\n");
+        printf("Usage: %s\n", THREADS_USAGE);
+        return;
+    }
+
+    thread_join(thread_create((thread_func_t) sample_func, NULL), NULL);
+    thread_yield();
+
+    int n_threads = atoi(argv[1]);
+
+    if (n_threads < 0) {
+        printf("Please supply a positive number of threads\n");
+        printf("Usage: %s\n", THREADS_USAGE);
+        return;
+    }
+
+    if (n_threads > 1000) {
+        printf("Ok, come on. More than 1000? Let's not kill ourselves here\n");
+        printf("Usage: %s\n", THREADS_USAGE);
+        return;
+    }
+
+    struct thread *threads[n_threads];
+    for (int i = 0; i < n_threads; i++)
+        threads[i] = thread_create((thread_func_t) dummy_hello_world_func,
+                                   (void *) &n_threads);
+
+    for (int i = 0; i < n_threads; i++)
+        thread_join(threads[i], NULL);
 }

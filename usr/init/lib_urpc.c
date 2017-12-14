@@ -14,6 +14,7 @@
 #include <lib_rpc.h>
 #include <lib_urpc.h>
 #include <lib_urpc2.h>
+#include <lib_terminal.h>
 #include <mem_alloc.h>
 
 // TODO: We still need to port the proper ID system, so until now it uses this.
@@ -53,6 +54,10 @@ struct urpc_send_string {
     char string[2000];
 };
 
+struct urpc_term_send_char {
+    char c;
+};
+
 struct urpc_remote_spawn {
     char name[2000];
 };
@@ -61,6 +66,7 @@ struct urpc {
     enum urpc_type type;
     union {
         struct urpc_send_string send_string;
+        struct urpc_term_send_char send_char;
         struct urpc_remote_spawn remote_spawn;
         struct urpc_bootinfo_package urpc_bootinfo;
     } data;
@@ -97,6 +103,12 @@ static void
 recv_send_string(__volatile struct urpc_send_string *send_string_obj)
 {
     debug_printf("CCM: %s", send_string_obj->string);
+}
+
+static void
+recv_term_send_char(__volatile struct urpc_term_send_char *sendchar_obj)
+{
+    terminal_feed_buffer(sendchar_obj->c);
 }
 
 static void
@@ -264,6 +276,9 @@ static void recv(__volatile struct urpc *data)
     case send_string:
         recv_send_string(&data->data.send_string);
         break;
+    case term_send_char:
+        recv_term_send_char(&data->data.send_char);
+        break;
     case remote_spawn:
         recv_remote_spawn(&data->data.remote_spawn);
         break;
@@ -351,6 +366,12 @@ static struct urpc2_data send_string_func(void *data)
     return init_urpc2_data(send_string, TODO_ID, strlen(str) + 1, str);
 }
 
+static struct urpc2_data term_sendchar_func(void *data)
+{
+    char *c = (char *) data;
+    return init_urpc2_data(term_send_char, TODO_ID, 1, c);
+}
+
 static struct urpc2_data send_register_process_func(void *data)
 {
     char *name = (char *) data;
@@ -420,6 +441,11 @@ void urpc_slave_init_and_run(void)
 }
 
 void urpc_sendstring(char *str) { urpc2_enqueue(send_string_func, str); }
+
+void urpc_term_sendchar(char *c)
+{
+    urpc2_enqueue(term_sendchar_func, c);
+}
 
 domainid_t urpc_register_process(char *str)
 {
