@@ -279,6 +279,15 @@ static void recv(__volatile struct urpc *data)
     case term_send_char:
         recv_term_send_char(&data->data.send_char);
         break;
+    case term_buff_consume:
+        terminal_buffer_consume_char();
+        break;
+    case term_set_line:
+        set_feed_mode_line();
+        break;
+    case term_set_direct:
+        set_feed_mode_direct();
+        break;
     case remote_spawn:
         recv_remote_spawn(&data->data.remote_spawn);
         break;
@@ -372,6 +381,21 @@ static struct urpc2_data term_sendchar_func(void *data)
     return init_urpc2_data(term_send_char, TODO_ID, 1, c);
 }
 
+static struct urpc2_data term_consume_func(void *data)
+{
+    return init_urpc2_data(term_buff_consume, TODO_ID, 0, NULL);
+}
+
+static struct urpc2_data term_line_mode_func(void *data)
+{
+    return init_urpc2_data(term_set_line, TODO_ID, 0, NULL);
+}
+
+static struct urpc2_data term_direct_mode_func(void *data)
+{
+    return init_urpc2_data(term_set_direct, TODO_ID, 0, NULL);
+}
+
 static struct urpc2_data send_register_process_func(void *data)
 {
     char *name = (char *) data;
@@ -445,6 +469,21 @@ void urpc_sendstring(char *str) { urpc2_enqueue(send_string_func, str); }
 void urpc_term_sendchar(char *c)
 {
     urpc2_enqueue(term_sendchar_func, c);
+}
+
+void urpc_term_consume(void)
+{
+    urpc2_enqueue(term_consume_func, NULL);
+}
+
+void urpc_term_set_line_mode(void)
+{
+    urpc2_enqueue(term_line_mode_func, NULL);
+}
+
+void urpc_term_set_direct_mode(void)
+{
+    urpc2_enqueue(term_direct_mode_func, NULL);
 }
 
 domainid_t urpc_register_process(char *str)
