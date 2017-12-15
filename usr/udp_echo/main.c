@@ -21,7 +21,7 @@
 int main(int argc, char *argv[])
 {
     // TODO: check args
-    debug_printf("Try to open port at %d, %d\n",strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0));
-    network_register_port(88, 0,strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0) , NULL);
+    //debug_printf("Try to open port at %d, %d\n",strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0));
+    //network_register_port(88, 0,strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0) , NULL);
     return EXIT_SUCCESS;
 }

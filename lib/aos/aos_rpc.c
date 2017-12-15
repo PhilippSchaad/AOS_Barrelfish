@@ -326,7 +326,14 @@ errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
 
 errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, coreid_t core, void* payload, size_t bytes)
 {
-    uintptr_t* message = malloc(sizeof(8+bytes));
+    // make sure that the size is rounded up to 32bit
+    if (bytes%4 != 0){
+        bytes += (4-bytes%4);
+    }
+    // add bytes for pid and core
+    bytes +=8;
+
+    uintptr_t* message = malloc(bytes);
     *message = (uint32_t) pid;
     *(message+1) = (uint32_t) core;
     memcpy(message+2, payload, bytes);

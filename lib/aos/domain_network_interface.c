@@ -1,10 +1,16 @@
 #include <aos/domain_network_interface.h>
 #include <aos/aos_rpc.h>
 
-errval_t network_register_port(uint16_t port, uint16_t protocol, uint32_t pid, uint32_t core,  errval_t (*callback)(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port)){
+errval_t network_register_port(uint16_t port, uint16_t protocol, domainid_t network_pid, coreid_t network_core)
+{
+    struct network_register_deregister_port_message message;
+    message.message_type = NETWORK_REGISTER_PORT;
+    message.protocol = protocol;
+    message.pid = 3; // TODO: get this form somewhere
+    message.core = disp_get_core_id();
 
-    uint32_t payload = 88;
-    aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), pid, core, &payload, 4);
+    // TODO: round up size in rpc call
+    aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), network_pid, network_core, &message, sizeof(struct network_register_deregister_port_message));
 
     /*
     // add a piece of shared memory (size is the size of two packet)
