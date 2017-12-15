@@ -8,6 +8,9 @@
 enum urpc_type {
     send_string,
     term_send_char,
+    term_buff_consume,
+    term_set_line,
+    term_set_direct,
     remote_spawn,
     init_mem_alloc,
     register_process,
@@ -38,6 +41,9 @@ void urpc_slave_init_and_run(void);
 // Does not delete the string. TODO: version which does?
 void urpc_sendstring(char *str);
 void urpc_term_sendchar(char *c);
+void urpc_term_consume(void);
+void urpc_term_set_line_mode(void);
+void urpc_term_set_direct_mode(void);
 void urpc_spawn_process(char *name);
 void urpc_init_mem_alloc(struct bootinfo *p_bi);
 bool urpc_ram_is_initalized(void);

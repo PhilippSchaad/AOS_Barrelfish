@@ -218,6 +218,8 @@ void terminal_getchar(char *c)
         feed_mode_line_getchar(c);
         break;
     }
+    // Tell the other instance to advance its read buffer too.
+    urpc_term_consume();
 }
 
 void terminal_write(const char *buffer)
@@ -241,11 +243,26 @@ void terminal_write_l(const char *buffer, size_t length)
 void set_feed_mode_line(void)
 {
     feed_mode = FEED_MODE_LINE;
+
+    // Reset the line buffer.
+    line_buff->write_pos = 0;
+    line_buff->read_pos = -1;
+    line_buff->write_buff[line_buff->write_pos] = '\0';
+    line_buff->read_buff[0] = '\0';
+
+    urpc_term_set_line_mode();
 }
 
 void set_feed_mode_direct(void)
 {
     feed_mode = FEED_MODE_DIRECT;
+
+    // Reset the input buffer.
+    input_buff->head = 0;
+    input_buff->tail = 0;
+    input_buff->buff[input_buff->head] = '\0';
+
+    urpc_term_set_direct_mode();
 }
 
 void terminal_destroy(void)
@@ -256,6 +273,21 @@ void terminal_destroy(void)
     free(line_buff->write_buff);
     free(line_buff->read_buff);
     free(line_buff);
+}
+
+void terminal_buffer_consume_char(void)
+{
+    switch (feed_mode) {
+    case FEED_MODE_DIRECT:
+        input_buff_advance_tail();
+        break;
+    case FEED_MODE_LINE:
+        if (line_buff->read_buff[line_buff->read_pos] == '\0')
+            line_buff->read_pos = 0;
+        else
+            line_buff->read_pos++;
+        break;
+    }
 }
 
 // TODO (phschaad): Make line_capacity reallocate on capacity maxing out maybe?
@@ -281,7 +313,7 @@ void terminal_init(coreid_t core)
     if (!ws)
         USER_PANIC("Waitset in terminal driver NULL?\n");
 
-    set_feed_mode_direct();
+    feed_mode = FEED_MODE_DIRECT;
 
     if (core == 0)
         is_master = true;
