@@ -53,6 +53,7 @@
 #define RPC_TYPE_LED_TOGGLE             0x18
 #define RPC_TYPE_PROCESS_AWAIT_COMPL    0x19
 #define RPC_TYPE_GET_MEM_SERVER         0x20
+#define RPC_TYPE_DOMAIN_TO_DOMAIN_COM   0x21
 
 struct recv_list {
     unsigned char type;
@@ -87,6 +88,8 @@ errval_t persist_send_cleanup_wrapper(struct lmp_chan *chan, struct capref cap,
                                       struct event_closure callback_when_done,
                                       unsigned char id);
 errval_t send_response(struct recv_list *rl, struct lmp_chan *chan,
+                       struct capref cap, size_t payloadsize, void *payload);
+errval_t forward_message(struct recv_list *rl, struct lmp_chan *chan,
                        struct capref cap, size_t payloadsize, void *payload);
 
 #define NULL_EVENT_CLOSURE                                                    \

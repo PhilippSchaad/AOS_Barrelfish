@@ -312,3 +312,24 @@ char *procman_lookup_name_by_id(domainid_t proc_id)
 
     return pi->name;
 }
+
+struct lmp_chan *procman_get_channel_by_id(domainid_t proc_id){
+    DBG(DETAILED, "Looking up channel of process %" PRIuDOMAINID "\n", proc_id);
+
+    assert(pt != NULL);
+    assert(pt->head != NULL);
+
+    struct process_info *pi = NULL;
+    errval_t err = find_process_by_id(proc_id, &pi);
+
+    // If we are not on core 0 it may happen that we do not find the process.
+    if (err == PROCMAN_ERR_PID_NOT_FOUND) {
+        if (disp_get_core_id() != 0) {
+            // TODO: urpc call to other core.
+            return NULL;
+        }
+        return NULL;
+    }
+
+    return pi->chan;
+}

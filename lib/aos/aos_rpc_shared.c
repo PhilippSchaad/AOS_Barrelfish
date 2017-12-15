@@ -302,6 +302,34 @@ errval_t send_response(struct recv_list *rl, struct lmp_chan *chan,
     return send(chan, cap, rl->type + 1, payloadsize2, payload2, callback,
                 request_fresh_id(rl->type + 1));
 }
+// conveniance function for forwarding messages
+errval_t forward_message(struct recv_list *rl, struct lmp_chan *chan,
+                       struct capref cap, size_t payloadsize, void *payload)
+{
+    // ACKs should not generate ACKs
+    assert((rl->type & 0x1) == 0);
+
+    // add the id to the data
+    // round to 32 bit
+    // ( we are assuming here that the id is smaller than an int)
+    size_t payloadsize2 = payloadsize + 1;
+    uintptr_t *payload2 = malloc(payloadsize2 * sizeof(uintptr_t));
+
+    if (payloadsize2 > 1)
+        memcpy(&payload2[1], payload, payloadsize * sizeof(uintptr_t));
+
+    payload2[0] = (int) rl->id;
+    struct send_cleanup_struct *scs =
+        malloc(sizeof(struct send_cleanup_struct));
+
+    scs->data = payload2;
+    scs->callback = NULL_EVENT_CLOSURE;
+
+    struct event_closure callback = MKCLOSURE(send_cleanup, scs);
+
+    return send(chan, cap, rl->type, payloadsize2, payload2, callback,
+                request_fresh_id(rl->type));
+}
 
 static int refill_nono = 0;
 

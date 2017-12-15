@@ -38,5 +38,6 @@ void procman_foreign_preregister(domainid_t pid, char *name, coreid_t core_id,
 void procman_print_proc_list(void);
 errval_t procman_kill_process(domainid_t proc_id);
 char *procman_lookup_name_by_id(domainid_t proc_id);
+struct lmp_chan *procman_get_channel_by_id(domainid_t proc_id);
 
 #endif /* LIB_PROCMAN_H */

@@ -324,6 +324,18 @@ errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
     return SYS_ERR_OK;
 }
 
+errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, coreid_t core, void* payload, size_t bytes)
+{
+    uintptr_t* message = malloc(sizeof(8+bytes));
+    *message = (uint32_t) pid;
+    *(message+1) = (uint32_t) core;
+    memcpy(message+2, payload, bytes);
+    rpc_framework(NULL, NULL, RPC_TYPE_DOMAIN_TO_DOMAIN_COM,
+                  &chan->chan, NULL_CAP, 2 + bytes/4, message, NULL_EVENT_CLOSURE);
+    free(message);
+    return SYS_ERR_OK;
+}
+
 static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
 {
     uint32_t *combinedArg = (uint32_t *) data->payload;
@@ -517,11 +529,19 @@ static void aos_rpc_recv_handler(struct recv_list *data)
             }
         }
     } else {
+        struct aos_rpc* rpc = get_init_rpc();
         switch (data->type) {
         case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL):
             debug_printf("Got request to be killed...\n");
             // TODO: check if origin is init
             exit(1);
+        case RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM):
+            if (rpc->p_to_p_receive_handler != NULL){
+                rpc->p_to_p_receive_handler(data->payload + 1, (data->size-1)*4);
+            } else {
+                debug_printf("No handler registerd for this message, drop.\n");
+            }
+            break;
         default:
             debug_printf("got message type %d\n", data->type);
             DBG(WARN, "Unable to handle RPC-receipt, expect badness!\n");
@@ -658,6 +678,11 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     complete_mem_server_setup();
 
+    return SYS_ERR_OK;
+}
+
+errval_t rpc_register_process_message_handler(struct aos_rpc* rpc, void (*handler)(void* payload, size_t bytes)){
+    rpc->p_to_p_receive_handler = handler;
     return SYS_ERR_OK;
 }
 

@@ -22,6 +22,7 @@ struct aos_rpc {
     unsigned int id;
     bool init;
     struct thread_mutex mutex;
+    void (*p_to_p_receive_handler)(void* payload, size_t bytes);
 };
 
 /**
@@ -119,6 +120,11 @@ errval_t aos_rpc_run_testsuite(struct aos_rpc *chan);
 errval_t aos_rpc_led_toggle(struct aos_rpc *chan);
 
 /**
+ * \brief Send message to other process
+ */
+errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, coreid_t core, void* payload, size_t bytes);
+
+/**
  * \brief Gets a capability to device registers
  * \param rpc  the rpc channel
  * \param paddr physical address of the device
@@ -139,6 +145,11 @@ errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap);
  * TODO: do this
  */
 errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap);
+
+/**
+ * register a message handler for generic messages from other domains
+ */
+errval_t rpc_register_process_message_handler(struct aos_rpc* rpc, void (*handler)(void* payload, size_t bytes));
 
 /**
  * \brief Initialize given rpc channel.

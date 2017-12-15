@@ -378,6 +378,19 @@ void recv_deal_with_msg(struct recv_list *data)
         else
             send_response(data, chan, NULL_CAP, 0, NULL);
         break;
+    case RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM):
+        if((domainid_t) *(((uint32_t*) data->payload) + 1) == disp_get_core_id()){
+            // we are on the right core
+            // forward to right domain
+            chan = procman_get_channel_by_id((domainid_t) *((uint32_t*) data->payload));
+            if (chan != NULL){
+                forward_message(data, chan, NULL_CAP, data->size - 2, data->payload + 2);
+            }
+        } else {
+            // forward to other core
+            urpc2_rpc_over_urpc(data, NULL_CAP);
+        }
+        break;
     case RPC_MESSAGE(RPC_TYPE_GETCHAR):
         getchar_recv_handler(data, chan);
         break;
