@@ -89,6 +89,7 @@
    "aos/memobj.h",
    "aos/monitor_client.h",
    "aos/morecore.h",
+   "aos/domain_network_interface.h",
    "aos/msgbuf.h",
    "aos/multihop_chan.h",
    "aos/nameservice_client.h",

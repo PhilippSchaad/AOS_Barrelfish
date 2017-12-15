@@ -710,6 +710,7 @@ void write_to_serial(int outfd, void *inbuf, int len)
     /* slip_send(outfd, SLIP_END); */
 
     for (i = 0; i < len; i++) {
+        usleep(100);
         switch (p[i]) {
         case SLIP_END:
             slip_send(outfd, SLIP_ESC);

@@ -37,6 +37,10 @@ void serial_input(uint8_t *buf, size_t len){
 static void sample_fun(int* arg){
 }
 
+static void message_handler(void* payload, size_t bytes){
+    debug_printf("Hey there, I received the message: %d %d \n", *((uint32_t*) payload), *((uint32_t*) payload+1));
+}
+
 static errval_t testfun(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port){
     debug_printf("The server received the message \n");
     udp_send(dest_port, source_port, payload, size, src);
@@ -77,6 +81,9 @@ int main(int argc, char *argv[])
 
     // start slip (sending and receiveing of packets)
     slip_init(&message_buffer);
+
+    // init message handler
+    rpc_register_process_message_handler(aos_rpc_get_init_channel(), message_handler);
 
     // Hang around
     struct waitset *default_ws = get_default_waitset();

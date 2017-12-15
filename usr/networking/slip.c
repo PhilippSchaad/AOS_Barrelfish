@@ -100,6 +100,7 @@ static void slip_send(void){
     while(!packet_to_send){
         thread_yield();
     }
+    debug_printf("Send SLIP packet\n");
 
     uint8_t* end = packet_to_send->payload + ntohs(packet_to_send->header.length);
 
@@ -134,6 +135,7 @@ static void slip_send(void){
 
     free(packet_to_send);
     packet_to_send = NULL;
+    debug_printf("SLIP packet sent\n");
     }
 }
 
