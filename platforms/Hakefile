@@ -11,8 +11,8 @@
 --------------------------------------------------------------------------
 
 let    -- Default list of modules to build/install
-    modules_common = [ "init", "hello", "memeater", "killme", "filereader",
-                       "mmchs", "turtleback", "network" ]
+    modules_common = [ "init", "hello", "memeater", "killme",
+                       "turtleback", "network" ]
 
     -- ARMv7-a Pandaboard modules: ADd
     pandaModules = [ "/sbin/" ++ f | f <- [
