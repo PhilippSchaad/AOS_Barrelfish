@@ -1,18 +1,30 @@
 #include "udp.h"
 #include <netutil/htons.h>
 #include "ip.h"
+#include <aos/domain_network_interface.h>
 
 // TODO: check that we can add multiple listeners (ports)
 
 // sorted linked list
 struct udp_port{
     uint16_t portnum;
-    errval_t (*handler)(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port);
+    domainid_t pid;
+    coreid_t core;
     struct udp_port *next;
 };
 
 static struct udp_port* port_list_head;
 static struct thread_mutex mutex;
+
+__attribute__((unused))
+static void dump_ports(void){
+     struct udp_port* port = port_list_head;
+     printf("Dump list of registered ports\n");
+     while(port != NULL){
+        printf("%d: %d\n", port->portnum, port->pid);
+        port = port->next;
+     }
+}
 
 static errval_t udp_port_insert_ordered(struct udp_port* port){
     thread_mutex_lock(&mutex);
@@ -21,16 +33,23 @@ static errval_t udp_port_insert_ordered(struct udp_port* port){
         // created the first port
         port_list_head = port;
     } else {
-        while(current_element->next != NULL && current_element->next->portnum > port->portnum){
+        while(current_element->next != NULL && current_element->next->portnum < port->portnum){
             current_element = current_element->next;
         }
-        if(current_element->next != NULL && current_element->next->portnum == port->portnum){
+        if((current_element->next != NULL && current_element->next->portnum == port->portnum)||(current_element->portnum == port->portnum)){
             // error: port already exists
             thread_mutex_unlock(&mutex);
             return AOS_NET_ERR_UDP_PORT_EXISTS;
         }
-        port->next = current_element->next;
-        current_element->next = port;
+        else if (current_element->portnum > port->portnum){
+            // add before (should only happen at the start of the list)
+            assert(port_list_head == current_element);
+            port->next = port_list_head;
+            port_list_head = port;
+        } else {
+            port->next = current_element->next;
+            current_element->next = port;
+        }
     }
 
     thread_mutex_unlock(&mutex);
@@ -98,7 +117,11 @@ void udp_receive(uint8_t* payload, size_t size, uint32_t src){
         return;
     }
 
-    port->handler(datagram->payload, size - UDP_HEADER_SIZE, src, ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
+    // send message to handling process
+    // TODO: change the core and pid here
+    network_message_transfer(ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port), 0, 0, PROTOCOL_UDP, payload + UDP_HEADER_SIZE, size - UDP_HEADER_SIZE, 0, 0);
+
+    //port->handler(datagram->payload, size - UDP_HEADER_SIZE, src, ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
 
     free(datagram);
 }
@@ -117,10 +140,12 @@ void udp_send(uint16_t source_port, uint16_t dest_port, uint8_t* payload, size_t
     ip_packet_send((uint8_t*) datagram, payload_size+UDP_HEADER_SIZE, dst, PROTOCOL_UDP);
 }
 
-void udp_register_port(uint16_t portnum, errval_t (*handler)(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port)){
+void udp_register_port(uint16_t portnum, domainid_t pid, coreid_t core){
+    printf("Open new UDP port %d\n", portnum);
     struct udp_port* port = malloc(sizeof(struct udp_port));
     port->portnum = portnum;
-    port->handler = handler;
+    port->pid = pid;
+    port->core = core;
     port->next = NULL;
 
     errval_t err;
@@ -130,6 +155,7 @@ void udp_register_port(uint16_t portnum, errval_t (*handler)(uint8_t* payload, s
         return;
     }
     printf("registered port %u\n", portnum);
+    dump_ports();
 }
 void udp_deregister_port(uint16_t port){
     errval_t err;

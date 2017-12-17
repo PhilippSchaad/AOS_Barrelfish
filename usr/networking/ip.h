@@ -3,11 +3,7 @@
 
 #include <aos/aos.h>
 #include <stdlib.h>
-
-// Supported protocols
-#define PROTOCOL_ICMP 1
-#define PROTOCOL_UDP 17
-
+#include <aos/domain_network_interface.h>
 
 #define VERSION_MASK 0xf0
 #define IHL_MASK 0x0f

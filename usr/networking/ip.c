@@ -4,6 +4,7 @@
 #include "slip.h"
 #include "icmp.h"
 #include "udp.h"
+#include <aos/domain_network_interface.h>
 
 #define IP_PACKET_CHECK(boolval, failtext) \
     if (boolval){ \

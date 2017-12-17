@@ -21,7 +21,12 @@
 int main(int argc, char *argv[])
 {
     // TODO: check args
+    // TODO: remove all args except port
+    if(argc != 4){
+        printf("Usage: udp_echo network-pid network-core port\n");
+        return EXIT_FAILURE;
+    }
     //debug_printf("Try to open port at %d, %d\n",strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0));
-    //network_register_port(88, 0,strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0) , NULL);
+    network_register_port(strtoul(argv[3], NULL, 0), PROTOCOL_UDP,strtoul(argv[1], NULL, 0), strtoul(argv[2], NULL, 0));
     return EXIT_SUCCESS;
 }

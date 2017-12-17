@@ -19,10 +19,9 @@ struct udp_datagram{
     struct udp_header header;
     uint8_t payload[UDP_MAX_PAYLOAD_SIZE];
 };
-
+void udp_register_port(uint16_t portnum, domainid_t pid, coreid_t);
 void udp_receive(uint8_t* payload, size_t size, uint32_t src);
 void udp_send(uint16_t source_port, uint16_t dest_port, uint8_t* payload, size_t payload_size, uint32_t dst);
-void udp_register_port(uint16_t port, errval_t (*handler)(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port));
 //TODO: we do not verify that the sender of this function really owns the port it tries to deregister.
 void udp_deregister_port(uint16_t port);
 void udp_init(void);

@@ -8,6 +8,7 @@ errval_t network_register_port(uint16_t port, uint16_t protocol, domainid_t netw
     message.protocol = protocol;
     message.pid = 3; // TODO: get this form somewhere
     message.core = disp_get_core_id();
+    message.port = port;
 
     // TODO: round up size in rpc call
     aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), network_pid, network_core, &message, sizeof(struct network_register_deregister_port_message));
@@ -34,5 +35,19 @@ errval_t network_register_port(uint16_t port, uint16_t protocol, domainid_t netw
     // tell the network process the address of the shared memory
     // TODO: make sure that there is only one network driver
 */
+    return SYS_ERR_OK;
+}
+
+errval_t network_message_transfer(uint16_t from_port, uint16_t to_port, uint32_t from, uint32_t to, uint16_t protocol, uint8_t* payload, size_t size, domainid_t pid, coreid_t core){
+    struct network_message_transfer_message message;
+    message.protocol = protocol;
+    message.port_from = from_port;
+    message.port_to = to_port;
+    message.ip_from = from;
+    message.ip_to = to;
+    message.payload_size = size;
+    memcpy(message.payload, payload, size);
+
+    aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), pid, core, &message, sizeof(network_message_transfer) - 65535 + size);
     return SYS_ERR_OK;
 }

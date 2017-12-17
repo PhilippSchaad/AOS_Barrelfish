@@ -23,6 +23,7 @@
 #include "message_buffer.h"
 #include "slip.h"
 #include "udp.h"
+#include <aos/domain_network_interface.h>
 
 // message buffer
 static struct net_msg_buf message_buffer;
@@ -38,14 +39,43 @@ static void sample_fun(int* arg){
 }
 
 static void message_handler(void* payload, size_t bytes){
-    debug_printf("Hey there, I received the message: %d %d \n", *((uint32_t*) payload), *((uint32_t*) payload+1));
+    struct network_register_deregister_port_message* message = payload;
+    struct network_message_transfer_message* transfer_message = payload;
+
+    // handle the different message types
+    switch(message->message_type){
+        case NETWORK_REGISTER_PORT:
+            switch(message->protocol){
+                case PROTOCOL_UDP:
+                    udp_register_port(message->port, message->pid, message->core);
+                    break;
+                default:
+                    printf("Protocol %d not supported\n", message->protocol);
+            }
+            break;
+        case NETWORK_DEREGISTER_PORT:
+            debug_printf("Not yet implemented");
+            break;
+        case NETWORK_TRANSFER_MESSAGE:
+            // new message that needs sending
+            switch(transfer_message->protocol){
+                case PROTOCOL_UDP:
+                    udp_send(transfer_message->port_from, transfer_message->port_to, transfer_message->payload, transfer_message->payload_size, transfer_message->ip_to);
+                    break;
+                default:
+                    printf("Protocol %d not supported\n", transfer_message->protocol);
+            }
+        break;
+    }
 }
 
+/*
 static errval_t testfun(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port){
     debug_printf("The server received the message \n");
     udp_send(dest_port, source_port, payload, size, src);
     return SYS_ERR_OK;
 }
+*/
 
 int main(int argc, char *argv[])
 {
@@ -72,7 +102,7 @@ int main(int argc, char *argv[])
     udp_init();
     // TODO: remove from here
     // open new udp port
-    udp_register_port(55,testfun);
+    //udp_register_port(55,testfun);
 
 
     // TODO: fix this properly!!!

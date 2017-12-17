@@ -1,6 +1,7 @@
 #include "icmp.h"
 #include <netutil/checksum.h>
 #include "ip.h"
+#include <aos/domain_network_interface.h>
 
 void icmp_send(uint8_t type, uint8_t code, uint8_t* payload, size_t payload_size, uint32_t dst,  uint32_t rest_of_header){
     // create packet
