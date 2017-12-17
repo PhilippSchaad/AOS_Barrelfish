@@ -337,8 +337,8 @@ errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, c
     *message = (uint32_t) pid;
     *(message+1) = (uint32_t) core;
     memcpy(message+2, payload, bytes);
-    rpc_framework(NULL, NULL, RPC_TYPE_DOMAIN_TO_DOMAIN_COM,
-                  &chan->chan, NULL_CAP, 2 + bytes/4, message, NULL_EVENT_CLOSURE);
+    send(&chan->chan, NULL_CAP, RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM), 2 + bytes/4, message,
+         NOP_CLOSURE, request_fresh_id(RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM)));
     free(message);
     return SYS_ERR_OK;
 }
