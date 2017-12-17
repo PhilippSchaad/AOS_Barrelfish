@@ -21,9 +21,6 @@ module /armv7/sbin/memeater
 module /armv7/sbin/killme
 
 # milestone 7
-# filesystem
-module /armv7/sbin/mmchs
-module /armv7/sbin/filereader
 # The shell
 module /armv7/sbin/turtleback
 # the network

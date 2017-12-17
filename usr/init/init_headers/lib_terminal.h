@@ -35,6 +35,8 @@ enum input_feed_mode {
     FEED_MODE_LINE
 };
 
+void terminal_buffer_consume_char(void);
+
 void terminal_feed_buffer(char c);
 
 void terminal_getchar(char *c);
