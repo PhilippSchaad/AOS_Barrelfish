@@ -44,15 +44,29 @@ static void pagefault_handler(enum exception_type type, int subtype,
     // Do some checks
     if (vaddr == 0x0) {
         thread_mutex_unlock(&mutex);
-        DBG(ERR, "Tried to dereference NULL\n");
+        DBG(ERR, "Tried to dereference NULL. IP is %p\n", registers_get_ip(regs));
         thread_exit(1);
     }
     if (vaddr > 0x80000000) {
         thread_mutex_unlock(&mutex);
         // check if we want to map something to kernel space (2GB)
-        DBG(ERR, "Tried to alloc something in kernel space...\n");
+        DBG(ERR, "Tried to alloc something in kernel space. IP is %p\n", registers_get_ip(regs));
         thread_exit(1);
     }
+
+    struct dispatcher_generic *disp_gen = get_dispatcher_generic(curdispatcher()); 
+    struct thread *thread = disp_gen->current;
+    // warn on stack overflow.
+    lvaddr_t sp = (lvaddr_t) registers_get_sp(regs);
+    if (sp < (lvaddr_t)thread->stack ||
+            sp > (lvaddr_t)thread->stack_top) {
+        thread_mutex_unlock(&mutex);
+        // check if we want to map something to kernel space (2GB)
+        DBG(ERR, "Stack overflow. IP is %p\n", registers_get_ip(regs));
+        thread_exit(1);
+    }
+
+
 
     // TODO: Check if we are in a valid heap-range address.
     // TODO: Also check if we need to refill slabs and do so if yes.
