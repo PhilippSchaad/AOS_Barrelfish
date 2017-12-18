@@ -44,6 +44,17 @@ void disp_set_core_id(coreid_t core_id)
     disp->core_id = core_id;
 }
 
+/**
+ * \brief set the domain_id.
+ *
+ * Code using this should do a kernel_cap invocation to get the core_id first.
+ */
+void disp_set_domain_id(domainid_t pid)
+{
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp->domain_id = pid;
+}
 
 /**
  * \brief returns the address and the size of the EH frame

@@ -41,7 +41,7 @@ struct paging_state *get_current_paging_state(void);
 void set_current_paging_state(struct paging_state *st);
 struct ram_alloc_state *get_ram_alloc_state(void);
 struct slot_alloc_state *get_slot_alloc_state(void);
-
+void disp_set_domain_id(domainid_t pid);
 
 __END_DECLS
 

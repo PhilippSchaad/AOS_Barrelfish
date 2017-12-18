@@ -326,19 +326,23 @@ errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
 
 errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, coreid_t core, void* payload, size_t bytes)
 {
+    debug_printf("size is %d\n", bytes);
+    size_t payload_size = bytes;
     // make sure that the size is rounded up to 32bit
     if (bytes%4 != 0){
         bytes += (4-bytes%4);
     }
     // add bytes for pid and core
     bytes +=8;
-
     uintptr_t* message = malloc(bytes);
+    debug_printf("message is at %p\n", message);
     *message = (uint32_t) pid;
     *(message+1) = (uint32_t) core;
-    memcpy(message+2, payload, bytes);
-    send(&chan->chan, NULL_CAP, RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM), 2 + bytes/4, message,
+    memcpy(message+2, payload, payload_size);
+    debug_printf("Send message (post)\n");
+    send(&chan->chan, NULL_CAP, RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM), bytes/4, message,
          NOP_CLOSURE, request_fresh_id(RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM)));
+    debug_printf("Send message done\n");
     free(message);
     return SYS_ERR_OK;
 }
@@ -349,10 +353,11 @@ static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
     DBG(DETAILED, "registered self. received core %d pid %d\n", combinedArg[2],
         combinedArg[1]);
     // TODO: store somewhere
-    // domainid_t pid = combinedArg[1];
+    domainid_t pid = combinedArg[1];
     coreid_t coreid = combinedArg[2];
 
     disp_set_core_id(coreid);
+    disp_set_domain_id(pid);
     // printfs are correctly prefixed from now on
     // registration finished
 }
@@ -543,6 +548,7 @@ static void aos_rpc_recv_handler(struct recv_list *data)
             // TODO: check if origin is init
             exit(1);
         case RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM):
+            debug_printf("received message (pre)\n");
             if (rpc->p_to_p_receive_handler != NULL){
                 rpc->p_to_p_receive_handler(data->payload + 1, (data->size-1)*4);
             } else {
