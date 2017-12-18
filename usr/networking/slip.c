@@ -17,7 +17,7 @@ static void ip_add_byte(uint8_t byte){
 
     // check if the packet gets to large, drop if needed
     if (ipp->payload + IP_MAX_SIZE <= fill_pointer){
-        debug_printf("slip: error, message got too large, drop it");
+        printf("slip: error, message got too large, drop it");
         free(ipp);
         ipp = NULL;
         fill_pointer = NULL;
@@ -30,11 +30,13 @@ static void ip_add_byte(uint8_t byte){
 
 // send packet to the next layer
 static void finish_ip_packet(void){
-    debug_printf("received new ip packet\n");
-    ip_handle_packet(ipp);
-
-    free(ipp);
+    //debug_printf("received new ip packet\n");
+    if(ipp != NULL){
+        ip_handle_packet(ipp);
+        free(ipp);
+    }
     ipp = NULL;
+    //debug_printf("back in slip\n");
 }
 
 /**
@@ -94,50 +96,50 @@ void slip_packet_send(union ip_packet* packet){
 }
 
 __attribute__((unused))
-// should get called async
-static void slip_send(void){
-    while(true){
-    while(!packet_to_send){
-        thread_yield();
-    }
-    debug_printf("Send SLIP packet\n");
+    // should get called async
+    static void slip_send(void){
+        while(true){
+            while(!packet_to_send){
+                thread_yield();
+            }
+            //debug_printf("Send SLIP packet\n");
 
-    uint8_t* end = packet_to_send->payload + ntohs(packet_to_send->header.length);
+            uint8_t* end = packet_to_send->payload + ntohs(packet_to_send->header.length);
 
-    uint8_t slip_end = SLIP_END;
-    uint8_t slip_esc = SLIP_ESC;
-    uint8_t slip_esc_end = SLIP_ESC_END;
-    uint8_t slip_esc_esc = SLIP_ESC_ESC;
-    uint8_t slip_esc_nul = SLIP_ESC_NUL;
+            uint8_t slip_end = SLIP_END;
+            uint8_t slip_esc = SLIP_ESC;
+            uint8_t slip_esc_end = SLIP_ESC_END;
+            uint8_t slip_esc_esc = SLIP_ESC_ESC;
+            uint8_t slip_esc_nul = SLIP_ESC_NUL;
 
-    for (uint8_t* current_byte = packet_to_send->payload; current_byte < end; ++current_byte){
-        switch(*current_byte){
-            case SLIP_END:
-                serial_write(&slip_esc, 1);
-                serial_write(&slip_esc_end, 1);
-                break;
-            case SLIP_ESC:
-                serial_write(&slip_esc, 1);
-                serial_write(&slip_esc_esc, 1);
-                break;
+            for (uint8_t* current_byte = packet_to_send->payload; current_byte < end; ++current_byte){
+                switch(*current_byte){
+                    case SLIP_END:
+                        serial_write(&slip_esc, 1);
+                        serial_write(&slip_esc_end, 1);
+                        break;
+                    case SLIP_ESC:
+                        serial_write(&slip_esc, 1);
+                        serial_write(&slip_esc_esc, 1);
+                        break;
 
-            case 0x0:
-                serial_write(&slip_esc, 1);
-                serial_write(&slip_esc_nul, 1);
-                break;
+                    case 0x0:
+                        serial_write(&slip_esc, 1);
+                        serial_write(&slip_esc_nul, 1);
+                        break;
 
-            default:
-                serial_write(current_byte, 1);
+                    default:
+                        serial_write(current_byte, 1);
+                }
+            }
+            // end the message
+            serial_write(&slip_end, 1);
+
+            free(packet_to_send);
+            packet_to_send = NULL;
+            //debug_printf("SLIP packet sent\n");
         }
     }
-    // end the message
-    serial_write(&slip_end, 1);
-
-    free(packet_to_send);
-    packet_to_send = NULL;
-    debug_printf("SLIP packet sent\n");
-    }
-}
 
 void slip_init(struct net_msg_buf *message_buffer){
     thread_create((thread_func_t) slip_receive, message_buffer);

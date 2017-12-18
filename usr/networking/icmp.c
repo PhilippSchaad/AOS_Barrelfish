@@ -27,7 +27,7 @@ void icmp_send(uint8_t type, uint8_t code, uint8_t* payload, size_t payload_size
 
 void icmp_receive(uint8_t* payload, size_t size, uint32_t src){
     // TODO: checksum
-    debug_printf("received new icmp packet\n");
+    //debug_printf("received new icmp packet\n");
     struct icmp_header* header = (struct icmp_header*) payload;
 
     switch(header->type){
@@ -35,6 +35,6 @@ void icmp_receive(uint8_t* payload, size_t size, uint32_t src){
             icmp_send(ECHO_REPLY, 0, payload + ICMP_HEADER_SIZE, size - ICMP_HEADER_SIZE, src, header->rest_of_header);
             break;
         default:
-            debug_printf("received an icmp packet that is currently not supported: type: %d \n", header->type);
+            printf("received an icmp packet that is currently not supported: type: %d \n", header->type);
     }
 }

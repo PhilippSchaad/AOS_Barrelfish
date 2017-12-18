@@ -340,6 +340,7 @@ void recv_handling(void *args)
     struct recv_chan *rc = (struct recv_chan *) args;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;
+    //free(malloc(sizeof(struct recv_list)));
 
     lmp_chan_recv(rc->chan, &msg, &cap);
     //    if(cap != NULL_CAP) // TODO: figure out if this if check would be a

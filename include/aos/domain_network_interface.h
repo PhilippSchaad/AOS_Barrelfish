@@ -8,6 +8,12 @@
 #define PROTOCOL_ICMP 1
 #define PROTOCOL_UDP 17
 
+// TODO: set this dynamically (maybe on startup of the network?)
+#define MY_IP (10<<24) + (0<<16) + (3<<8) + 1
+
+// TODO: change this
+#define MAX_PACKET_PAYLOAD 100
+
 // message types that can be sent to the network driver
 typedef enum network_control_message_type {
     NETWORK_REGISTER_PORT,
@@ -37,7 +43,7 @@ struct network_message_transfer_message{
     uint32_t ip_from;
     uint32_t ip_to;
     size_t payload_size;
-    uint8_t payload[65535];
+    uint8_t payload[MAX_PACKET_PAYLOAD];
 };
 
 #endif

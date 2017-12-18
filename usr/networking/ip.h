@@ -9,7 +9,6 @@
 #define IHL_MASK 0x0f
 #define IP_MAX_SIZE 65535
 #define IP_HEADER_MIN_SIZE 0x5
-#define MY_IP (10<<24) + (0<<16) + (3<<8) + 1
 
 // IPv4
 struct ip_header {

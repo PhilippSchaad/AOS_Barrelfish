@@ -42,6 +42,8 @@ static void message_handler(void* payload, size_t bytes){
     struct network_register_deregister_port_message* message = payload;
     struct network_message_transfer_message* transfer_message = payload;
 
+    //debug_printf("I received a new message \n");
+
     // handle the different message types
     switch(message->message_type){
         case NETWORK_REGISTER_PORT:
@@ -54,7 +56,7 @@ static void message_handler(void* payload, size_t bytes){
             }
             break;
         case NETWORK_DEREGISTER_PORT:
-            debug_printf("Not yet implemented");
+            printf("deregistering port not yet implemented");
             break;
         case NETWORK_TRANSFER_MESSAGE:
             // new message that needs sending
@@ -79,7 +81,7 @@ static errval_t testfun(uint8_t* payload, size_t size, uint32_t src, uint16_t so
 
 int main(int argc, char *argv[])
 {
-    printf("Welcome. I am your connection to the world.\n");
+    printf("\nWelcome. I am your connection to the world.\n");
 
     errval_t err;
 
@@ -99,6 +101,7 @@ int main(int argc, char *argv[])
     printf("UART4 up\n");
     
     // enable udp
+    // TODO: something to do here??
     udp_init();
     // TODO: remove from here
     // open new udp port

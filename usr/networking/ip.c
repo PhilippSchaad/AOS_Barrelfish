@@ -35,7 +35,7 @@ void ip_handle_packet(union ip_packet* packet){
     IP_PACKET_CHECK(payload_header_length < IP_HEADER_MIN_SIZE*4, "packet header is too small, drop\n");
 
     // detect fragmentation (fragment offset of flag set)
-    debug_printf("fragmentation: %d\n", packet->header.flags_fragmentoffset);
+    //debug_printf("fragmentation: %d\n", packet->header.flags_fragmentoffset);
     IP_PACKET_CHECK((packet->header.flags_fragmentoffset & 0xbf) != 0, "Fragmentation is not supported, drop")
 
     // handle according to protocol
@@ -49,12 +49,11 @@ void ip_handle_packet(union ip_packet* packet){
         default:
             printf("received not supported protocol. drop. protocol was %d\n", packet->header.protocol);
             // TODO: error: non supported protocol. drop
-            free(packet);
     }
 }
 
 void ip_packet_send(uint8_t *payload, size_t payload_size, uint32_t dst, uint8_t protocol){
-    debug_printf("send new packet\n");
+    //debug_printf("send new packet\n");
     // create a new ip packet
     union ip_packet *packet = malloc(sizeof(union ip_packet));
 
@@ -72,7 +71,7 @@ void ip_packet_send(uint8_t *payload, size_t payload_size, uint32_t dst, uint8_t
     packet->header.header_checksum = 0;
     packet->header.header_checksum = inet_checksum(packet, IP_HEADER_MIN_SIZE*4);
 
-    debug_printf("ip send packet with version ihl: %u and length: %u\n", packet->header.version_ihl, IP_HEADER_MIN_SIZE*4 + payload_size);
+    //debug_printf("ip send packet with version ihl: %u and length: %u\n", packet->header.version_ihl, IP_HEADER_MIN_SIZE*4 + payload_size);
 
     // add the payload
     memcpy(packet->payload + IP_HEADER_MIN_SIZE*4, payload, payload_size);

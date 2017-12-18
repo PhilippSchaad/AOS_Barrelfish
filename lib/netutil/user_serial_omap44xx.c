@@ -208,9 +208,9 @@ errval_t serial_init(lvaddr_t vbase, uint32_t irq) {
 
     // paging_map_device returns an address pointing to the beginning of
     // a section, need to add the offset for within the section again
-    debug_printf("omap serial_init base = 0x%"PRIxLVADDR"\n", vbase);
+    //debug_printf("omap serial_init base = 0x%"PRIxLVADDR"\n", vbase);
     omap44xx_uart3_init(&port, vbase);
-    debug_printf("omap serial_init[%d]: done.\n", port);
+    //debug_printf("omap serial_init[%d]: done.\n", port);
 
     err = inthandler_setup_arm(serial_interrupt, NULL, irq);
     if (err_is_fail(err)) {

@@ -106,27 +106,28 @@ static errval_t search_udp_port(uint16_t portnum, struct udp_port **port){
 void udp_receive(uint8_t* payload, size_t size, uint32_t src){
     errval_t err;
     struct udp_datagram* datagram = (struct udp_datagram*) payload;
-    debug_printf("received UDP packet to from port %d to port %d\n", ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
+    debug_printf("received UDP packet from port %d to port %d\n", ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
 
     struct udp_port *port = NULL;
     err = search_udp_port(ntohs(datagram->header.dest_port), &port);
 
+    debug_printf("found port %p\n", port);
+
     if(err_is_fail(err)){
         printf("%s\n",err_getstring(err));
-        free(datagram);
         return;
     }
 
     // send message to handling process
-    // TODO: change the core and pid here
-    network_message_transfer(ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port), 0, 0, PROTOCOL_UDP, payload + UDP_HEADER_SIZE, size - UDP_HEADER_SIZE, 0, 0);
+    err = network_message_transfer(ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port), src, MY_IP, PROTOCOL_UDP, payload + UDP_HEADER_SIZE, size - UDP_HEADER_SIZE, port->pid, port->core);
+    debug_printf("udp receive finished\n");
 
-    //port->handler(datagram->payload, size - UDP_HEADER_SIZE, src, ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
-
-    free(datagram);
+    //free(payload);
 }
 void udp_send(uint16_t source_port, uint16_t dest_port, uint8_t* payload, size_t payload_size, uint32_t dst){
     debug_printf("Sending new udp packet\n");
+
+    //TODO: check if the port matches the one from the sending domain
 
     struct udp_datagram* datagram = malloc(sizeof(struct udp_datagram));
     datagram->header.source_port = htons(source_port);
@@ -135,7 +136,7 @@ void udp_send(uint16_t source_port, uint16_t dest_port, uint8_t* payload, size_t
     // the checksum is not mandatory in ipv4
     datagram->header.checksum = 0;
     memcpy(datagram->payload, payload, payload_size);
-    free(payload);
+    //free(payload);
 
     ip_packet_send((uint8_t*) datagram, payload_size+UDP_HEADER_SIZE, dst, PROTOCOL_UDP);
 }
