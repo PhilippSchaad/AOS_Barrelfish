@@ -1503,8 +1503,9 @@ void thread_deliver_exception_disabled(dispatcher_handle_t handle,
 
         // warn on stack overflow.
         lvaddr_t sp = (lvaddr_t) registers_get_sp(regs);
-        if (sp < (lvaddr_t)thread->stack ||
-            sp > (lvaddr_t)thread->stack_top) {
+        if ((!thread->in_exception && (sp < (lvaddr_t)thread->stack ||
+            sp > (lvaddr_t)thread->stack_top)) || (thread->in_exception &&(sp < (lvaddr_t)thread->exception_stack ||
+                                                                           sp > (lvaddr_t)thread->exception_stack_top))) {
             char str[256];
             snprintf(str, sizeof(str), "Error: stack bounds exceeded: sp = 0x%"
                      PRIxPTR " but [bottom, top] = [0x%" PRIxPTR ", 0x%"
