@@ -66,6 +66,7 @@ static int rpc_type_max_id[256];
 struct generic_queue_obj rpc_send_queue;
 
 // TODO: proper error handling
+// TODO: also make it stop growing the stack by trampolining the event_dispatch stuff properly
 static errval_t send_loop(void *args)
 {
     struct send_queue *sq = (struct send_queue *) args;
@@ -83,9 +84,13 @@ static errval_t send_loop(void *args)
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);
     if (err_is_fail(err)) {
         debug_printf("send loop error: %s\n",err_getstring(err));
+        debug_printf("print cap: slot %u, level %u, cnode %u, croot %u\n",(unsigned int)sq->cap.slot,(
+                unsigned int) sq->cap.cnode.level, (unsigned int) sq->cap.cnode.cnode, (unsigned int) sq->cap.cnode.croot);
+
         // Reregister if failed.
         CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                      MKCLOSURE((void *) send_loop, args)));
+//        debug_printf("hi from hell\n");
         CHECK(event_dispatch(get_default_waitset()));
     } else {
         if (remaining > 8) {
@@ -93,6 +98,7 @@ static errval_t send_loop(void *args)
             sq->index += 8;
             CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                          MKCLOSURE((void *) send_loop, args)));
+//            debug_printf("hi from hell\n");
             CHECK(event_dispatch(get_default_waitset()));
         } else {
             if (sq->callback_when_done.handler != NULL)
@@ -127,6 +133,7 @@ static errval_t send_loop(void *args)
                     ((struct send_queue *) rpc_send_queue.fst->data)->chan,
                     get_default_waitset(),
                     MKCLOSURE((void *) send_loop, rpc_send_queue.fst->data)));
+//                debug_printf("hi from hell\n");
                 CHECK(event_dispatch(get_default_waitset()));
             }
             return SYS_ERR_OK;
@@ -405,7 +412,6 @@ errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
 
     CHECK(lmp_chan_accept(chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
     CHECK(lmp_chan_alloc_recv_slot(chan));
-    CHECK(cap_copy(cap_initep, chan->local_cap));
     struct recv_chan *rc = malloc(sizeof(struct recv_chan));
     rc->chan = chan;
     rc->recv_deal_with_msg = recv_deal_with_msg;

@@ -40,6 +40,8 @@
                              "lmp_chan.c",
                              "lmp_endpoints.c",
                              "morecore.c",
+                             "nameserver_client.c",
+                             "nameserver_internal.c",
                              "paging.c",
                              "ram_alloc.c",
                              "slab.c",

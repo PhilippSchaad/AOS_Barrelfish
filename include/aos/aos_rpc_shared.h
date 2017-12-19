@@ -53,6 +53,8 @@
 #define RPC_TYPE_LED_TOGGLE             0x18
 #define RPC_TYPE_PROCESS_AWAIT_COMPL    0x19
 #define RPC_TYPE_GET_MEM_SERVER         0x20
+#define RPC_TYPE_REGISTER_AS_NAMESERVER 0x21
+#define RPC_TYPE_GET_NAME_SERVER        0x22
 
 struct recv_list {
     unsigned char type;

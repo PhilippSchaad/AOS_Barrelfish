@@ -27,5 +27,6 @@ struct domain_list *active_domains;
 
 void recv_deal_with_msg(struct recv_list *data);
 void init_rpc(void);
+bool nameserver_online(void);
 
 #endif /* LIB_RPC_H */

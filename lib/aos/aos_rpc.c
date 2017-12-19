@@ -628,6 +628,20 @@ errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap)
     return SYS_ERR_OK;
 }
 
+errval_t aos_rpc_register_as_nameserver(struct aos_rpc *rpc, struct capref newchancap) {
+    rpc_framework(NULL, NULL, RPC_TYPE_REGISTER_AS_NAMESERVER, &rpc->chan, newchancap, 0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
+errval_t aos_rpc_get_nameserver(struct aos_rpc *rpc, struct capref *retcap)
+{
+    rpc_framework(get_mem_server_recv_handler, (void *) retcap,
+                  RPC_TYPE_GET_NAME_SERVER, &rpc->chan, NULL_CAP, 0, NULL,
+                  NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
+
 unsigned int id = 1337;
 errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
