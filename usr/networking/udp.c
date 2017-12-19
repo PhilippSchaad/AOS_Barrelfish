@@ -106,12 +106,12 @@ static errval_t search_udp_port(uint16_t portnum, struct udp_port **port){
 void udp_receive(uint8_t* payload, size_t size, uint32_t src){
     errval_t err;
     struct udp_datagram* datagram = (struct udp_datagram*) payload;
-    debug_printf("received UDP packet from port %d to port %d\n", ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
+    //debug_printf("received UDP packet from port %d to port %d\n", ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
 
     struct udp_port *port = NULL;
     err = search_udp_port(ntohs(datagram->header.dest_port), &port);
 
-    debug_printf("found port %p\n", port);
+    //debug_printf("found port %p\n", port);
 
     if(err_is_fail(err)){
         printf("%s\n",err_getstring(err));
@@ -120,12 +120,12 @@ void udp_receive(uint8_t* payload, size_t size, uint32_t src){
 
     // send message to handling process
     err = network_message_transfer(ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port), src, MY_IP, PROTOCOL_UDP, payload + UDP_HEADER_SIZE, size - UDP_HEADER_SIZE, port->pid, port->core);
-    debug_printf("udp receive finished\n");
+    //debug_printf("udp receive finished\n");
 
     //free(payload);
 }
 void udp_send(uint16_t source_port, uint16_t dest_port, uint8_t* payload, size_t payload_size, uint32_t dst){
-    debug_printf("Sending new udp packet\n");
+    //debug_printf("Sending new udp packet\n");
 
     //TODO: check if the port matches the one from the sending domain
 

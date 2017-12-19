@@ -152,6 +152,15 @@ errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap);
 errval_t rpc_register_process_message_handler(struct aos_rpc* rpc, void (*handler)(void* payload, size_t bytes));
 
 /**
+ * \brief Registers our process as the nameserver
+ * \param rpc  the rpc channel
+ * \param newchancap the chan cap which other processes can use to contact the nameserver
+ */
+errval_t aos_rpc_register_as_nameserver(struct aos_rpc *rpc, struct capref newchancap);
+
+errval_t aos_rpc_get_nameserver(struct aos_rpc *rpc, struct capref *retcap);
+
+/**
  * \brief Initialize given rpc channel.
  */
 errval_t aos_rpc_init(struct aos_rpc *rpc);

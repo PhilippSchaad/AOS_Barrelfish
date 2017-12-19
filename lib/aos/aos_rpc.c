@@ -335,14 +335,13 @@ errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, c
     // add bytes for pid and core
     bytes +=8;
     uintptr_t* message = malloc(bytes);
+    memset(message,0x0, bytes);
     debug_printf("message is at %p\n", message);
     *message = (uint32_t) pid;
     *(message+1) = (uint32_t) core;
     memcpy(message+2, payload, payload_size);
-    debug_printf("Send message (post)\n");
     send(&chan->chan, NULL_CAP, RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM), bytes/4, message,
          NOP_CLOSURE, request_fresh_id(RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM)));
-    debug_printf("Send message done\n");
     free(message);
     return SYS_ERR_OK;
 }
@@ -660,6 +659,20 @@ errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap)
                   NULL_EVENT_CLOSURE);
     return SYS_ERR_OK;
 }
+
+errval_t aos_rpc_register_as_nameserver(struct aos_rpc *rpc, struct capref newchancap) {
+    rpc_framework(NULL, NULL, RPC_TYPE_REGISTER_AS_NAMESERVER, &rpc->chan, newchancap, 0, NULL, NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
+errval_t aos_rpc_get_nameserver(struct aos_rpc *rpc, struct capref *retcap)
+{
+    rpc_framework(get_mem_server_recv_handler, (void *) retcap,
+                  RPC_TYPE_GET_NAME_SERVER, &rpc->chan, NULL_CAP, 0, NULL,
+                  NULL_EVENT_CLOSURE);
+    return SYS_ERR_OK;
+}
+
 
 unsigned int id = 1337;
 errval_t aos_rpc_init(struct aos_rpc *rpc)
