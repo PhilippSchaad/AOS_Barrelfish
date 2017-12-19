@@ -17,11 +17,13 @@
 #include <aos/except.h>
 #include <aos/slab.h>
 #include "threads_priv.h"
+#include "include/threads_priv.h"
 
 #include <spawn/spawn.h>
 
 #include <stdio.h>
 #include <string.h>
+#include <aos/dispatcher.h>
 
 #define PAGEFAULT_STACK_SIZE (16 * 1024) // = 16kb
 
@@ -29,6 +31,76 @@
 
 static struct paging_state current;
 static struct thread_mutex mutex;
+static bool print_oh_print = false;
+
+static errval_t eternal_sadness(struct capref dest, size_t bytes, size_t *retbytes)
+{
+    assert(bytes > 0);
+    errval_t err;
+    if(print_oh_print)
+        debug_printf("fc1\n");
+
+    bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
+
+    struct capref ram;
+    if(print_oh_print)
+        debug_printf("fc2\n");
+    err = ram_alloc(&ram, bytes);
+    if(print_oh_print)
+        debug_printf("fc3\n");
+    if (err_is_fail(err)) {
+        if (err_no(err) == MM_ERR_NOT_FOUND ||
+            err_no(err) == LIB_ERR_RAM_ALLOC_WRONG_SIZE) {
+            return err_push(err, LIB_ERR_RAM_ALLOC_MS_CONSTRAINTS);
+        }
+        return err_push(err, LIB_ERR_RAM_ALLOC);
+    }
+    if(print_oh_print)
+        debug_printf("fc4\n");
+    err = cap_retype(dest, ram, 0, ObjType_Frame, bytes, 1);
+    if(print_oh_print)
+        debug_printf("fc5\n");
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_CAP_RETYPE);
+    }
+    if(print_oh_print)
+        debug_printf("fc6\n");
+    err = cap_destroy(ram);
+    if(print_oh_print)
+        debug_printf("fc7\n");
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_CAP_DESTROY);
+    }
+    if(print_oh_print)
+        debug_printf("fc8\n");
+
+    if (retbytes != NULL) {
+        *retbytes = bytes;
+    }
+    if(print_oh_print)
+        debug_printf("fc9\n");
+
+    return SYS_ERR_OK;
+}
+
+static errval_t the_taste_of_sadness(struct capref *dest, size_t bytes, size_t *retbytes)
+{
+    if(print_oh_print)
+        debug_printf("fa1\n");
+    errval_t err = slot_alloc(dest);
+    if(print_oh_print)
+        debug_printf("fa2\n");
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_SLOT_ALLOC);
+    }
+    if(print_oh_print)
+        debug_printf("fa3\n");
+    err = eternal_sadness(*dest, bytes, retbytes);
+    if(print_oh_print)
+        debug_printf("fa4\n");
+    return err;
+}
+
 
 static char pagefault_stack[PAGEFAULT_STACK_SIZE];
 // TODO: Make threadsafe (Probably best to acquire a lock o.s.s.?)
@@ -40,6 +112,8 @@ static void pagefault_handler(enum exception_type type, int subtype,
     struct paging_state *st = get_current_paging_state();
 
     lvaddr_t vaddr = (lvaddr_t) addr;
+    if(!strcmp("network",disp_name()))
+        debug_printf("vaddr: %p\n",addr);
 
     // Do some checks
     if (vaddr == 0x0) {
@@ -52,6 +126,10 @@ static void pagefault_handler(enum exception_type type, int subtype,
         // check if we want to map something to kernel space (2GB)
         DBG(ERR, "Tried to alloc something in kernel space. IP is %p\n", registers_get_ip(regs));
         thread_exit(1);
+    }
+    if(0x2856fd8 == (unsigned int)addr) {
+        print_oh_print = true;
+        debug_printf("hi1\n");
     }
 
     struct dispatcher_generic *disp_gen = get_dispatcher_generic(curdispatcher()); 
@@ -66,6 +144,8 @@ static void pagefault_handler(enum exception_type type, int subtype,
         thread_exit(1);
     }
 
+    if(0x2856fd8 == (unsigned int)addr)
+        debug_printf("hi2\n");
 
 
     // TODO: Check if we are in a valid heap-range address.
@@ -76,10 +156,18 @@ static void pagefault_handler(enum exception_type type, int subtype,
 
     struct capref frame;
     size_t retsize;
+    if(0x2856fd8 == (unsigned int)addr)
+        debug_printf("hi3\n");
 
-    CHECK(frame_alloc(&frame, BASE_PAGE_SIZE, &retsize));
+    CHECK(the_taste_of_sadness(&frame, BASE_PAGE_SIZE, &retsize)); //frame_alloc call
+    if(0x2856fd8 == (unsigned int)addr)
+        debug_printf("hi4\n");
     CHECK(paging_map_fixed_attr(st, vaddr, frame, retsize,
                                 VREGION_FLAGS_READ_WRITE));
+    if(0x2856fd8 == (unsigned int)addr) {
+        print_oh_print = false;
+        debug_printf("hi5\n");
+    }
     thread_mutex_unlock(&mutex);
 }
 
@@ -171,7 +259,6 @@ errval_t paging_init(void)
     CHECK(thread_set_exception_handler(
         pagefault_handler, NULL, (void *) &pagefault_stack,
         (void *) &pagefault_stack + PAGEFAULT_STACK_SIZE, NULL, NULL));
-
     set_current_paging_state(&current);
 
     // According to the book, the L1 page table is at the following address.
@@ -514,18 +601,19 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                                struct capref frame, size_t bytes, int flags)
 {
-    DBG(VERBOSE, "st %u fixed alloc: vaddr: %p, bytes: 0x%x \n",
+   if(!strcmp("network",disp_name()))
+        DBG(-1, "st %u fixed alloc: vaddr: %p, bytes: 0x%x \n",
         st->debug_paging_state_index, vaddr, bytes);
 
     // Iterate over the L2 page tables and map the memory.
     size_t mapped_bytes = 0;
     if (slab_freecount(&st->slab_alloc) == 0) {
-        DBG(DETAILED, "triggering special slab refill\n");
+        DBG(-1, "triggering special slab refill\n");
         struct capref slabframe;
         st->slot_alloc->alloc(st->slot_alloc, &slabframe);
         DBG(DETAILED, "first hurdle made\n");
         slab_refill_no_pagefault(&st->slab_alloc, slabframe, BASE_PAGE_SIZE);
-        DBG(DETAILED, "second hurdle made\n");
+        DBG(-1, "second hurdle made\n");
     }
 
     struct paging_used_node *mappings =

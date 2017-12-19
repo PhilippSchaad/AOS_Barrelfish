@@ -26,6 +26,8 @@ struct rpc_call {
     struct rpc_call *next;
 };
 
+struct waitset mem_ws;
+
 struct aos_rpc *mem_chan;
 
 struct rpc_call *rpc_call_buffer_head = NULL;
@@ -116,10 +118,11 @@ errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
     DBG(DETAILED, "ACK Receied (string)\n");
     return SYS_ERR_OK;
 }
-
+__unused
 static errval_t ram_send_handler(uintptr_t *args)
 {
     DBG(DETAILED, "rpc_ram_send_handler\n");
+
 
     struct aos_rpc *rpc = (struct aos_rpc *) args[0];
     size_t size = *((size_t *) args[1]);
@@ -129,9 +132,9 @@ static errval_t ram_send_handler(uintptr_t *args)
 
     // mildly dirty hacks
     unsigned int first_byte = (RPC_MESSAGE(RPC_TYPE_RAM) << 24) +
-                              (((unsigned char) args[3]) << 16) + 2;
-    DBG(DETAILED, "Sending message with: type %u id %u\n",
-        RPC_MESSAGE(RPC_TYPE_RAM), args[3]);
+                              (0 << 16) + 2;
+//    DBG(DETAILED, "Sending message with: type %u id %u\n",
+//        RPC_MESSAGE(RPC_TYPE_RAM), args[3]);
     // end mildly dirty hacks
 
     errval_t err;
@@ -145,7 +148,6 @@ static errval_t ram_send_handler(uintptr_t *args)
     if (!err_is_ok(err))
         debug_printf("tried to send ram request, ran into issue: %s\n",
                      err_getstring(err));
-
     return SYS_ERR_OK;
 }
 
@@ -163,15 +165,16 @@ static void aos_rpc_ram_recv(void *arg1, struct recv_list *data)
     arrrs->size = data->payload[1];
 }
 */
-
+__unused
 static void aos_rpc_ram_recv(void *arg1, struct recv_list *data)
 {
+
     DBG(VERBOSE,"aos_rpc_ram_recv\n");
     uintptr_t *uargs = (uintptr_t *) arg1;
     struct aos_rpc *rpc = (struct aos_rpc *) uargs[0];
     struct capref *retcap = (struct capref *) uargs[3];
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    
+
     CHECK(lmp_chan_recv(&rpc->chan, &msg, retcap));
 
     size_t *retsize = (size_t *) uargs[4];
@@ -188,14 +191,20 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     // we duplicate the rpc_framework into this as we have to make a
     // non-mallocing send call, which we dospecialcased atm
     thread_mutex_lock_nested(&chan->mutex);
+    bool print = false;
+    if(!strcmp("network",disp_name()))
+        print=true;
+//    if(print)
+//        debug_printf("aos_rpc_ram1\n");
 
     DBG(DETAILED, "rpc_get_ram_cap\n");
 
-    struct waitset *ws = get_default_waitset();
 
     uintptr_t sendargs[6];
 
     sendargs[0] = (uintptr_t) chan;
+//    if(print)
+//        debug_printf("aos_rpc_ram2\n");
     sendargs[1] = (uintptr_t) &size;
     sendargs[2] = (uintptr_t) &align;
     sendargs[3] = (uintptr_t) retcap;
@@ -203,6 +212,8 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
     bool done = false;
     sendargs[5] = (uintptr_t) &done;
+//    if(print)
+//        debug_printf("aos_rpc_ram3\n");
     /*
     register_recv(id, RPC_ACK_MESSAGE(RPC_TYPE_RAM), &done, aos_rpc_ram_recv,
                   &retvals);
@@ -212,25 +223,61 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     //we are out, so we need to 1. use from buffer
     //and 2. refill
     if(sa->space == 0) {
+        if(print)
+            debug_printf("aos_rpc_ram4\n");
         USER_PANIC("fix me \n");
 //        lmp_chan_set_recv_slot(&chan->chan,todo);
-    } else
+    } else {
         lmp_chan_alloc_recv_slot(&chan->chan);
-
-    lmp_chan_register_recv(&chan->chan, ws,
+    }
+    if(print)
+        debug_printf("aos_rpc_ram6\n");
+//and to the dark gods I sacrifice this code, may it sate their hunger for bugs and hacks
+    /*
+    lmp_chan_register_recv(&chan->chan, &mem_ws,
                            MKCLOSURE((void *) aos_rpc_ram_recv, sendargs));
-
+//    if(print)
+//        debug_printf("aos_rpc_ram7\n");
     errval_t err = lmp_chan_register_send(
-        &chan->chan, ws, MKCLOSURE((void *) ram_send_handler, sendargs));
+        &chan->chan, &mem_ws, MKCLOSURE((void *) ram_send_handler, sendargs));
     while (err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
-        CHECK(event_dispatch(ws));
+        CHECK(event_dispatch(&mem_ws));
         err = lmp_chan_register_send(
-            &chan->chan, ws, MKCLOSURE((void *) ram_send_handler, sendargs));
+            &chan->chan, &mem_ws, MKCLOSURE((void *) ram_send_handler, sendargs));
     }
     CHECK(err);
 
     while (!done)
-        event_dispatch(ws);
+        event_dispatch(&mem_ws);
+        */
+
+    //this is bad and should feel bad
+    unsigned int first_byte = (RPC_MESSAGE(RPC_TYPE_RAM) << 24) +
+                              (0 << 16) + 2;
+    // end mildly dirty hacks
+
+    errval_t err;
+    do {
+        DBG(DETAILED, "calling lmp_chan_send3 in rpc_ram_send_handler\n");
+        // Check if sender is currently busy
+        // TODO: could we implement some kind of buffer for this?
+        err = lmp_chan_send3(&chan->chan, LMP_FLAG_SYNC, NULL_CAP, first_byte,
+                             size, align);
+    } while (err == LIB_ERR_CHAN_ALREADY_REGISTERED);
+    if (!err_is_ok(err))
+        debug_printf("tried to send ram request, ran into issue: %s\n",
+                     err_getstring(err));
+
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    while(!err_is_ok(lmp_chan_recv(&chan->chan, &msg, retcap)));
+
+    *ret_size = msg.words[2];
+
+
+//now back to normal
+    if(print)
+        debug_printf("aos_rpc_ram9\n");
 
 
     DBG(DETAILED, "rpc_get_ram_cap done\n");
@@ -600,7 +647,6 @@ static void mem_server_setup_recv(void *arg1, struct recv_list *data)
     bool *done = (bool *) uargs[1];
     *done = true;
 }
-
 static void complete_mem_server_setup(void)
 {
     struct capref retcap;
@@ -609,8 +655,7 @@ static void complete_mem_server_setup(void)
     mem_chan = malloc(sizeof(struct aos_rpc));
 
     CHECK(lmp_chan_accept(&mem_chan->chan, DEFAULT_LMP_BUF_WORDS, retcap));
-
-    struct waitset *ws = get_default_waitset();
+    waitset_init(&mem_ws);
 
     bool done = false;
 
@@ -618,20 +663,20 @@ static void complete_mem_server_setup(void)
     sendargs[0] = (uintptr_t) mem_chan;
     sendargs[1] = (uintptr_t) &done;
     lmp_chan_alloc_recv_slot(&mem_chan->chan);
-    lmp_chan_register_recv(&mem_chan->chan, ws,
+    lmp_chan_register_recv(&mem_chan->chan, &mem_ws,
                            MKCLOSURE((void *) mem_server_setup_recv, sendargs));
 
     errval_t err = lmp_chan_register_send(
-        &mem_chan->chan, ws, MKCLOSURE((void *) mem_server_setup_send, sendargs));
+        &mem_chan->chan, &mem_ws, MKCLOSURE((void *) mem_server_setup_send, sendargs));
     while (err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
-        CHECK(event_dispatch(ws));
+        CHECK(event_dispatch(&mem_ws));
         err = lmp_chan_register_send(
-            &mem_chan->chan, ws, MKCLOSURE((void *) mem_server_setup_send, sendargs));
+            &mem_chan->chan, &mem_ws, MKCLOSURE((void *) mem_server_setup_send, sendargs));
     }
     CHECK(err);
 
     while (!done)
-        event_dispatch(ws);
+        event_dispatch(&mem_ws);
 
     mem_chan->init = true;
     mem_chan->id = 911;
