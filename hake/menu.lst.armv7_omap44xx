@@ -26,6 +26,10 @@ module /armv7/sbin/turtleback
 # the network
 module /armv7/sbin/network
 module /armv7/sbin/udp_echo
+# the nameserver
+module /armv7/sbin/nameserver
+# a small util to show the nameserver off
+module /armv7/sbin/nameserver_util
 
 # For pandaboard, use following values.
 mmap map 0x40000000 0x40000000 13 # Devices

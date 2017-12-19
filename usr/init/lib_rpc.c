@@ -12,6 +12,12 @@
 #include "../tests/test.h"
 
 struct lmp_chan init_chan;
+struct capref nameserver_cap;
+bool nameserver_cap_set = false;
+
+bool nameserver_online(void) {
+    return nameserver_cap_set;
+}
 
 /// Try to find the correct domain identified by cap.
 static struct domain *find_domain(struct capref *cap)
@@ -64,7 +70,6 @@ static errval_t ram_recv_handler(struct recv_list *data, struct lmp_chan *chan)
     DBG(DETAILED, "sent ram response\n");
     return SYS_ERR_OK;
 }
-
 static errval_t spawn_recv_handler(struct recv_list *data,
                                    struct lmp_chan *chan)
 {
@@ -106,7 +111,7 @@ static errval_t spawn_recv_handler(struct recv_list *data,
 
     DBG(DETAILED, "receive spawn request: name: %s, core %d\n", name,
         core);
-    DBG(DETAILED, "spawninfo: %s size %u\n", (char *) data->payload,
+    DBG(-1, "spawninfo: %s size %u\n", (char *) data->payload,
         data->size);
 
     // Check if we are on the right core, else send cross core request.
@@ -116,7 +121,7 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         recv_name[last_occurence] = '_';
 
         // Have to send cross core request.
-        DBG(DETAILED, "spawn %s on other core\n", name);
+        DBG(-1, "spawn %s on other core\n", name);
         DBG(DETAILED, "spawninfo: %s size %u\n", (char *) data->payload,
             data->size);
 
@@ -153,8 +158,9 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
+    debug_printf("malloced si");
     err = spawn_load_by_name(name, si);
-
+    debug_printf("spawned new process");
     // Preregister the process we just spawned.
     // This will create the process but the process does not know its PID yet
     // and we don't have a rpc channel.
@@ -464,6 +470,19 @@ void recv_deal_with_msg(struct recv_list *data)
     case RPC_MESSAGE(RPC_TYPE_PROCESS_AWAIT_COMPL):
         CHECK(process_await_completion_recv_handler(data, chan));
         break;
+    case RPC_MESSAGE(RPC_TYPE_REGISTER_AS_NAMESERVER):
+        if(nameserver_cap_set)
+            DBG(ERR, "Already set nameserver cap");
+        nameserver_cap_set = true;
+        nameserver_cap = data->cap;
+            send_response(data,chan,NULL_CAP,0,NULL);
+        break;
+    case RPC_MESSAGE(RPC_TYPE_GET_NAME_SERVER):
+        if(!nameserver_cap_set) {
+            DBG(ERR, "something tried to get the name server before it was set");
+        }
+        send_response(data,chan,nameserver_cap,0,NULL);
+        break;
     default:
         DBG(WARN, "Unable to handle RPC-receipt, expect badness! type: %u\n",
             (unsigned int) data->type);
@@ -532,4 +551,5 @@ void init_rpc(void)
 {
     // Create channel to receive child eps.
     init_rpc_server(recv_handshake_handler, &init_chan);
+    CHECK(cap_copy(cap_initep, init_chan.local_cap));
 }
