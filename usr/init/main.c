@@ -91,9 +91,6 @@ int main(int argc, char *argv[])
 
     CHECK(procman_init());
 
-
-
-
     // Initialize the terminal driver.
     terminal_init(my_core_id);
     debug_printf("t driver online\n");
@@ -102,51 +99,28 @@ int main(int argc, char *argv[])
         // Initialize the master URPC server (aka core 0).
         urpc_master_init_and_run(buf);
 
-        /*
-#ifndef PERF_MEASUREMENT
-*/
-#ifndef NDTESTS
-        struct tester t;
-        init_testing(&t);
-        register_memory_tests(&t);
-        register_spawn_tests(&t);
-        tests_run(&t);
-#endif
-        /*
-#endif
-        procman_print_proc_list();
-
-#ifdef PERF_MEASUREMENT
-        for (int i = 1; i > 0; --i) {
-            int *payload = malloc(1024 * 10 * i);
-            *payload = i * 10 * 1024;
-            debug_printf("payload: %d\n", *payload);
-            urpc_perf_measurement((void *) payload);
-        }
-        free(payload);
-#endif
-*/
-        if (my_core_id == 0) {
-            struct spawninfo *si_ns =
-                    (struct spawninfo *) malloc(sizeof(struct spawninfo));
-            spawn_load_by_name("nameserver",si_ns);
-            debug_printf("spawned ns\n");
+        struct spawninfo *si_ns =
+                (struct spawninfo *) malloc(sizeof(struct spawninfo));
+        spawn_load_by_name("nameserver",si_ns);
+        debug_printf("spawned ns\n");
         while(!nameserver_online()) event_dispatch(get_default_waitset());
-            debug_printf("received nameserver registration\n");
-        }
+        debug_printf("received nameserver registration\n");
         // Spawn the TurtleBack Shell.
         struct spawninfo *si = malloc(sizeof(struct spawninfo));
         CHECK(spawn_load_by_name("turtleback", si));
         debug_printf("turtleback online\n");
     } else {
         // Register ourselves as a slave server on the URPC master server.
+        debug_printf("pre this\n");
         urpc_slave_init_and_run();
+        debug_printf("post this and pre that\n");
 
         // Wait until we have received the URPC telling us to initialiize our
         // ram allocator and have done so successfully.
         while (!urpc_ram_is_initalized())
             ;
 
+        debug_printf("post that\n");
         // Register ourselves (init on core 1) with the process manager.
         procman_register_process("init", 1, NULL);
     }

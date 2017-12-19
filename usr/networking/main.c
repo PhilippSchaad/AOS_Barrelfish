@@ -24,6 +24,7 @@
 #include "slip.h"
 #include "udp.h"
 #include <aos/domain_network_interface.h>
+#include <nameserver.h>
 
 // message buffer
 static struct net_msg_buf message_buffer;
@@ -67,7 +68,9 @@ static void message_handler(void* payload, size_t bytes){
                 default:
                     printf("Protocol %d not supported\n", transfer_message->protocol);
             }
-        break;
+            break;
+        default:
+            break;
     }
 }
 
@@ -117,6 +120,23 @@ int main(int argc, char *argv[])
 
     // init message handler
     rpc_register_process_message_handler(aos_rpc_get_init_channel(), message_handler);
+
+    // register at the nameserver
+    struct nameserver_info nsi;
+    struct lmp_chan recv_chan;
+    //struct nameserver_properties props;
+    //char result[6];
+    //props.prop_name="pid";
+    //sprintf(result, "%u", disp_get_domain_id());
+    //props.prop_attr=result;
+    //nsi.props = &props;
+    nsi.name = "Network";
+    nsi.type = "Network";
+    nsi.nsp_count = 0;
+    nsi.coreid = disp_get_core_id();
+    init_rpc_server(NULL,&recv_chan);
+    nsi.chan_cap = recv_chan.local_cap;
+    CHECK(register_service(&nsi));
 
     // Hang around
     struct waitset *default_ws = get_default_waitset();

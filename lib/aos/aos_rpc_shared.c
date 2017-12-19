@@ -317,9 +317,6 @@ errval_t send_response(struct recv_list *rl, struct lmp_chan *chan,
 errval_t forward_message(struct recv_list *rl, struct lmp_chan *chan,
                        struct capref cap, size_t payloadsize, void *payload)
 {
-    // ACKs should not generate ACKs
-    assert((rl->type & 0x1) == 0);
-
     // add the id to the data
     // round to 32 bit
     // ( we are assuming here that the id is smaller than an int)
@@ -352,7 +349,6 @@ void recv_handling(void *args)
     struct recv_chan *rc = (struct recv_chan *) args;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;
-    //free(malloc(sizeof(struct recv_list)));
 
     lmp_chan_recv(rc->chan, &msg, &cap);
     if (!capref_is_null(cap)) {
@@ -370,6 +366,7 @@ void recv_handling(void *args)
     size_t size = msg.words[0] & 0xFFFF;
     DBG(DETAILED, "Received message with: type 0x%x %s id %u and size %u\n", type >> 1, type & 1 ? "ACK" : "", id, size);
 
+    //debug_printf("receive with size: %d\n", size);
     if (size < 9) // fast path for small messages
     {
         struct recv_list rl;

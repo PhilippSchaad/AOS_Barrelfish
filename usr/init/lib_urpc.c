@@ -45,7 +45,7 @@ enum urpc_state { non_initalized = 0, needs_to_be_read, available };
 
 struct urpc_bootinfo_package {
     struct bootinfo boot_info;
-    struct mem_region regions[10];
+    struct mem_region regions[20];
     genpaddr_t mmstrings_base;
     gensize_t mmstrings_size;
 };
@@ -412,7 +412,7 @@ static struct urpc2_data send_init_mem_alloc_func(void *data)
 {
     struct bootinfo *p_bi = (struct bootinfo *) data;
 
-    assert(p_bi->regions_length <= 10);
+    assert(p_bi->regions_length <= 20);
 
     struct urpc_bootinfo_package *urpc_bootinfo =
         malloc(sizeof(struct urpc_bootinfo_package));
