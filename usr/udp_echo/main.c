@@ -18,10 +18,12 @@
 #include <aos/aos.h>
 #include <aos/domain_network_interface.h>
 #include <aos/aos_rpc.h>
+#include <nameserver.h>
 
 static domainid_t network_pid;
 static coreid_t network_coreid;
 static uint16_t my_port;
+
 
 static void message_handler(void* payload, size_t bytes){
     struct network_message_transfer_message* message = payload;
@@ -44,13 +46,27 @@ int main(int argc, char *argv[])
 {
     // TODO: check args
     // TODO: remove all args except port
-    if(argc != 4){
-        printf("Usage: udp_echo network-pid network-core port\n");
+    if(argc != 3){
+        printf("Usage: udp_echo network-pid port\n");
         return EXIT_FAILURE;
     }
+
+    struct nameserver_query nsq;
+    nsq.tag = nsq_name;
+    nsq.name = "Network";
+    struct nameserver_info *nsi;
+    CHECK(lookup(&nsq,&nsi));
+    if(nsi != NULL) {
+        //printf("NSI with core id %u, pid %u, and propcount %d\n", nsi->coreid, strtoul(nsi->props->prop_attr, NULL, 0), nsi->nsp_count);
+    }else{
+        printf("Nameserver did not know the network\n");
+        return EXIT_FAILURE;
+    }
+
+
     network_pid = strtoul(argv[1], NULL, 0);
-    network_coreid = strtoul(argv[2], NULL, 0);
-    my_port = strtoul(argv[3], NULL, 0);
+    network_coreid = nsi->coreid;
+    my_port = strtoul(argv[2], NULL, 0);
 
 
     // init message handler
