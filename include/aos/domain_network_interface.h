@@ -12,7 +12,7 @@
 #define MY_IP (10<<24) + (0<<16) + (3<<8) + 1
 
 // TODO: change this
-#define MAX_PACKET_PAYLOAD 100
+#define MAX_PACKET_PAYLOAD 6300
 
 // message types that can be sent to the network driver
 typedef enum network_control_message_type {
