@@ -110,10 +110,19 @@ static void pagefault_handler(enum exception_type type, int subtype,
 {
     thread_mutex_lock(&mutex);
     struct paging_state *st = get_current_paging_state();
+    struct dispatcher_generic *disp_gen = get_dispatcher_generic(curdispatcher());
+    struct thread *thread = disp_gen->current;
+
+    //and in the darkest of hells this hack was born, so that it may once and for all slay the forces of scheduling
+    struct thread *next = thread->next;
+    thread->next = thread;
+    //end of the first act
 
     lvaddr_t vaddr = (lvaddr_t) addr;
-    if(!strcmp("network",disp_name()))
-        debug_printf("vaddr: %p\n",addr);
+    if(!strcmp("turtleback",disp_name())) {
+        print_oh_print = true;
+        debug_printf("vaddr: %p\n", addr);
+    }
 
     // Do some checks
     if (vaddr == 0x0) {
@@ -127,13 +136,10 @@ static void pagefault_handler(enum exception_type type, int subtype,
         DBG(ERR, "Tried to alloc something in kernel space. IP is %p\n", registers_get_ip(regs));
         thread_exit(1);
     }
-    if(0x2856fd8 == (unsigned int)addr) {
-        print_oh_print = true;
+    if(print_oh_print) {
         debug_printf("hi1\n");
     }
 
-    struct dispatcher_generic *disp_gen = get_dispatcher_generic(curdispatcher()); 
-    struct thread *thread = disp_gen->current;
     // warn on stack overflow.
     lvaddr_t sp = (lvaddr_t) registers_get_sp(regs);
     if (sp < (lvaddr_t)thread->stack ||
@@ -144,7 +150,7 @@ static void pagefault_handler(enum exception_type type, int subtype,
         thread_exit(1);
     }
 
-    if(0x2856fd8 == (unsigned int)addr)
+    if(print_oh_print)
         debug_printf("hi2\n");
 
 
@@ -156,18 +162,21 @@ static void pagefault_handler(enum exception_type type, int subtype,
 
     struct capref frame;
     size_t retsize;
-    if(0x2856fd8 == (unsigned int)addr)
+    if(print_oh_print)
         debug_printf("hi3\n");
 
     CHECK(the_taste_of_sadness(&frame, BASE_PAGE_SIZE, &retsize)); //frame_alloc call
-    if(0x2856fd8 == (unsigned int)addr)
+    if(print_oh_print)
         debug_printf("hi4\n");
     CHECK(paging_map_fixed_attr(st, vaddr, frame, retsize,
                                 VREGION_FLAGS_READ_WRITE));
-    if(0x2856fd8 == (unsigned int)addr) {
+    if(print_oh_print) {
         print_oh_print = false;
         debug_printf("hi5\n");
     }
+    //and in the second act we restore what was once taken
+    thread->next = next;
+    //end of the second act
     thread_mutex_unlock(&mutex);
 }
 
