@@ -114,6 +114,8 @@ static errval_t send_loop(void *args)
                 rpc_send_queue.fst = rpc_send_queue.fst->next;
 
                 if (rpc_type_min_id[sq->type] == sq->id) {
+                    DBG(VERBOSE,"cleanup on type %u id %u\n",(
+                    unsigned int)sq->type,(unsigned int)sq->id);
                     // TODO: make proper
                     rpc_type_min_id[sq->type] =
                         (rpc_type_min_id[sq->type] + 1) % 256;
@@ -133,7 +135,7 @@ static errval_t send_loop(void *args)
                     ((struct send_queue *) rpc_send_queue.fst->data)->chan,
                     get_default_waitset(),
                     MKCLOSURE((void *) send_loop, rpc_send_queue.fst->data)));
-//                debug_printf("hi from hell\n");
+//                debug_printf("hi from hell2\n");
                 CHECK(event_dispatch(get_default_waitset()));
             }
             return SYS_ERR_OK;
@@ -212,6 +214,8 @@ static struct recv_list *rpc_recv_lookup(struct recv_list *head,
                                          unsigned char type, unsigned char id)
 {
     while (head != NULL) {
+        if(type == 11)
+            debug_printf("found type %u with id %u\n",(unsigned int)head->type,(unsigned int)id);
         if (head->type == type && head->id == id)
             return head;
         head = head->next;
@@ -315,23 +319,17 @@ static int refill_nono = 0;
 // TODO: error handling
 void recv_handling(void *args)
 {
+    free(malloc(100));
     refill_nono++;
     struct recv_chan *rc = (struct recv_chan *) args;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;
 
     lmp_chan_recv(rc->chan, &msg, &cap);
-    //    if(cap != NULL_CAP) // TODO: figure out if this if check would be a
-    //    good idea or not when properly implemented
-    //    -> you mean, to ensure that ram RPCs send a cap, for example? not all
-    //    rpcs need to send caps.
-    //    we should consider freeing the slot again when not used anymore.
-    // if we receive an NULL_CAP, delete it again.
-    if (capref_is_null(cap)) {
-        cap_destroy(cap);
+    if (!capref_is_null(cap)) {
+        //we logically only need to realloc, if we received a cap
+        lmp_chan_alloc_recv_slot(rc->chan);
     }
-
-    lmp_chan_alloc_recv_slot(rc->chan);
     CHECK(lmp_chan_register_recv(rc->chan, get_default_waitset(),
                            MKCLOSURE(recv_handling, args)));
     slot_alloc_refill_preallocated_slots_conditional(refill_nono);
@@ -341,7 +339,7 @@ void recv_handling(void *args)
     unsigned char type = msg.words[0] >> 24;
     unsigned char id = (msg.words[0] >> 16) & 0xFF;
     size_t size = msg.words[0] & 0xFFFF;
-    DBG(DETAILED, "Received message with: type 0x%x id %u\n", type >> 1, id);
+    DBG(DETAILED, "Received message with: type 0x%x %s id %u and size %u\n", type >> 1, type & 1 ? "ACK" : "", id, size);
 
     if (size < 9) // fast path for small messages
     {
@@ -356,31 +354,35 @@ void recv_handling(void *args)
         rl.chan = rc->chan;
         rc->recv_deal_with_msg(&rl);
     } else {
-        struct recv_list *rl = rpc_recv_lookup(rc->rpc_recv_list, type, id);
-        if (rl == NULL) {
-            rl = malloc(sizeof(struct recv_list));
-            rl->payload = malloc(size * 4);
-            rl->size = size;
-            rl->id = id;
-            rl->type = type;
-            rl->cap = cap;
-            rl->index = 0;
-            rl->chan = rc->chan;
-            rl->next = rc->rpc_recv_list;
-            rc->rpc_recv_list = rl;
-        }
-        size_t rem = rl->size - rl->index;
-        size_t count = (rem > 8 ? 8 : rem);
-        memcpy(&rl->payload[rl->index], &msg.words[1], count * 4);
-        rl->index += count;
-        assert(rl->index <= rl->size);
-        if (rl->index == rl->size) {
-            // done transferring this msg, we can now do whatever we should do
-            // with this
-            rpc_recv_list_remove(&rc->rpc_recv_list, rl);
-            rc->recv_deal_with_msg(rl);
-            free(rl->payload);
-            free(rl);
+        //todo: give it its own mutex instead of using the send_queue's mutex
+        synchronized(rpc_send_queue.thread_mutex) {
+            struct recv_list *rl = rpc_recv_lookup(rc->rpc_recv_list, type, id);
+            if (rl == NULL) {
+                rl = malloc(sizeof(struct recv_list));
+                rl->payload = malloc(size * 4);
+                rl->size = size;
+                rl->id = id;
+                rl->type = type;
+                rl->cap = cap;
+                rl->index = 0;
+                rl->chan = rc->chan;
+                rl->next = rc->rpc_recv_list;
+                rc->rpc_recv_list = rl;
+            }
+            size_t rem = rl->size - rl->index;
+            size_t count = (rem > 8 ? 8 : rem);
+            memcpy(&rl->payload[rl->index], &msg.words[1], count * 4);
+            rl->index += count;
+            assert(rl->index <= rl->size);
+            if (rl->index == rl->size) {
+                // done transferring this msg, we can now do whatever we should do
+                // with this
+                rpc_recv_list_remove(&rc->rpc_recv_list, rl);
+                DBG(VERBOSE, "call long msg handler\n");
+                rc->recv_deal_with_msg(rl);
+                free(rl->payload);
+                free(rl);
+            }
         }
     }
     refill_nono--;
