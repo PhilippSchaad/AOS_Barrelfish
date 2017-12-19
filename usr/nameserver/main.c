@@ -45,7 +45,7 @@ static void dump_ns(void) {
         struct linked_list_of_nsi *llnsi = p->services;
         while(llnsi != NULL) {
             char *ser = serialize_nameserver_info(p->services->entry);
-            debug_printf("        %s\n",&ser[8]);
+            debug_printf("        '%s'\n",&ser[8]);
             free(ser);
             llnsi = llnsi->next;
         }
@@ -99,7 +99,7 @@ static bool eval_query(struct nameserver_query *nsq, struct nameserver_info *nsi
 }
 
 static errval_t find_service(struct capref requester_cap, struct nameserver_query* query, bool remove, struct nameserver_info **result) {
-    //todo: rich query language, for now name only
+    //todo: rich query language, for now name or tag only
     struct process *prev = NULL;
     struct process *cur = ns.processes;
     while(cur != NULL) {
@@ -150,6 +150,20 @@ static errval_t find_service(struct capref requester_cap, struct nameserver_quer
 static errval_t add_service(struct capref requester_cap, struct nameserver_info *entry) {
     struct process *prev = NULL;
     struct process *cur = ns.processes;
+    //begin: check to prevent double registration
+    struct linked_list_of_nsi* cur2 = cur->services;
+    while(cur != NULL) {
+        while (cur2 != NULL) {
+            if (strcmp(cur2->entry->name, entry->name) == 0) {
+                DBG(WARN, "entry already exists\n");
+                return 314; //todo: replace with proper error msg
+            }
+            cur2 = cur2->next;
+        }
+        cur = cur->next;
+    }
+    //end:  check to prevent double registration
+    cur = ns.processes;
     while(cur != NULL) {
         if(cap_compare(&cur->remote_cap,&requester_cap))
             break;
@@ -165,16 +179,6 @@ static errval_t add_service(struct capref requester_cap, struct nameserver_info 
         cur->remote_cap = requester_cap;
         cur->services = NULL;
     }
-    //begin: check to prevent double registration
-    struct linked_list_of_nsi* cur2 = cur->services;
-    while(cur2 != NULL) {
-        if(cur2->entry->name == entry->name) {
-            DBG(WARN,"entry already exists\n");
-            return 314; //todo: replace with proper error msg
-        }
-        cur2 = cur2->next;
-    }
-    //end:  check to prevent double registration
 
     cur2 = malloc(sizeof(struct linked_list_of_nsi));
     cur2->entry = entry;
@@ -227,9 +231,27 @@ static void ns_register_service_handler(struct recv_list *data) {
     }
     DBG(VERBOSE,"validated!\n");
     //todo: real error handling
-    CHECK(add_service(data->chan->remote_cap,ns_info));
-    DBG(VERBOSE,"added!\n");
+    errval_t err = add_service(data->chan->remote_cap,ns_info);
+    if(err != 314)
+        DBG(VERBOSE,"added!\n");
     send_response(data,data->chan,NULL_CAP,0,NULL);
+}
+
+static void ns_deregister_handler(struct recv_list *data) {
+    struct nameserver_query nsq;
+    nsq.tag = nsq_name;
+    nsq.name = (char*)data->payload;
+    struct nameserver_info *nsi;
+    find_service(data->chan->remote_cap,&nsq,true,&nsi);
+    uintptr_t k;
+    if(nsi != NULL) {
+        DBG(VERBOSE,"sending response with success\n");
+        k = 1;
+    }else{
+        DBG(VERBOSE,"sending response without success\n");
+        k = 0;
+    }
+    send_response(data, data->chan, nsi->chan_cap,1,&k);
 }
 
 static void ns_lookup_handler(struct recv_list *data) {
@@ -244,8 +266,10 @@ static void ns_lookup_handler(struct recv_list *data) {
         size_t outsize;
         debug_printf("sending response with success\n");
         convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[8])+9,&out,&outsize);
+        debug_printf("size %u, msg '%s'\n",outsize,(char*)(&out[2]));
         free(ser);
         send_response(data, data->chan, nsi->chan_cap,outsize,out);
+        debug_printf("done\n");
         free(out);
     }else{
         DBG(VERBOSE,"sending response without success\n");
@@ -255,7 +279,7 @@ static void ns_lookup_handler(struct recv_list *data) {
 
 static void ns_active_chan_handler(struct recv_list *data) {
     DBG(VERBOSE,"post handshake msg\n");
-//    dump_ns();
+    dump_ns();
     bool res;
     switch(data->type) {
         case RPC_MESSAGE(NS_RPC_TYPE_REMOVE_SELF):
@@ -265,6 +289,9 @@ static void ns_active_chan_handler(struct recv_list *data) {
         case RPC_MESSAGE(NS_RPC_TYPE_REGISTER_SERVICE):
             ns_register_service_handler(data);
             break;
+        case RPC_MESSAGE(NS_RPC_TYPE_DEREGISTER_SERVICE):
+            ns_deregister_handler(data);
+            break;
         case RPC_MESSAGE(NS_RPC_TYPE_LOOKUP):
             ns_lookup_handler(data);
             break;
@@ -273,7 +300,7 @@ static void ns_active_chan_handler(struct recv_list *data) {
         default:
             break;
     }
-//    dump_ns();
+    dump_ns();
 }
 
 static errval_t ns_recv_handshake(struct capref *recv_cap) {

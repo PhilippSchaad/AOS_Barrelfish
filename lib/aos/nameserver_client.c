@@ -67,7 +67,7 @@ rpc_framework(void (*inst_recv_handling)(void *arg1, struct recv_list *data),
 
 static void ns_rpc_recv_handler(struct recv_list *data)
 {
-    DBG(VERBOSE,"ns_rpc_recv_handler\n");
+    DBG(-1,"ns_rpc_recv_handler\n");
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
@@ -152,11 +152,11 @@ errval_t register_service(struct nameserver_info *nsi) {
     if(!nameserver_connection.init)
         handshake_with_ns();
     char* ser = serialize_nameserver_info(nsi);
-    DBG(VERBOSE,"before sending: %s",&ser[8]);
+    DBG(-1,"before sending: %s\n",&ser[8]);
     uintptr_t *out;
     size_t outsize;
     convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[8])+9,&out,&outsize);
-    DBG(VERBOSE,"before sending2: %s",(char*)&out[2]);
+    DBG(-1,"before sending2: %s\n",(char*)&out[2]);
     free(ser);
     DBG(VERBOSE,"print cap: slot %u, level %u, cnode %u, croot %u\n",(unsigned int)nsi->chan_cap.slot,(
             unsigned int) nsi->chan_cap.cnode.level, (unsigned int) nsi->chan_cap.cnode.cnode, (unsigned int) nsi->chan_cap.cnode.croot);
@@ -164,6 +164,7 @@ errval_t register_service(struct nameserver_info *nsi) {
     //todo: error handling
     rpc_framework(NULL,NULL,NS_RPC_TYPE_REGISTER_SERVICE,&nameserver_connection.chan,nsi->chan_cap,outsize,out,NULL_EVENT_CLOSURE);
     free(out);
+    DBG(-1,"sent register request\n");
     return SYS_ERR_OK;
 }
 errval_t deregister(char* name) {
@@ -196,6 +197,7 @@ errval_t lookup(struct nameserver_query* nsq, struct nameserver_info** result) {
     free(ser);
     rpc_framework(lookup_recv_handler,result,NS_RPC_TYPE_LOOKUP,&nameserver_connection.chan,NULL_CAP,outsize,out,NULL_EVENT_CLOSURE);
     free(out);
+    debug_printf("received answer\n");
     return SYS_ERR_OK;
 }
 errval_t enumerate(struct nameserver_query* nsq, size_t *num, struct nameserver_info** result) { //all hits
