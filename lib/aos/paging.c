@@ -115,15 +115,17 @@ static void pagefault_handler(enum exception_type type, int subtype,
 
     //and in the darkest of hells this hack was born, so that it may once and for all slay the forces of scheduling
     struct thread *next = thread->next;
+    struct thread *prev = thread->prev;
     thread->next = thread;
+    thread->prev = thread;
     //end of the first act
 
     lvaddr_t vaddr = (lvaddr_t) addr;
-    if(!strcmp("turtleback",disp_name())) {
+/*    if(!strcmp("turtleback",disp_name())) {
         print_oh_print = true;
         debug_printf("vaddr: %p\n", addr);
     }
-
+*/
     // Do some checks
     if (vaddr == 0x0) {
         thread_mutex_unlock(&mutex);
@@ -176,6 +178,7 @@ static void pagefault_handler(enum exception_type type, int subtype,
     }
     //and in the second act we restore what was once taken
     thread->next = next;
+    thread->prev = prev;
     //end of the second act
     thread_mutex_unlock(&mutex);
 }
