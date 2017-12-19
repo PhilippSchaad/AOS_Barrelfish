@@ -26,6 +26,7 @@ module /armv7/sbin/turtleback
 # the network
 module /armv7/sbin/network
 module /armv7/sbin/udp_echo
+module /armv7/sbin/udp_terminal
 
 # the nameserver
 module /armv7/sbin/nameserver

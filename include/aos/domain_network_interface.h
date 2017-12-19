@@ -19,13 +19,14 @@ typedef enum network_control_message_type {
     NETWORK_REGISTER_PORT,
     NETWORK_DEREGISTER_PORT,
     NETWORK_TRANSFER_MESSAGE,
+    NETWORK_PRINT_MESSAGE,
 } network_control_message_t;
 
 errval_t network_register_port(uint16_t port, uint16_t protocol, domainid_t network_pid, coreid_t network_core);
 errval_t network_message_transfer(uint16_t from_port, uint16_t to_port, uint32_t from, uint32_t to, uint16_t protocol, uint8_t* payload, size_t size, domainid_t network_pid, coreid_t network_core);
 
 
-
+// IMPORTANT: all message types need the first part to be the message type
 // the following are structs that faciliate the message passing
 struct network_register_deregister_port_message{
     network_control_message_t message_type;
@@ -46,4 +47,9 @@ struct network_message_transfer_message{
     uint8_t payload[MAX_PACKET_PAYLOAD];
 };
 
+struct network_print_message{
+    network_control_message_t message_type;
+    size_t payload_size;
+    uint8_t payload[200];
+};
 #endif

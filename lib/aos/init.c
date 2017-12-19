@@ -26,9 +26,12 @@
 #include <barrelfish_kpi/domain_params.h>
 #include "threads_priv.h"
 #include "init.h"
+#include <aos/domain_network_interface.h>
 
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
+static bool network_terminal_domain;
+static uint16_t terminal_domain = 0;
 static struct aos_rpc init_rpc;
 
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
@@ -91,7 +94,14 @@ static size_t terminal_write(const char *buf, size_t len)
         if (init_domain) {
             // If we are the init domain, write via syscall.
             sys_print(buf, len);
-        } else {
+        } else if(network_terminal_domain){
+            // domain belonging to a network terminal report back to the network
+            struct network_print_message message;
+            message.message_type = NETWORK_PRINT_MESSAGE;
+            message.payload_size = len + 1;
+            snprintf((char*) message.payload, len+1, "%s\0", buf);
+            CHECK(aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), terminal_domain, disp_get_core_id(), &message, sizeof(struct network_print_message) - 200 + len));
+        }else {
             // If we are NOT init, write via rpc -> init.
             char *buf_cpy = malloc((len + 1) * sizeof(char));
             snprintf(buf_cpy, len + 1, "%s\0", buf);
@@ -148,6 +158,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         extern char **environ;
         environ = params->envp;
     }
+
     // Init default waitset for this dispatcher
     struct waitset *default_ws = get_default_waitset();
     waitset_init(default_ws);
@@ -185,6 +196,14 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Register ourselves with init
     aos_rpc_init(&init_rpc);
     ram_alloc_set(NULL);
+
+    // check if we run from the network terminal
+    if(params->argc != 1 && strcmp(params->argv[params->argc-1],"terminalized") == 0){
+        --params->argc;
+        // get the port
+        terminal_domain = strtoul(params->argv[--params->argc], NULL, 0);
+        network_terminal_domain = true;
+    }
 
     // Register ourselves in the process manager.
     DBG(VERBOSE, "We're gonna register ourself with the procman now\n");
