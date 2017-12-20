@@ -75,9 +75,11 @@ int main(int argc, char *argv[])
                 printf("Could not find any processes with query: %s\n",nsq.name);
             }
 
-        } else if(0 == strcmp(argv[i],"enumerate_simple")) {
+        } else if(0 == strcmp(argv[i],"enumerate_complex")) {
+        } else if(0 == strcmp(argv[i],"dump")) {
+            ns_debug_dump();
         } else {
-            printf("unknown command, known are: remove_self, register, lookup, enumerate, enumerate_simple\n");
+            printf("unknown command, known are: remove_self, register, deregister, lookup, enumerate, enumerate_complex\n");
         }
     }
 }

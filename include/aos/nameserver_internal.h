@@ -12,6 +12,7 @@
 #define NS_RPC_TYPE_LOOKUP              0x5
 #define NS_RPC_TYPE_ENUMERATE           0x6
 #define NS_RPC_TYPE_ENUMERATE_COMPLEX    0x7
+#define NS_RPC_TYPE_DEBUG_DUMP          0x8
 
 char* serialize_nameserver_prop(struct nameserver_properties* ns_p);
 errval_t deserialize_nameserver_prop(char* input, struct nameserver_properties** ns_p_out, int* str_consumed);
@@ -22,5 +23,6 @@ char* serialize_nameserver_info(struct nameserver_info* ns_i);
 errval_t deserialize_nameserver_info(char* input, struct nameserver_info** ns_i_out);
 
 void set_ns_cap(struct capref cap); //allows shortcircuiting the setup process a bit if we already have the nameserver cap
+void ns_debug_dump(void);
 
 #endif //NAMESERVER_INTERNAL_H

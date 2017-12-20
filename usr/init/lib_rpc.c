@@ -112,7 +112,7 @@ static errval_t spawn_recv_handler(struct recv_list *data,
 
     DBG(DETAILED, "receive spawn request: name: %s, core %d\n", name,
         core);
-    DBG(-1, "spawninfo: %s size %u\n", (char *) data->payload,
+    DBG(DETAILED, "spawninfo: %s size %u\n", (char *) data->payload,
         data->size);
 
     // Check if we are on the right core, else send cross core request.
@@ -159,9 +159,9 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
-    debug_printf("malloced si");
+    DBG(VERBOSE,"malloced si\n");
     err = spawn_load_by_name(name, si);
-    debug_printf("spawned new process");
+    DBG(VERBOSE,"spawned new process\n");
     // Preregister the process we just spawned.
     // This will create the process but the process does not know its PID yet
     // and we don't have a rpc channel.
@@ -342,7 +342,6 @@ static void register_things_with_nameserver(void)
     //      serial manager
     //      argueably, init.
     //      we also have the proxy service which can send messages from one core to another and to any particular process
-    debug_printf("here\n");
     set_ns_cap(nameserver_cap);
     struct nameserver_info nsi;
     nsi.name = "memserv";
@@ -372,7 +371,6 @@ static void register_things_with_nameserver(void)
     nsi.name = "proxyserv";
     nsi.type = "Proxy";
     register_service(&nsi);
-    debug_printf("there\n");
 }
 
 

@@ -8,9 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#undef DEBUG_LEVEL
+/*#undef DEBUG_LEVEL
 #define DEBUG_LEVEL 100
-
+*/
 //We have a series of services that we want the nameserver to handle...
 //base system services:
 //      memserv
@@ -237,7 +237,7 @@ static bool ns_remove_self_handler(struct capref requester_cap) {
 
 static void ns_register_service_handler(struct recv_list *data) {
     struct nameserver_info *ns_info;
-    DBG(-1,"adding service...\n");
+    DBG(DETAILED,"adding service...\n");
     DBG(VERBOSE,"received: %s\n",(char*)&data->payload[2]);
     CHECK(deserialize_nameserver_info((char*)data->payload,&ns_info));
     DBG(VERBOSE,"deserialized!\n");
@@ -282,12 +282,12 @@ static void ns_lookup_handler(struct recv_list *data) {
         char *ser = serialize_nameserver_info(nsi);
         uintptr_t *out;
         size_t outsize;
-        debug_printf("sending response with success\n");
+        DBG(VERBOSE,"sending response with success\n");
         convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[8])+9,&out,&outsize);
-        debug_printf("size %u, msg '%s'\n",outsize,(char*)(&out[2]));
+        DBG(VERBOSE,"size %u, msg '%s'\n",outsize,(char*)(&out[2]));
         free(ser);
         send_response(data, data->chan, nsi->chan_cap,outsize,out);
-        debug_printf("done\n");
+        DBG(VERBOSE,"done\n");
         free(out);
     }else{
         DBG(VERBOSE,"sending response without success\n");
@@ -318,7 +318,7 @@ static void ns_lookup_enumerate(struct recv_list *data) {
         return;
     }
     int k = 0;
-    debug_printf("strlength %d, enum_count %d\n",strlength,enum_count);
+    DBG(VERBOSE,"strlength %d, enum_count %d\n",strlength,enum_count);
     char* str = malloc(strlength+enum_count);
     char* curstr = str;
     cur = ns.processes;
@@ -342,10 +342,10 @@ static void ns_lookup_enumerate(struct recv_list *data) {
     uintptr_t *out;
     size_t outsize;
     convert_charptr_to_uintptr_with_padding_and_copy(str,strlength+enum_count,&out,&outsize);
-    debug_printf("size %u, msg '%s'\n",outsize,(char*)(out));
+    DBG(VERBOSE,"size %u, msg '%s'\n",outsize,(char*)(out));
     free(str);
     send_response(data, data->chan, NULL_CAP,outsize,out);
-    debug_printf("done\n");
+    DBG(VERBOSE,"done\n");
     free(out);
 }
 
@@ -371,6 +371,11 @@ static void ns_active_chan_handler(struct recv_list *data) {
             ns_lookup_enumerate(data);
             break;
         case RPC_MESSAGE(NS_RPC_TYPE_ENUMERATE_COMPLEX):
+            break;
+        case RPC_MESSAGE(NS_RPC_TYPE_DEBUG_DUMP):
+            dump_ns();
+            send_response(data,data->chan,NULL_CAP,0,NULL);
+            break;
         default:
             break;
     }

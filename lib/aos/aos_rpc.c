@@ -192,7 +192,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     // non-mallocing send call, which we dospecialcased atm
     thread_mutex_lock_nested(&chan->mutex);
     bool print = false;
-    if(!strcmp("network",disp_name()))
+    if(false && !strcmp("network",disp_name()))
         print=true;
 //    if(print)
 //        debug_printf("aos_rpc_ram1\n");

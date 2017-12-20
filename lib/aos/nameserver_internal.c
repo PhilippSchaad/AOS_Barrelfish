@@ -63,7 +63,6 @@ errval_t deserialize_nameserver_prop(char* input, struct nameserver_properties**
     return SYS_ERR_OK;
 }
 
-//todo: fix hacks when implementing proper queries
 char* serialize_nameserver_query(struct nameserver_query* ns_q) {
     size_t len = 0;
     switch(ns_q->tag) {
@@ -87,8 +86,8 @@ char* serialize_nameserver_query(struct nameserver_query* ns_q) {
             break;
     }
     res2[len] = '\0';
-    debug_printf(res2);
-    debug_printf("%u\n",(unsigned int) sizeof(enum nameserver_query_tag));
+    DBG(VERBOSE,"query ser: '%s'\n",res2);
+//    debug_printf("%u\n",(unsigned int) sizeof(enum nameserver_query_tag));
     return res;
 }
 errval_t deserialize_nameserver_query(char* input, struct nameserver_query** ns_q_out) {
@@ -99,7 +98,7 @@ errval_t deserialize_nameserver_query(char* input, struct nameserver_query** ns_
     char *str = malloc(len+1);
     strcpy(str,input);
     str[len] = '\0';
-    debug_printf(str);
+    DBG(VERBOSE,"query core string des: '%s'\n",str);
     switch((*ns_q_out)->tag) {
         case nsq_name:
             (*ns_q_out)->name = str;
@@ -122,7 +121,7 @@ char* serialize_nameserver_info(struct nameserver_info* ns_i) {
     for(int i = 0; i < ns_i->nsp_count; i++) {
         serialized_props[i] = serialize_nameserver_prop(&ns_i->props[i]);
         proplens += strlen(serialized_props[i]);
-        debug_printf(serialized_props[i]);
+        DBG(VERBOSE,"prop ser: '%s'\n",serialized_props[i]);
     }
     size_t otherlen = sizeof(unsigned int)+sizeof(int)+1+1+2+2+1;
     char *res = malloc(namelen+typelen+proplens+otherlen+1);

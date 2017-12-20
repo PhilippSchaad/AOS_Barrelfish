@@ -67,7 +67,7 @@ rpc_framework(void (*inst_recv_handling)(void *arg1, struct recv_list *data),
 
 static void ns_rpc_recv_handler(struct recv_list *data)
 {
-    DBG(-1,"ns_rpc_recv_handler, raw type %u, id %u\n",(unsigned int)data->type,(unsigned int)data->id);
+    DBG(VERBOSE,"ns_rpc_recv_handler, raw type %u, id %u\n",(unsigned int)data->type,(unsigned int)data->id);
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
@@ -126,7 +126,7 @@ static void ns_rpc_recv_handler(struct recv_list *data)
 
 
 static void ns_handshake_recv_handler(void* arg1,struct recv_list*data) {
-    debug_printf("ns_handshake_recv_handler\n");
+    DBG(VERBOSE,"ns_handshake_recv_handler\n");
     nameserver_connection.chan.remote_cap = data->cap;
 }
 
@@ -141,19 +141,15 @@ static void handshake_with_ns(void) {
     thread_mutex_init(&ns_rpc_mutex);
     if(!ns_cap_set)
         CHECK(aos_rpc_get_nameserver(get_init_rpc(), &ns_cap));
-    debug_printf("b\n");
-    debug_printf("print ns_cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) ns_cap.slot, (
+    DBG(VERBOSE,"print ns_cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) ns_cap.slot, (
                          unsigned int) ns_cap.cnode.level, (unsigned int) ns_cap.cnode.cnode,
                  (unsigned int) ns_cap.cnode.croot);
     init_rpc_client(ns_rpc_recv_handler,&nameserver_connection.chan,ns_cap);
-    debug_printf("c\n");
     rpc_framework(ns_handshake_recv_handler,&nameserver_connection.chan.remote_cap,NS_RPC_TYPE_HANDSHAKE,&nameserver_connection.chan,nameserver_connection.chan.local_cap,0,NULL,NULL_EVENT_CLOSURE);
-    debug_printf("print remote_cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) nameserver_connection.chan.remote_cap.slot, (
+    DBG(VERBOSE,"print remote_cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) nameserver_connection.chan.remote_cap.slot, (
                          unsigned int) nameserver_connection.chan.remote_cap.cnode.level, (unsigned int) nameserver_connection.chan.remote_cap.cnode.cnode,
                  (unsigned int) nameserver_connection.chan.remote_cap.cnode.croot);
-    debug_printf("d\n");
     nameserver_connection.init = true;
-    debug_printf("e\n");
     thread_yield();
 }
 
@@ -168,20 +164,20 @@ errval_t register_service(struct nameserver_info *nsi) {
     if(!nameserver_connection.init)
         handshake_with_ns();
     char* ser = serialize_nameserver_info(nsi);
-    DBG(-1,"before sending: %s\n",&ser[8]);
+    DBG(VERBOSE,"before sending: %s\n",&ser[8]);
     uintptr_t *out;
     size_t outsize;
     convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[8])+9,&out,&outsize);
-    DBG(-1,"before sending2: %s\n",(char*)&out[2]);
+    DBG(VERBOSE,"before sending2: %s\n",(char*)&out[2]);
     free(ser);
     DBG(VERBOSE,"print cap: slot %u, level %u, cnode %u, croot %u\n",(unsigned int)nsi->chan_cap.slot,(
             unsigned int) nsi->chan_cap.cnode.level, (unsigned int) nsi->chan_cap.cnode.cnode, (unsigned int) nsi->chan_cap.cnode.croot);
 
     //todo: error handling
     rpc_framework(NULL,NULL,NS_RPC_TYPE_REGISTER_SERVICE,&nameserver_connection.chan,nsi->chan_cap,outsize,out,NULL_EVENT_CLOSURE);
-    DBG(-1,"request was '%s' (skipping first 2 unprintable ints) of length %u",(char*)&out[2],outsize);
+    DBG(VERBOSE,"request was '%s' (skipping first 2 unprintable ints) of length %u",(char*)&out[2],outsize);
     free(out);
-    DBG(-1,"sent register request\n");
+    DBG(DETAILED,"sent register request\n");
     return SYS_ERR_OK;
 }
 errval_t deregister(char* name) {
@@ -214,12 +210,10 @@ errval_t lookup(struct nameserver_query* nsq, struct nameserver_info** result) {
     free(ser);
     rpc_framework(lookup_recv_handler,result,NS_RPC_TYPE_LOOKUP,&nameserver_connection.chan,NULL_CAP,outsize,out,NULL_EVENT_CLOSURE);
     free(out);
-    debug_printf("received answer\n");
     return SYS_ERR_OK;
 }
 
 static void enumerate_recv_handler(void*arg1, struct recv_list*data) {
-    debug_printf("hi str recv: '%s'\n",(char*)&data->payload[1]);
     char***res = (char***)arg1;
     if(data->size <= 1) {
         *res = 0;
@@ -233,28 +227,22 @@ static void enumerate_recv_handler(void*arg1, struct recv_list*data) {
             count++;
         pl2++;
     }
-    debug_printf("hi2 count %d\n",count);
     char**arr = malloc(sizeof(char*)*(count+1));
-    debug_printf("hi2.1 count %d\n",count);
     pl2 = pl;
-    debug_printf("pl2 %s\n",pl2);
     int index = 0;
     char* temp;
     while(*pl2 != '\0') {
         if(*pl2 == ',') {
             size_t strlen = pl2-pl;
-            debug_printf("hi2.25 ind %p .. %p size %u\n",pl,pl2,strlen+1);
             temp = malloc(strlen+1);
             memcpy(temp,pl,strlen);
             temp[strlen] = '\0';
             arr[index] = temp;
             index++;
             pl = pl2+1;
-            debug_printf("hi2.50\n");
         }
         pl2++;
     }
-    debug_printf("hi2.75\n");
     size_t strlen = pl2-pl;
     temp = malloc(strlen+1);
     memcpy(temp,pl,strlen);
@@ -264,7 +252,6 @@ static void enumerate_recv_handler(void*arg1, struct recv_list*data) {
     *res = arr;
     index++;
     arr[index] = 0;
-    debug_printf("hi3 index %d\n",index);
 }
 
 errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result) { //all hits
@@ -276,7 +263,6 @@ errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result) { 
     convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[4])+5,&out,&outsize);
     free(ser);
     rpc_framework(enumerate_recv_handler,result,NS_RPC_TYPE_ENUMERATE,&nameserver_connection.chan,NULL_CAP,outsize,out,NULL_EVENT_CLOSURE);
-    debug_printf("enum\n");
     char** temp = *result;
     *num = 0;
     if(temp != NULL) {
@@ -285,9 +271,7 @@ errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result) { 
             temp++;
         }
     }
-    debug_printf("enum2\n");
     free(out);
-    debug_printf("received answer\n");
 
     return SYS_ERR_OK;
 }
@@ -295,4 +279,10 @@ errval_t enumerate_complex(struct nameserver_query* nsq, size_t *num, struct nam
     if(!nameserver_connection.init)
         handshake_with_ns();
     return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+void ns_debug_dump(void) {
+    if(!nameserver_connection.init)
+        handshake_with_ns();
+    rpc_framework(NULL,NULL,NS_RPC_TYPE_DEBUG_DUMP,&nameserver_connection.chan,NULL_CAP,0,NULL,NULL_EVENT_CLOSURE);
 }
