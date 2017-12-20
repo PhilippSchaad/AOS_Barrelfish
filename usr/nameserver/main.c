@@ -351,7 +351,7 @@ static void ns_lookup_enumerate(struct recv_list *data) {
 
 static void ns_active_chan_handler(struct recv_list *data) {
     DBG(VERBOSE,"post handshake msg\n");
-    dump_ns();
+    //dump_ns();
     bool res;
     switch(data->type) {
         case RPC_MESSAGE(NS_RPC_TYPE_REMOVE_SELF):
@@ -374,7 +374,7 @@ static void ns_active_chan_handler(struct recv_list *data) {
         default:
             break;
     }
-    dump_ns();
+    //dump_ns();
 }
 
 static errval_t ns_recv_handshake(struct capref *recv_cap) {

@@ -349,7 +349,7 @@ static void register_things_with_nameserver(void)
     nsi.type = "Memory";
     nsi.chan_cap = init_chan.local_cap;
     nsi.coreid = disp_get_core_id();
-    nsi.nsp_count = 1;
+    nsi.nsp_count = 2;
     struct nameserver_properties nsparr[2];
     struct nameserver_properties nsp1;
     nsp1.prop_name = "IsCoreExclusive";
@@ -360,7 +360,9 @@ static void register_things_with_nameserver(void)
     nsparr[0] = nsp1;
     nsparr[1] = nsp2;
     nsi.props = nsparr;
+    thread_yield();
     register_service(&nsi);
+    thread_yield();
     nsi.name = "procman";
     nsi.type = "Processes";
     register_service(&nsi);
