@@ -41,7 +41,7 @@ struct linked_list_of_nsi {
 };
 
 struct process {
-    struct capref remote_cap;
+    struct lmp_chan *connection_chan; //used as ID
     struct linked_list_of_nsi* services;
     struct process *next;
 };
@@ -72,7 +72,7 @@ static void dump_ns(void) {
     }
     debug_printf("===== END OF NAMESERVER CONTENT =====\n");
 }
-
+__unused
 static bool cap_compare(struct capref *c1, struct capref *c2) {
     if(c1 == NULL || c2 == NULL)
         return c1 == c2;
@@ -116,7 +116,50 @@ static bool eval_query(struct nameserver_query *nsq, struct nameserver_info *nsi
     return false;
 }
 
-static errval_t find_service(struct capref requester_cap, struct nameserver_query* query, bool remove, struct nameserver_info **result) {
+static void free_entry(struct nameserver_info *nsi) {
+    free(nsi->name);
+    free(nsi->type);
+    for(int i = 0; i < nsi->nsp_count; i++) {
+        free(nsi->props[i].prop_name);
+        free(nsi->props[i].prop_attr);
+    }
+    if(nsi->nsp_count > 0)
+        free(nsi->props);
+    free(nsi);
+}
+
+static void kill_dead_services(void) {
+    struct process *prev = NULL;
+    struct process *cur = ns.processes;
+    while(cur != NULL) {
+        if (cur->connection_chan->connstate == LMP_DISCONNECTED) {
+            debug_printf("Dead process found, removing!\n");
+            struct linked_list_of_nsi *prev2 = NULL;
+            struct linked_list_of_nsi *cur2 = cur->services;
+            while (cur2 != NULL) {
+                free_entry(cur2->entry);
+                prev2 = cur2;
+                cur2 = cur2->next;
+                free(prev2);
+            }
+            struct process *temp = cur;
+            if(prev != NULL) {
+                prev->next = cur->next;
+                cur = cur->next;
+            }else{
+                ns.processes = cur->next;
+                cur = cur->next;
+            }
+            free(temp);
+        }else{
+            prev = cur;
+            cur = cur->next;
+        }
+    }
+}
+
+
+static errval_t find_service(struct lmp_chan *requester_chan, struct nameserver_query* query, bool remove, struct nameserver_info **result) {
     //todo: rich query language, for now name or tag only
     struct process *prev = NULL;
     struct process *cur = ns.processes;
@@ -128,7 +171,7 @@ static errval_t find_service(struct capref requester_cap, struct nameserver_quer
             if(eval_query(query,cur2->entry)) {
                 *result = cur2->entry;
                 if(remove) {
-                    if(!cap_compare(&cur->remote_cap,&requester_cap)) {
+                    if(cur->connection_chan != requester_chan) {
                         DBG(WARN, "tried to delete someone elses service\n");
                         return 315; //Todo: turn into proper error message that one is trying to delete something one's not allowed to
                     }
@@ -165,7 +208,7 @@ static errval_t find_service(struct capref requester_cap, struct nameserver_quer
 
 }
 
-static errval_t add_service(struct capref requester_cap, struct nameserver_info *entry) {
+static errval_t add_service(struct lmp_chan *requester_chan, struct nameserver_info *entry) {
     struct process *prev = NULL;
     struct process *cur = ns.processes;
     //begin: check to prevent double registration
@@ -183,7 +226,7 @@ static errval_t add_service(struct capref requester_cap, struct nameserver_info 
     //end:  check to prevent double registration
     cur = ns.processes;
     while(cur != NULL) {
-        if(cap_compare(&cur->remote_cap,&requester_cap))
+        if(cur->connection_chan == requester_chan)
             break;
         prev = cur;
         cur = cur->next;
@@ -194,7 +237,7 @@ static errval_t add_service(struct capref requester_cap, struct nameserver_info 
         if(prev != NULL)
             cur->next = ns.processes;
         ns.processes = cur;
-        cur->remote_cap = requester_cap;
+        cur->connection_chan = requester_chan;
         cur->services = NULL;
     }
 
@@ -207,12 +250,12 @@ static errval_t add_service(struct capref requester_cap, struct nameserver_info 
 }
 
 //return true if successful, false otherwise
-static bool ns_remove_self_handler(struct capref requester_cap) {
+static bool ns_remove_self_handler(struct lmp_chan *requester_chan) {
     DBG(VERBOSE,"process wants to remove itself\n");
     struct process *prev = NULL;
     struct process *cur = ns.processes;
     while(cur != NULL) {
-        if(cap_compare(&cur->remote_cap,&requester_cap))
+        if(cur->connection_chan != requester_chan)
             break;
         prev = cur;
         cur = cur->next;
@@ -249,7 +292,7 @@ static void ns_register_service_handler(struct recv_list *data) {
     }
     DBG(VERBOSE,"validated!\n");
     //todo: real error handling
-    errval_t err = add_service(data->chan->remote_cap,ns_info);
+    errval_t err = add_service(data->chan,ns_info);
     if(err != 314)
         DBG(VERBOSE,"added!\n");
     send_response(data,data->chan,NULL_CAP,0,NULL);
@@ -260,7 +303,7 @@ static void ns_deregister_handler(struct recv_list *data) {
     nsq.tag = nsq_name;
     nsq.name = (char*)data->payload;
     struct nameserver_info *nsi;
-    find_service(data->chan->remote_cap,&nsq,true,&nsi);
+    find_service(data->chan,&nsq,true,&nsi);
     uintptr_t k;
     if(nsi != NULL) {
         DBG(VERBOSE,"sending response with success\n");
@@ -277,7 +320,7 @@ static void ns_lookup_handler(struct recv_list *data) {
     DBG(VERBOSE,"received: %s\n",(char*)data->payload);
     CHECK(deserialize_nameserver_query((char*)data->payload,&nsq));
     struct nameserver_info *nsi;
-    find_service(data->chan->remote_cap,nsq,false,&nsi);
+    find_service(data->chan,nsq,false,&nsi);
     if(nsi != NULL) {
         char *ser = serialize_nameserver_info(nsi);
         uintptr_t *out;
@@ -351,11 +394,12 @@ static void ns_lookup_enumerate(struct recv_list *data) {
 
 static void ns_active_chan_handler(struct recv_list *data) {
     DBG(VERBOSE,"post handshake msg\n");
+    kill_dead_services();
     //dump_ns();
     bool res;
     switch(data->type) {
         case RPC_MESSAGE(NS_RPC_TYPE_REMOVE_SELF):
-            res = !ns_remove_self_handler(data->chan->remote_cap);
+            res = !ns_remove_self_handler(data->chan);
             send_response(data,data->chan,NULL_CAP,1,&res);
             break;
         case RPC_MESSAGE(NS_RPC_TYPE_REGISTER_SERVICE):
