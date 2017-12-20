@@ -113,13 +113,13 @@ static void pagefault_handler(enum exception_type type, int subtype,
     struct dispatcher_generic *disp_gen = get_dispatcher_generic(curdispatcher());
     struct thread *thread = disp_gen->current;
 
-    //and in the darkest of hells this hack was born, so that it may once and for all slay the forces of scheduling
+/*    //and in the darkest of hells this hack was born, so that it may once and for all slay the forces of scheduling
     struct thread *next = thread->next;
     struct thread *prev = thread->prev;
     thread->next = thread;
     thread->prev = thread;
     //end of the first act
-
+*/
     lvaddr_t vaddr = (lvaddr_t) addr;
 /*    if(!strcmp("turtleback",disp_name())) {
         print_oh_print = true;
@@ -176,11 +176,11 @@ static void pagefault_handler(enum exception_type type, int subtype,
         print_oh_print = false;
         debug_printf("hi5\n");
     }
-    //and in the second act we restore what was once taken
+/*    //and in the second act we restore what was once taken
     thread->next = next;
     thread->prev = prev;
     //end of the second act
-    thread_mutex_unlock(&mutex);
+*/    thread_mutex_unlock(&mutex);
 }
 
 /**
@@ -614,18 +614,18 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                                struct capref frame, size_t bytes, int flags)
 {
    if(!strcmp("network",disp_name()))
-        DBG(-1, "st %u fixed alloc: vaddr: %p, bytes: 0x%x \n",
+        DBG(DETAILED, "st %u fixed alloc: vaddr: %p, bytes: 0x%x \n",
         st->debug_paging_state_index, vaddr, bytes);
 
     // Iterate over the L2 page tables and map the memory.
     size_t mapped_bytes = 0;
     if (slab_freecount(&st->slab_alloc) == 0) {
-        DBG(-1, "triggering special slab refill\n");
+        DBG(DETAILED, "triggering special slab refill\n");
         struct capref slabframe;
         st->slot_alloc->alloc(st->slot_alloc, &slabframe);
         DBG(DETAILED, "first hurdle made\n");
         slab_refill_no_pagefault(&st->slab_alloc, slabframe, BASE_PAGE_SIZE);
-        DBG(-1, "second hurdle made\n");
+        DBG(DETAILED, "second hurdle made\n");
     }
 
     struct paging_used_node *mappings =
