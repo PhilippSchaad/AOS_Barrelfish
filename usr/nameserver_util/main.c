@@ -59,6 +59,22 @@ int main(int argc, char *argv[])
                 printf("Could not find process with query: %s\n",nsq.name);
             }
         } else if(0 == strcmp(argv[i],"enumerate")) {
+            struct nameserver_query nsq;
+            nsq.tag = nsq_name;
+            nsq.name = "FlatHierarchy";
+            char** res;
+            size_t num;
+            CHECK(enumerate(&nsq,&num,&res));
+            if(res != NULL) {
+                debug_printf("enumerate found: \n");
+                for(size_t j = 0; j < num; j++) {
+                    debug_printf("    %s\n",res[j]);
+                }
+                debug_printf("end of enumeration\n");
+            }else{
+                printf("Could not find any processes with query: %s\n",nsq.name);
+            }
+
         } else if(0 == strcmp(argv[i],"enumerate_simple")) {
         } else {
             printf("unknown command, known are: remove_self, register, lookup, enumerate, enumerate_simple\n");

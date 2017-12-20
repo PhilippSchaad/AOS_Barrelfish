@@ -277,6 +277,60 @@ static void ns_lookup_handler(struct recv_list *data) {
     }
 }
 
+static void ns_lookup_enumerate(struct recv_list *data) {
+    struct nameserver_query *nsq;
+    DBG(VERBOSE,"received: %s\n",(char*)data->payload);
+    CHECK(deserialize_nameserver_query((char*)data->payload,&nsq));
+    struct process *cur = ns.processes;
+    int enum_count = 0;
+    int strlength = 0;
+    while(cur != NULL) {
+        struct linked_list_of_nsi *cur2 = cur->services;
+        while (cur2 != NULL) {
+            if (eval_query(nsq, cur2->entry)) {
+                enum_count++;
+                strlength += strlen(cur2->entry->name);
+            }
+            cur2 = cur2->next;
+        }
+        cur = cur->next;
+    }
+    if(enum_count == 0) {
+        send_response(data,data->chan,NULL_CAP,0,NULL);
+        return;
+    }
+    int k = 0;
+    debug_printf("strlength %d, enum_count %d\n",strlength,enum_count);
+    char* str = malloc(strlength+enum_count);
+    char* curstr = str;
+    cur = ns.processes;
+    while(cur != NULL) {
+        struct linked_list_of_nsi *cur2 = cur->services;
+        while (cur2 != NULL) {
+            if (eval_query(nsq, cur2->entry)) {
+                strcpy(curstr,cur2->entry->name);
+                curstr += strlen(cur2->entry->name);
+                k++;
+                if(k < enum_count) {
+                    *curstr = ',';
+                    curstr++;
+                }else
+                    *curstr = '\0';
+            }
+            cur2 = cur2->next;
+        }
+        cur = cur->next;
+    }
+    uintptr_t *out;
+    size_t outsize;
+    convert_charptr_to_uintptr_with_padding_and_copy(str,strlength+enum_count,&out,&outsize);
+    debug_printf("size %u, msg '%s'\n",outsize,(char*)(out));
+    free(str);
+    send_response(data, data->chan, NULL_CAP,outsize,out);
+    debug_printf("done\n");
+    free(out);
+}
+
 static void ns_active_chan_handler(struct recv_list *data) {
     DBG(VERBOSE,"post handshake msg\n");
     dump_ns();
@@ -296,7 +350,9 @@ static void ns_active_chan_handler(struct recv_list *data) {
             ns_lookup_handler(data);
             break;
         case RPC_MESSAGE(NS_RPC_TYPE_ENUMERATE):
-        case RPC_MESSAGE(NS_RPC_TYPE_ENUMERATE_SIMPLE):
+            ns_lookup_enumerate(data);
+            break;
+        case RPC_MESSAGE(NS_RPC_TYPE_ENUMERATE_COMPLEX):
         default:
             break;
     }

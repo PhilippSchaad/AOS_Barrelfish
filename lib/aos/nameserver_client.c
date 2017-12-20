@@ -200,13 +200,80 @@ errval_t lookup(struct nameserver_query* nsq, struct nameserver_info** result) {
     debug_printf("received answer\n");
     return SYS_ERR_OK;
 }
-errval_t enumerate(struct nameserver_query* nsq, size_t *num, struct nameserver_info** result) { //all hits
+
+static void enumerate_recv_handler(void*arg1, struct recv_list*data) {
+    debug_printf("hi str recv: '%s'\n",(char*)&data->payload[1]);
+    char***res = (char***)arg1;
+    if(data->size <= 1) {
+        *res = 0;
+        return;
+    }
+    char* pl = (char*)&data->payload[1];//skipping first byte of reply
+    char* pl2 = pl;
+    int count = 1;
+    while(*pl2 != '\0') {
+        if(*pl2 == ',')
+            count++;
+        pl2++;
+    }
+    debug_printf("hi2 count %d\n",count);
+    char**arr = malloc(sizeof(char*)*(count+1));
+    debug_printf("hi2.1 count %d\n",count);
+    pl2 = pl;
+    debug_printf("pl2 %s\n",pl2);
+    int index = 0;
+    char* temp;
+    while(*pl2 != '\0') {
+        if(*pl2 == ',') {
+            size_t strlen = pl2-pl;
+            debug_printf("hi2.25 ind %p .. %p size %u\n",pl,pl2,strlen+1);
+            temp = malloc(strlen+1);
+            memcpy(temp,pl,strlen);
+            temp[strlen] = '\0';
+            arr[index] = temp;
+            index++;
+            pl = pl2+1;
+            debug_printf("hi2.50\n");
+        }
+        pl2++;
+    }
+    debug_printf("hi2.75\n");
+    size_t strlen = pl2-pl;
+    temp = malloc(strlen+1);
+    memcpy(temp,pl,strlen);
+    temp[strlen] = '\0';
+    arr[index] = temp;
+    debug_printf(arr[0]);
+    *res = arr;
+    index++;
+    arr[index] = 0;
+    debug_printf("hi3 index %d\n",index);
+}
+
+errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result) { //all hits
     if(!nameserver_connection.init)
         handshake_with_ns();
+    char *ser = serialize_nameserver_query(nsq);
+    uintptr_t *out;
+    size_t outsize;
+    convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[4])+5,&out,&outsize);
+    free(ser);
+    rpc_framework(enumerate_recv_handler,result,NS_RPC_TYPE_ENUMERATE,&nameserver_connection.chan,NULL_CAP,outsize,out,NULL_EVENT_CLOSURE);
+    debug_printf("enum\n");
+    char** temp = *result;
+    *num = 0;
+    while(*temp != NULL){
+        (*num)++;
+        temp++;
+    }
+    debug_printf("enum2\n");
+    free(out);
+    debug_printf("received answer\n");
+
     return SYS_ERR_OK;
 }
-errval_t enumerate_simple(struct nameserver_query* nsq, size_t *num, char** result_names) { //all hits, names only
+errval_t enumerate_complex(struct nameserver_query* nsq, size_t *num, struct nameserver_info** result) { //all hits, names only
     if(!nameserver_connection.init)
         handshake_with_ns();
-    return SYS_ERR_OK;
+    return LIB_ERR_NOT_IMPLEMENTED;
 }

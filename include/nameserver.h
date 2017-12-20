@@ -32,8 +32,8 @@ extern errval_t remove_self(void); //convenience function which removes all serv
 extern errval_t register_service(struct nameserver_info *nsi);
 extern errval_t deregister(char* name);
 extern errval_t lookup(struct nameserver_query* nsq, struct nameserver_info** result); //first fit
-extern errval_t enumerate(struct nameserver_query* nsq, size_t *num, struct nameserver_info** result); //all hits
-extern errval_t enumerate_simple(struct nameserver_query* nsq, size_t *num, char** result_names); //all hits, names only
+extern errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result); //all hits, names only
+extern errval_t enumerate_complex(struct nameserver_query* nsq, size_t *num, struct nameserver_info** result); //all hits
 
 
 #endif //NAMESERVER_H
