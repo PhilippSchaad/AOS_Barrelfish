@@ -83,15 +83,40 @@ static errval_t send_loop(void *args)
         actual_sending(sq->chan, cap, first_byte,
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);
     if (err_is_fail(err)) {
-        debug_printf("send loop error: %s\n",err_getstring(err));
-        debug_printf("print cap: slot %u, level %u, cnode %u, croot %u\n",(unsigned int)sq->cap.slot,(
-                unsigned int) sq->cap.cnode.level, (unsigned int) sq->cap.cnode.cnode, (unsigned int) sq->cap.cnode.croot);
-
-        // Reregister if failed.
-        CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
-                                     MKCLOSURE((void *) send_loop, args)));
+        if(true || !lmp_err_is_transient(err)) {
+            debug_printf("send loop error: %s\n", err_getstring(err));
+            debug_printf("print cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) sq->cap.slot, (
+                                 unsigned int) sq->cap.cnode.level, (unsigned int) sq->cap.cnode.cnode,
+                         (unsigned int) sq->cap.cnode.croot);
+            debug_printf("sq info: raw type %u, id %u, index %u, size %u\n",(unsigned int)sq->type,(unsigned int)sq->id,(unsigned int)sq->index,(unsigned int)sq->size);
+            debug_printf("sq chan info: connstate %u, has remote cap %u\n",(unsigned int)sq->chan->connstate,(
+            unsigned int)(sq->chan->remote_cap.cnode.croot != 0));
+            if(sq->type == 6) {
+                debug_printf("sending string, msg is: %s\n",(char*)&(sq->payload[2]));
+            }
+            //assert(!"we don't deal well with non-transient errors yet, please consider fixing - adding a callback to call in case of non-transient send error appears to me to be the most appropriate way to fix this\n");
+        }
+        if(false){}else {
+            //we tried and in a transient way
+            void *sq_new = args;
+            synchronized(rpc_send_queue.thread_mutex) {
+                    assert(rpc_send_queue.fst->data == args);
+                    //If something else is waiting we try that one first, so we don't eternally block on dead things.
+                    //todo: consider the removal of things that fail transiently but keep failing transiently. This should probably be done via callback as well
+                    if(rpc_send_queue.fst->next != NULL) {
+                        struct generic_queue* rsq = rpc_send_queue.fst;
+                        rpc_send_queue.fst = rsq->next;
+                        sq_new = rsq->next->data;
+                        rpc_send_queue.last->next = rsq;
+                        rsq->next = NULL;
+                    }
+                }
+            // Reregister if failed.
+            CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
+                                         MKCLOSURE((void *) send_loop, sq_new)));
+                   }
 //        debug_printf("hi from hell\n");
-        CHECK(event_dispatch(get_default_waitset()));
+//        CHECK(event_dispatch(get_default_waitset()));
     } else {
         if (remaining > 8) {
             // we still have data to send, so we adjust and resend
@@ -99,7 +124,7 @@ static errval_t send_loop(void *args)
             CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
                                          MKCLOSURE((void *) send_loop, args)));
 //            debug_printf("hi from hell\n");
-            CHECK(event_dispatch(get_default_waitset()));
+//            CHECK(event_dispatch(get_default_waitset()));
         } else {
             if (sq->callback_when_done.handler != NULL)
                 sq->callback_when_done.handler(sq->callback_when_done.arg);
@@ -136,7 +161,7 @@ static errval_t send_loop(void *args)
                     get_default_waitset(),
                     MKCLOSURE((void *) send_loop, rpc_send_queue.fst->data)));
 //                debug_printf("hi from hell2\n");
-                CHECK(event_dispatch(get_default_waitset()));
+//                CHECK(event_dispatch(get_default_waitset()));
             }
             return SYS_ERR_OK;
         }

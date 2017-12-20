@@ -11,6 +11,24 @@
 #undef DEBUG_LEVEL
 #define DEBUG_LEVEL 100
 
+//We have a series of services that we want the nameserver to handle...
+//base system services:
+//      memserv
+//      procman
+//      serial manager
+//      argueably, init.
+//      we also have the proxy service which can send messages from one core to another and to any particular process
+//      thus we want to register all of these with the nameserver (even though they are all currently running as part of the init process itself)
+//          -> if I find the time I might split off memserv and procman from init just to have something nicer to demonstrate (also more modular approach is in the spirit of this anyway)
+//      we could also be cute and say that the nameserver itself counts.
+//
+//      also since our system is mostly partitioned across two cores and has very very limited crosscore capabilities still (and none in regards to actual sending caps across cores)
+//          and our RPC and URPC systems are sadly not unified in a way that would allow seamless crosscore transmitting
+//          and most importantly, memserv is necessarily core specific due to the cap sending limitation
+//          we will just run two instances of the nameserver
+//              -> If the time is found, they can be made to talk with each other to synchronize their state for those things that should be available core-independently
+//                  For this they can make use of the proxy service. Possibly extending it into a full on proper proxy which provides proxied channels across cores.
+
 struct doubly_linked_list_of_nsi {
     struct nameserver_info entry;
     struct doubly_linked_list_of_nsi *next;
@@ -44,7 +62,7 @@ static void dump_ns(void) {
         debug_printf("    process arbitrarily labelled %u\n",i);
         struct linked_list_of_nsi *llnsi = p->services;
         while(llnsi != NULL) {
-            char *ser = serialize_nameserver_info(p->services->entry);
+            char *ser = serialize_nameserver_info(llnsi->entry);
             debug_printf("        '%s'\n",&ser[8]);
             free(ser);
             llnsi = llnsi->next;
@@ -219,7 +237,7 @@ static bool ns_remove_self_handler(struct capref requester_cap) {
 
 static void ns_register_service_handler(struct recv_list *data) {
     struct nameserver_info *ns_info;
-    DBG(DETAILED,"adding service...\n");
+    DBG(-1,"adding service...\n");
     DBG(VERBOSE,"received: %s\n",(char*)&data->payload[2]);
     CHECK(deserialize_nameserver_info((char*)data->payload,&ns_info));
     DBG(VERBOSE,"deserialized!\n");

@@ -10,6 +10,7 @@
 #include <lib_terminal.h>
 
 #include "../tests/test.h"
+#include <aos/nameserver_internal.h>
 
 struct lmp_chan init_chan;
 struct capref nameserver_cap;
@@ -331,6 +332,47 @@ static void handle_run_testsuite(void)
     register_spawn_tests(&t);
     tests_run(&t);
 }
+#include <aos/aos_rpc.h>
+static void register_things_with_nameserver(void)
+{
+    //currently part of init:
+
+    //      memserv
+    //      procman
+    //      serial manager
+    //      argueably, init.
+    //      we also have the proxy service which can send messages from one core to another and to any particular process
+    debug_printf("here\n");
+    set_ns_cap(nameserver_cap);
+    struct nameserver_info nsi;
+    nsi.name = "memserv";
+    nsi.type = "Memory";
+    nsi.chan_cap = init_chan.local_cap;
+    nsi.coreid = disp_get_core_id();
+    nsi.nsp_count = 1;
+    struct nameserver_properties nsparr[2];
+    struct nameserver_properties nsp1;
+    nsp1.prop_name = "IsCoreExclusive";
+    nsp1.prop_attr = "True";
+    struct nameserver_properties nsp2;
+    nsp2.prop_name = "IsSystemService";
+    nsp2.prop_attr = "True";
+    nsparr[0] = nsp1;
+    nsparr[1] = nsp2;
+    nsi.props = nsparr;
+    register_service(&nsi);
+    nsi.name = "procman";
+    nsi.type = "Processes";
+    register_service(&nsi);
+    nsi.name = "serialman";
+    nsi.type = "Serial Console";
+    register_service(&nsi);
+    nsi.name = "proxyserv";
+    nsi.type = "Proxy";
+    register_service(&nsi);
+    debug_printf("there\n");
+}
+
 
 void recv_deal_with_msg(struct recv_list *data)
 {
@@ -475,7 +517,8 @@ void recv_deal_with_msg(struct recv_list *data)
             DBG(ERR, "Already set nameserver cap");
         nameserver_cap_set = true;
         nameserver_cap = data->cap;
-            send_response(data,chan,NULL_CAP,0,NULL);
+        send_response(data,chan,NULL_CAP,0,NULL);
+        register_things_with_nameserver();
         break;
     case RPC_MESSAGE(RPC_TYPE_GET_NAME_SERVER):
         if(!nameserver_cap_set) {

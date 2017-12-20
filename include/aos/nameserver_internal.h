@@ -21,4 +21,6 @@ errval_t deserialize_nameserver_query(char* input, struct nameserver_query** ns_
 char* serialize_nameserver_info(struct nameserver_info* ns_i);
 errval_t deserialize_nameserver_info(char* input, struct nameserver_info** ns_i_out);
 
+void set_ns_cap(struct capref cap); //allows shortcircuiting the setup process a bit if we already have the nameserver cap
+
 #endif //NAMESERVER_INTERNAL_H

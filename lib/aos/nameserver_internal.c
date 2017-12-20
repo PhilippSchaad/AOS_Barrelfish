@@ -8,6 +8,9 @@
 
 
 char* serialize_nameserver_prop(struct nameserver_properties* ns_p) {
+    assert(ns_p != NULL);
+    assert(ns_p->prop_name != NULL);
+    assert(ns_p->prop_attr != NULL);
     size_t len1 = strlen(ns_p->prop_name);
     size_t len = len1;
     len+=strlen(ns_p->prop_attr);
@@ -22,19 +25,25 @@ char* serialize_nameserver_prop(struct nameserver_properties* ns_p) {
     return res;
 }
 errval_t deserialize_nameserver_prop(char* input, struct nameserver_properties** ns_p_out, int* str_consumed) {
+    debug_printf("des_ns_prop input: '%s'\n",input);
     char* org_input = input;
     *ns_p_out = malloc(sizeof(struct nameserver_properties));
-    if(*input != '{')
+    if(*input != '{') {
+        assert(!"encoding error");
         return -1; //todo: real error
+    }
     input++;
     char* input2 = input;
     size_t len = 0;
     while(*input2 != ':') {
-        if(*input2 == '}' || *input2 == '{')
+        if(*input2 == '}' || *input2 == '{') {
+            assert(!"another encoding error");
             return -1; //todo: real error
+        }
         len++;
         input2++;
     }
+    debug_printf("prop_name len: %u\n",len);
     (*ns_p_out)->prop_name = malloc(len+1);
     strncpy((*ns_p_out)->prop_name,input,len);
     (*ns_p_out)->prop_name[len] = '\0';
@@ -45,6 +54,7 @@ errval_t deserialize_nameserver_prop(char* input, struct nameserver_properties**
         len++;
         input2++;
     }
+    debug_printf("prop_attr len: %u\n",len);
     (*ns_p_out)->prop_attr = malloc(len+1);
     strncpy((*ns_p_out)->prop_attr,input,len);
     (*ns_p_out)->prop_attr[len] = '\0';
@@ -150,6 +160,7 @@ errval_t deserialize_nameserver_info(char* input, struct nameserver_info** ns_i_
     out->name = malloc(len+1);
     strncpy(out->name,input,len);
     out->name[len] = '\0';
+    debug_printf("des_ns_info name: '%s'\n",out->name);
     input += len+1;
 
     dis = strchr(input,',');
@@ -157,14 +168,17 @@ errval_t deserialize_nameserver_info(char* input, struct nameserver_info** ns_i_
     out->type = malloc(len+1);
     strncpy(out->type,input,len);
     out->type[len] = '\0';
+    debug_printf("des_ns_info name: '%s'\n",out->type);
     input += len+1;
-    input += len+1; //todo: maybe check that it is '{'
+    debug_printf("des_ns_info remstr: '%s'\n",input);
+    input++; //todo: maybe check that it is '{'
     out->props = malloc(out->nsp_count * sizeof(struct nameserver_properties));
     for(int i = 0; i < out->nsp_count; i++) {
         struct nameserver_properties* prop;
         int str_consumed;
         deserialize_nameserver_prop(input,&prop,&str_consumed);
         out->props[i] = *prop;
+        debug_printf("printing prop: {%s:%s}\n",prop->prop_name,prop->prop_attr);
         input+=str_consumed;
         free(prop);
     }

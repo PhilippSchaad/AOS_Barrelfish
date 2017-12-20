@@ -59,7 +59,7 @@ rpc_framework(void (*inst_recv_handling)(void *arg1, struct recv_list *data),
     send(chan, cap, RPC_MESSAGE(type), payloadsize, payload,
          callback_when_done, id);
     struct waitset *ws = get_default_waitset();
-
+//if(strcmp(disp_name(),"init") != 0) //in an ideal world our processes would all have a main loop they are pumping in a seperate thread which only does that pumping and this hack here would not be required, but this world is not that world.
     while (!done)
         event_dispatch(ws);
 }
@@ -67,7 +67,7 @@ rpc_framework(void (*inst_recv_handling)(void *arg1, struct recv_list *data),
 
 static void ns_rpc_recv_handler(struct recv_list *data)
 {
-    DBG(-1,"ns_rpc_recv_handler\n");
+    DBG(-1,"ns_rpc_recv_handler, raw type %u, id %u\n",(unsigned int)data->type,(unsigned int)data->id);
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
@@ -125,20 +125,36 @@ static void ns_rpc_recv_handler(struct recv_list *data)
 // END COPY FROM AOS_RPC.C
 
 
-static void handshake_recv_handler(void* arg1,struct recv_list*data) {
+static void ns_handshake_recv_handler(void* arg1,struct recv_list*data) {
+    debug_printf("ns_handshake_recv_handler\n");
     nameserver_connection.chan.remote_cap = data->cap;
+}
+
+struct capref ns_cap;
+bool ns_cap_set = false;
+void set_ns_cap(struct capref cap) {
+    ns_cap = cap;
+    ns_cap_set = true;
 }
 
 static void handshake_with_ns(void) {
     thread_mutex_init(&ns_rpc_mutex);
-    struct capref ns_cap;
-    CHECK(aos_rpc_get_nameserver(get_init_rpc(),&ns_cap));
+    if(!ns_cap_set)
+        CHECK(aos_rpc_get_nameserver(get_init_rpc(), &ns_cap));
     debug_printf("b\n");
+    debug_printf("print ns_cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) ns_cap.slot, (
+                         unsigned int) ns_cap.cnode.level, (unsigned int) ns_cap.cnode.cnode,
+                 (unsigned int) ns_cap.cnode.croot);
     init_rpc_client(ns_rpc_recv_handler,&nameserver_connection.chan,ns_cap);
     debug_printf("c\n");
-    rpc_framework(handshake_recv_handler,&nameserver_connection.chan.remote_cap,NS_RPC_TYPE_HANDSHAKE,&nameserver_connection.chan,nameserver_connection.chan.local_cap,0,NULL,NULL_EVENT_CLOSURE);
+    rpc_framework(ns_handshake_recv_handler,&nameserver_connection.chan.remote_cap,NS_RPC_TYPE_HANDSHAKE,&nameserver_connection.chan,nameserver_connection.chan.local_cap,0,NULL,NULL_EVENT_CLOSURE);
+    debug_printf("print remote_cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) nameserver_connection.chan.remote_cap.slot, (
+                         unsigned int) nameserver_connection.chan.remote_cap.cnode.level, (unsigned int) nameserver_connection.chan.remote_cap.cnode.cnode,
+                 (unsigned int) nameserver_connection.chan.remote_cap.cnode.croot);
     debug_printf("d\n");
     nameserver_connection.init = true;
+    debug_printf("e\n");
+    thread_yield();
 }
 
 
@@ -163,6 +179,7 @@ errval_t register_service(struct nameserver_info *nsi) {
 
     //todo: error handling
     rpc_framework(NULL,NULL,NS_RPC_TYPE_REGISTER_SERVICE,&nameserver_connection.chan,nsi->chan_cap,outsize,out,NULL_EVENT_CLOSURE);
+    DBG(-1,"request was '%s' (skipping first 2 unprintable ints) of length %u",(char*)&out[2],outsize);
     free(out);
     DBG(-1,"sent register request\n");
     return SYS_ERR_OK;
@@ -262,9 +279,11 @@ errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result) { 
     debug_printf("enum\n");
     char** temp = *result;
     *num = 0;
-    while(*temp != NULL){
-        (*num)++;
-        temp++;
+    if(temp != NULL) {
+        while (*temp != NULL) {
+            (*num)++;
+            temp++;
+        }
     }
     debug_printf("enum2\n");
     free(out);
