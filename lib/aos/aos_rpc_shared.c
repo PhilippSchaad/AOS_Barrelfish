@@ -50,6 +50,12 @@ static errval_t actual_sending(struct lmp_chan *chan, struct capref cap,
     return SYS_ERR_OK;
 }
 
+struct chan_list {
+    struct lmp_chan *chan;
+    struct generic_queue_obj rpc_send_queue;
+    struct chan_list *next;
+};
+
 struct send_queue {
     unsigned char type;
     unsigned char id;
@@ -58,12 +64,17 @@ struct send_queue {
     size_t index;
     size_t size;
     unsigned int *payload;
+    struct chan_list *parent;
     struct event_closure callback_when_done;
 };
 
+struct chan_list* chan_listing;
+
+
 static int rpc_type_min_id[256];
 static int rpc_type_max_id[256];
-struct generic_queue_obj rpc_send_queue;
+bool mutex_init = false;
+struct thread_mutex chan_list_mutex;
 
 // TODO: proper error handling
 // TODO: also make it stop growing the stack by trampolining the event_dispatch stuff properly
@@ -83,7 +94,7 @@ static errval_t send_loop(void *args)
         actual_sending(sq->chan, cap, first_byte,
                        remaining > 8 ? 8 : remaining, &sq->payload[sq->index]);
     if (err_is_fail(err)) {
-        if(true || !lmp_err_is_transient(err)) {
+        if(!lmp_err_is_transient(err)) {
             debug_printf("send loop error: %s\n", err_getstring(err));
             debug_printf("print cap: slot %u, level %u, cnode %u, croot %u\n", (unsigned int) sq->cap.slot, (
                                  unsigned int) sq->cap.cnode.level, (unsigned int) sq->cap.cnode.cnode,
@@ -94,26 +105,12 @@ static errval_t send_loop(void *args)
             if(sq->type == 6) {
                 debug_printf("sending string, msg is: %s\n",(char*)&(sq->payload[2]));
             }
-            //assert(!"we don't deal well with non-transient errors yet, please consider fixing - adding a callback to call in case of non-transient send error appears to me to be the most appropriate way to fix this\n");
+            assert(!"we don't deal well with non-transient errors yet, please consider fixing - adding a callback to call in case of non-transient send error appears to me to be the most appropriate way to fix this\n");
         }
-        if(false){}else {
-            //we tried and in a transient way
-            void *sq_new = args;
-            synchronized(rpc_send_queue.thread_mutex) {
-                    assert(rpc_send_queue.fst->data == args);
-                    //If something else is waiting we try that one first, so we don't eternally block on dead things.
-                    //todo: consider the removal of things that fail transiently but keep failing transiently. This should probably be done via callback as well
-                    if(rpc_send_queue.fst->next != NULL) {
-                        struct generic_queue* rsq = rpc_send_queue.fst;
-                        rpc_send_queue.fst = rsq->next;
-                        sq_new = rsq->next->data;
-                        rpc_send_queue.last->next = rsq;
-                        rsq->next = NULL;
-                    }
-                }
-            // Reregister if failed.
+        else {
+            //we tried and failed in a transient way, so we reregister
             CHECK(lmp_chan_register_send(sq->chan, get_default_waitset(),
-                                         MKCLOSURE((void *) send_loop, sq_new)));
+                                         MKCLOSURE((void *) send_loop, sq)));
                    }
 //        debug_printf("hi from hell\n");
 //        CHECK(event_dispatch(get_default_waitset()));
@@ -129,14 +126,14 @@ static errval_t send_loop(void *args)
             if (sq->callback_when_done.handler != NULL)
                 sq->callback_when_done.handler(sq->callback_when_done.arg);
             bool done = true;
-            synchronized(rpc_send_queue.thread_mutex)
+            synchronized(sq->parent->rpc_send_queue.thread_mutex)
             {
-                assert(rpc_send_queue.fst->data == args);
+                assert(sq->parent->rpc_send_queue.fst->data == args);
 
                 struct generic_queue *temp =
-                    rpc_send_queue.fst; // dequeue the one we just got done
+                        sq->parent->rpc_send_queue.fst; // dequeue the one we just got done
                                         // with and delete it
-                rpc_send_queue.fst = rpc_send_queue.fst->next;
+                sq->parent->rpc_send_queue.fst = sq->parent->rpc_send_queue.fst->next;
 
                 if (rpc_type_min_id[sq->type] == sq->id) {
                     DBG(VERBOSE,"cleanup on type %u id %u\n",(
@@ -149,17 +146,17 @@ static errval_t send_loop(void *args)
                 free(temp->data);
                 free(temp);
 
-                if (rpc_send_queue.fst != NULL) // more to be ran
+                if (sq->parent->rpc_send_queue.fst != NULL) // more to be ran
                     done = false;
                 else
-                    rpc_send_queue.last = NULL;
+                    sq->parent->rpc_send_queue.last = NULL;
 
             }
             if (!done) {
                 CHECK(lmp_chan_register_send(
-                    ((struct send_queue *) rpc_send_queue.fst->data)->chan,
+                    ((struct send_queue *) sq->parent->rpc_send_queue.fst->data)->chan,
                     get_default_waitset(),
-                    MKCLOSURE((void *) send_loop, rpc_send_queue.fst->data)));
+                    MKCLOSURE((void *) send_loop, sq->parent->rpc_send_queue.fst->data)));
 //                debug_printf("hi from hell2\n");
 //                CHECK(event_dispatch(get_default_waitset()));
             }
@@ -173,7 +170,7 @@ static errval_t send_loop(void *args)
 unsigned char request_fresh_id(unsigned char type)
 {
     unsigned char id;
-    synchronized(rpc_send_queue.thread_mutex)
+    synchronized(chan_list_mutex)
     {
         unsigned char min_id = rpc_type_min_id[type];
         unsigned char max_id = rpc_type_max_id[type];
@@ -194,10 +191,47 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
 {
     // obtain fresh ID for type then enqueue message into sending loop
     assert(payloadsize < 65536); // Needed so we can encode the size in 16 bits
+    struct chan_list *chan_entry = NULL;
+    bool done = false;
+    synchronized(chan_list_mutex) {
+            struct chan_list *prev = NULL;
+            chan_entry = chan_listing;
+            while(!done && chan_entry != NULL) {
+                if(chan_entry->chan == chan) {//found chan
+                    done = true;
+                }else{
+                    if(chan->connstate == LMP_DISCONNECTED) {
+                        debug_printf("found disconnected channel, removing it\n");
+                        //todo: callback that channel was disconnected
+                        if(prev != NULL) {
+                            prev->next = chan_entry->next;
+                        }else{
+                            chan_listing = chan_entry->next;
+                        }
+                        struct chan_list* temp_cl = chan_entry;
+                        chan_entry = chan_entry->next;
+                        free(temp_cl);
+                    }else {
+                        prev = chan_entry;
+                        chan_entry = chan_entry->next;
+                    }
+                }
+            }
+            if(!done) {
+                debug_printf("making new chan list entry\n");
+                chan_entry = malloc(sizeof(struct chan_list));
+                chan_entry->chan = chan;
+                thread_mutex_init(&chan_entry->rpc_send_queue.thread_mutex);
+                chan_entry->rpc_send_queue.fst = NULL;
+                chan_entry->rpc_send_queue.last = NULL;
+                chan_entry->next = chan_listing;
+                chan_listing = chan_entry;
+            }
+        }
 
     bool need_to_start = false;
     DBG(DETAILED, "Sending message with: type 0x%x id %u\n", type >> 1, id);
-    synchronized(rpc_send_queue.thread_mutex)
+    synchronized(chan_entry->rpc_send_queue.thread_mutex)
     {
         struct send_queue *sq = malloc(sizeof(struct send_queue));
 
@@ -209,27 +243,28 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
         sq->cap = cap;
         sq->chan = chan;
         sq->callback_when_done = callback_when_done;
+        sq->parent = chan_entry;
 
         struct generic_queue *new = malloc(sizeof(struct generic_queue));
 
         new->data = (void *) sq;
         new->next = NULL;
 
-        if (rpc_send_queue.last == NULL) {
-            assert(rpc_send_queue.fst == NULL);
+        if (chan_entry->rpc_send_queue.last == NULL) {
+            assert(chan_entry->rpc_send_queue.fst == NULL);
             need_to_start = true;
-            rpc_send_queue.fst = new;
-            rpc_send_queue.last = new;
+            chan_entry->rpc_send_queue.fst = new;
+            chan_entry->rpc_send_queue.last = new;
         } else {
-            rpc_send_queue.last->next = new;
-            rpc_send_queue.last = new;
+            chan_entry->rpc_send_queue.last->next = new;
+            chan_entry->rpc_send_queue.last = new;
         }
     }
     if (need_to_start) {
         CHECK(lmp_chan_register_send(
-            ((struct send_queue *) rpc_send_queue.fst->data)->chan,
+            ((struct send_queue *) chan_entry->rpc_send_queue.fst->data)->chan,
             get_default_waitset(),
-            MKCLOSURE((void *) send_loop, rpc_send_queue.fst->data)));
+            MKCLOSURE((void *) send_loop, chan_entry->rpc_send_queue.fst->data)));
         CHECK(event_dispatch(get_default_waitset()));
     }
     return SYS_ERR_OK;
@@ -406,7 +441,7 @@ void recv_handling(void *args)
         rc->recv_deal_with_msg(&rl);
     } else {
         //todo: give it its own mutex instead of using the send_queue's mutex
-        synchronized(rpc_send_queue.thread_mutex) {
+        synchronized(chan_list_mutex) {
             struct recv_list *rl = rpc_recv_lookup(rc->rpc_recv_list, type, id);
             if (rl == NULL) {
                 rl = malloc(sizeof(struct recv_list));
@@ -442,7 +477,10 @@ void recv_handling(void *args)
 errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
                          struct lmp_chan *chan, struct capref dest)
 {
-    thread_mutex_init(&rpc_send_queue.thread_mutex);
+    if(!mutex_init) {
+        thread_mutex_init(&chan_list_mutex);
+        mutex_init = true;
+    }
     // Allocate lmp channel structure.
     // Create local endpoint.
     // Set remote endpoint to dest's endpoint.
@@ -461,8 +499,10 @@ errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
 errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
                          struct lmp_chan *chan)
 {
-    thread_mutex_init(&rpc_send_queue.thread_mutex);
-
+    if(!mutex_init) {
+        thread_mutex_init(&chan_list_mutex);
+        mutex_init = true;
+    }
     CHECK(lmp_chan_accept(chan, DEFAULT_LMP_BUF_WORDS, NULL_CAP));
     CHECK(lmp_chan_alloc_recv_slot(chan));
     struct recv_chan *rc = malloc(sizeof(struct recv_chan));
