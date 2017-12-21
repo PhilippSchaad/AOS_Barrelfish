@@ -1,0 +1,26 @@
+\section{Memory Mapping}\label{s:mapping}
+\subsection{Structures and Bookkeeping}\label{ss:mapping_structures}
+To keep track of the various mapped regions and pieces of memory, as well as the free virtual addresses, we have to keep a significant amount of state for the memory mapping and paging process.
+\begin{itemize}
+	\item Free vspace: To prevent address collisions, the free virtual addresses are tracked. This is done using a singly linked list, because its simplicity. This might introduce additional overhead when mapping memory, when the process has run some time and the memory is fragmented. The lookup scales with $0\klammern{n}$. Currently, freed nodes are simply appended to the list and scale with $0\klammern{1}$ 
+	\item Mappings: To be able to unmap a piece of memory again, the mappings are stored. This is done using a singly linked list. A new mapping is added in front of the list. This scales with $0\klammern{1}$. Finding the right mapping for unmapping memory scales with $0\klammern{n}$ with the number of mappings in the worst case, when it has to traverse the whole list. However, we think that there are two sorts of mappings. One is short lived and will be unmapped soon after it is mapped. And the others are long living. Our implementation let the long living mappings wander to the back of the list while being fast for unmapping recently added mappings.
+	\item L1 pagetable: a reference to the L1 pagetable is stored.
+	\item L2 pagetables: an array of L2 pagetables. Initially, this list is empty. If a L2 pagetable is used for the first time, it is created and the capref is stored for future uses.
+	\item Spawninfo: When spawning a new domain, we need to copy the caps for the mappings and the L2 pagetables to the new domain. To be able to reuse our mapping code, we keep a reference to the spawninfo that contains a callback function to be used when mapping for a foreign domain.
+\end{itemize}
+
+\subsection{Mapping}
+The mapping of a memory frame to the virtual address space of a domain consists of the following steps:
+\begin{enumerate}
+	\item If the address is not user chosen, the information about a free block of virtual addresses is computed from with the information stored in the paging state (see \ref{ss:mapping_structures}).
+	\item The L2 pagetable corresponding to the virtual address to be mapped is read from the L1 pagetable. If this pagetable does not yet exist, a new L2 pagetable is created.
+	\item Map the minimum between the number of bytes we have to map and the number of bytes that still fit into the L2 pagetable.
+	\item Store the reference to the L2 pagetable and the mapping information to be able to unmap the piece of memory again. 
+	\item The steps 2 - 4 are repeated until all memory is mapped. This is the case when the requested size, starting from the virtual address, does not fit into a single L2 pagetable.
+\end{enumerate}
+
+\subsection{Unmapping}
+Because we stored a fair amount of state, unmapping is easy. All parts of the region to unmap are traversed and unmapped. After this is done, the freed virtual addresses are added to the list of free vspace again (see \ref{ss:mapping_structures}).\\
+One problem we encountered while implementing the unmapping was that it can be hard to test or demonstrate. Due to compiler optimizations (especially instruction reordering), unmapped memory seemed accessible even after it was unmapped for a short time.
+\todo{mention the possibility of pools? was meint ihr? im code haben wir da noch eine bemerkung, dass das sinnvoll sein könnte, damit nicht laufend neue caps erstellt werden müssen. soll ich das noch erwähnen?}
+

@@ -1,0 +1,113 @@
+\usepackage[T1]{fontenc}
+\usepackage[scaled=0.85]{beramono}
+
+%add code
+\usepackage{listings}
+\usepackage{color}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+ 
+\lstdefinestyle{mystyle}{
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=none,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstdefinestyle{numbered}{
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+ 
+\lstset{style=numbered}
+
+
+% Bibliography stuff
+\usepackage[english]{babel}
+\PassOptionsToPackage{%
+    backend=bibtex8,
+    bibencoding=ascii,
+    language=english,
+    style=numeric-comp,
+    sorting=nyt,
+    maxbibnames=10,
+    natbib=true
+}{biblatex}
+    \usepackage{biblatex}
+
+%% to detect ä,ö,ü
+\usepackage[utf8]{inputenc}
+
+%% add math symbols
+\usepackage{amsmath}
+\usepackage{trfsigns}
+\usepackage{latexsym}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{subcaption}
+
+
+% used to set maxheight for images
+\usepackage[export]{adjustbox}
+
+%add todo
+\usepackage{color}
+\newcommand{\todo}[1]{\textbf{\color{red}{TODO: #1}}\\}
+
+% make table of contents clickable
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks,
+    citecolor=black,
+    filecolor=black,
+    linkcolor=black,
+    urlcolor=black
+}
+
+\newcommand{\uU}{\underline{U}}
+\newcommand{\uI}{\underline{I}}
+\newcommand{\uZ}{\underline{Z}}
+
+% Klammern
+\newcommand{\klammern}[1]{\left( #1 \right)}
+\newcommand{\eckigeKlammern}[1]{\left[ #1 \right]}
+\newcommand{\geschwungeneKlammern}[1]{\left\{ #1 \right\}}
+
+% set image path to the .Grafik folder 
+\graphicspath{ {.Grafik/},{Grafik/},{Images/} }
+% style von bildern im standartordner
+\newcommand{\image}[1]{\includegraphics[max height=100pt,max width=\bildBreite]{#1}}
+%define image width
+\newcommand{\bildBreite}[0]{\columnwidth}
+
+% Package to include pdf documents
+\usepackage[final]{pdfpages}
+
+\usepackage{algorithm}
+
+\newcommand{\function}[1]{\begin{gather*} #1 \end{gather*}}

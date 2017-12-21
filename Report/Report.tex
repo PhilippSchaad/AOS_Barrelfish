@@ -1,0 +1,25 @@
+\documentclass[11pt,a4paper,titlepage, oneside]{report}
+
+% stylesheet
+\input{Style}
+
+\title{Advanced Operating System \\ Report Group D}
+\author{Christian Fenia, Philipp Schaad, Jan Müller}
+
+\bibliography{Bibliography.bib}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+
+\input{Chapters/ClownFish/ClownFish}
+
+\input{Chapters/IndividualProjects/IndividualProjects}
+
+\cleardoublepage
+\pdfbookmark[0]{Declaration}{decl}
+\includepdf{declaration.pdf}
+
+
+\end{document}

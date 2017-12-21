@@ -1,0 +1,46 @@
+\section{Spawning Processes}\label{s:spawning-processes}
+
+Our spawning code is nothing fancy and pretty much follows the procedure 
+outlined by the book. Let's go over the individual steps.
+\medskip
+
+Since we do not have a file-system in our OS, we are dealt a lucky hand in this 
+portion. All we have to do to find the correct module is look up the name in 
+the multiboot image. Since the call to \texttt{spawn\_load\_by\_name} of our 
+spawn library can (but does not have to) contain an arbitrary number of 
+arguments, the first thing we do is parse the requested name, filtering out the 
+actual program name and separating the arguments away. We now look up that name 
+in the multiboot image. Once we have found our module, we identify the frame it 
+sits in and map it into our own address space with \texttt{paging\_map\_frame}, 
+which gives us a virtual address pointing to our ELF file.
+\medskip
+
+In the next step we need to set up a bunch of capabilities for our new process. 
+The first one would be an L1 CNode, with and into which we then create a bunch 
+of L2 CNodes using \texttt{cnode\_create\_foreign\_l2} (since we have already 
+created the L1 node). We map the TASK CNode (which contains information about 
+the process) into the child process's capability space, and then back all it's 
+L2 CNodes with some (exactly a page) of memory.
+\medskip
+
+We now have to set up the child process's virtual address space by creating an 
+L1 page-table in our current virtual address space, which we then copy in to 
+the child process's L1-page-table slot. This step is followed by calling 
+\texttt{paging\_init\_state}, which can now set up the paging state of our new 
+process.
+\medskip
+
+We are now ready to load the ELF binary and initialize the dispatcher that will 
+take care of launching our process. This is a rather tedious process of just 
+creating the dispatcher and an endpoint to it and then copying everything into 
+the child process's virtual address space. In there, we then fill in the 
+dispatcher struct with details like where the GOT sits, what the process's 
+domain ID will be initially and what core it will be run on.
+\medskip
+
+All that remains to be done now before we invoke the dispatcher, which will 
+start our process, is to set its arguments correctly. In this step we will 
+check if we have previously received any arguments from the user. If so, we 
+will map those into the child process, if not, we will look up if the multiboot 
+image provides some arguments and use those instead. After this we are done and 
+are ready to run our process by invoking the dispatcher.

@@ -1,0 +1,17 @@
+\chapter{ClownFish}\label{c:clownfish}
+
+Throughout this project we have tried to keep most of our individual subsystems 
+and libraries as simple as possible. This is to support the mentality that our 
+code should be easy to understand (well ok that didn't always work) and easy to 
+debug and reason about. Keeping things like data structures simple, easy to 
+understand, and general purpose sometimes comes at a cost of performance. We 
+have decided that potential performance gains achieved by over-complicating our 
+system and book-keeping mechanisms would be negligible compared to the 
+additional cost in complexity.
+
+\input{Chapters/ClownFish/MemoryManagement}
+\input{Chapters/ClownFish/Mapping}
+\input{Chapters/ClownFish/Paging}
+\input{Chapters/ClownFish/RPC}
+\input{Chapters/ClownFish/URPC}
+\input{Chapters/ClownFish/Spawning}

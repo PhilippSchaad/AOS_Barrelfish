@@ -1,0 +1,229 @@
+\section{TurtleBack (Shell)}\label{s:turtle-back-shell}
+
+The shell is a very essential part of any OS, as it allows the user to interact 
+with the system at its most basic level. However, for the shell to make any 
+sense to begin with, one first needs a way to talk with the user. This is 
+typically done with a standard text interface. Our system thus needs to have 
+the ability of printing text to the screen, and read text back that has been 
+typed in by the user. It is best to do this reading and writing as centralized 
+as possible, and for this we will first look at the subsystem responsible for 
+that bidirectional input and output; the terminal driver.
+
+\subsection{Terminal Driver}\label{ss:terminal-driver}
+
+Our terminal driver is kept as simple and protocol free as possible. For this 
+reason it is running in the \texttt{init} domain on both cores. Let's 
+first discuss what this implies for our output to the screen.
+\medskip
+
+When printing to the screen with functions from the C standard library, the 
+system first checks whether we are in the \texttt{init} domain or not. If we 
+are indeed, we directly talk to the terminal driver, requesting to have it 
+print to the screen for us. The terminal driver (since it is inside of the 
+\texttt{init} domain) can do so via system call. If we are however in a 
+different domain, we will send out an RPC to \texttt{init}, which in turn uses 
+the terminal driver to service our request and print to the console via system 
+call. This can happen on both cores simultaneously and entirely independently, 
+which keeps the system's complexity at a minimum.
+\medskip
+
+Input is a little less trivial, but still very simple. Since we have two 
+instances of our terminal driver running (one on each core), we will call the 
+one on core 0 our master and the one on core 1 our slave instance. Since we can 
+only have at most one instance registered for interrupts from the UART 
+interface, we will let the master instance take care of interrupt handling, and 
+hence register it to receive UART interrupts. If an interrupt is received by 
+the master instance, it will perform a system call to retrieve the typed in 
+character from the UART buffer and store it in its own input buffer (which we 
+will get to in a second). Since the slave instance will not receive that 
+interrupt and does not have the ability to retrieve that same character from 
+the UART again, the master instance performs a URPC with which it sends the 
+received character to the slave instance, which can add it to its own buffer.
+
+\subsubsection{Input Buffers}\label{sss:input-buffers}
+
+Our terminal driver supports two separate modes of buffering input from the 
+UART interface. Line- and direct-mode.
+\medskip
+
+In line-mode we buffer - as the name suggests - entire lines of text. Our line 
+buffer consists of two separate character arrays, one of which is considered to 
+be our write-buffer and the other one is the read-buffer. When a new character 
+arrives (via interrupt if we are on core 0, via URPC otherwise), we will first 
+perform a little bit of preprocessing with it. The most obvious step is to 
+check if it is a character or signal indicating the end of a line (EOT, LF, 
+CR). In that case we null terminate our write-buffer and switch the two 
+buffers. So now when someone tries to read from the read-buffer, it will get a 
+character from the newly finished line, and we will start writing to a new (now 
+invalid and thus considered to be empty) line. The remaining preprocessing 
+steps are less important and mainly matter for the second point where the two 
+modes differ from each other; echoing. In line-mode let the terminal driver 
+manage echoing of newly arriving characters, and not whatever process is 
+reading that input. This is also why we do not use this mode for the shell, but 
+instead use our second mode of operation.
+\medskip
+
+In direct-mode the steps performed by the terminal driver are kept to a bare 
+minimum. Our buffer has the form of a ring-buffer (FIFO), and whenever a new 
+character arrives, we simply add it to the buffer and advance the tail by one, 
+without really caring about what the character value was. This gives the mode 
+its name, as we will directly push ALL input forward to the consuming 
+process(es), without performing any cleanup or echoing the characters back to 
+the user. Our consumer has to take care of that.
+\medskip
+
+In both of those modes we simply discard new characters if our buffer is 
+already full. In addition to that, escape and control sequences that make a 
+mess or might be important for the consumer are analyzed by the terminal driver 
+and stored as one special character (instead of their raw form, which typically 
+is 2-3 characters). This can be easily done, since the ASCII standard for our 
+supported symbols only consumes 128 values. A character (byte) can hold 256 
+values, so we can use the remaining spaces to encode 128 custom characters. For 
+example left-, up-, right-, and down-arrow keys will get escaped by the 
+terminal driver and stored as special values, so the consuming process 
+understands that they were pressed.
+\medskip
+
+When a process performs an input operation using one of the C standard library 
+functions, we differentiate between \texttt{init} domain and other domains 
+again. In the case of \texttt{init}, we directly query the terminal driver for 
+new characters. Other domains will perform an RPC to init, which will serve the 
+character via the terminal driver. In both cases, the call to the terminal 
+driver will block for as long as the input-buffer does not have any ready 
+characters. As soon as characters arrive, one is returned and the consumer 
+process can analyze it. Which input-buffer will get queried depends on the 
+currently selected mode in the terminal driver. To make sure the two driver 
+instances' input-buffers are in sync, whenever a character is removed from one 
+of the two instances, it will fire a URPC to the other instance, moving the 
+head by one space, thus also removing the character.
+
+\subsection{The Shell}\label{ss:the-shell}
+
+Our shell is a separate process (\texttt{turtleback}) that can be spawned on 
+either core once the system has completed its boot process (core 0 by default).
+The main shell process in itself is not very interesting. All its doing is 
+performing an endless loop of reading characters from the terminal (via C 
+standard library functions, which go over \texttt{init}'s terminal driver), 
+storing them in a buffer and then parsing that line once the user hits a new 
+line. The interesting part lies in just the parsing of that input line and what 
+that sets in motion.
+\medskip
+
+The shell serves two main functionalities. It presents the user with a set of 
+built in functions - with the unspectacular name 'builtins' - that can be used 
+to interact with the operating system, and it will spawn other processes for 
+the user when he types their name into the console. Let us first examine the 
+built in functions that our shell provides.
+
+\subsubsection{Builtins}\label{sss:shell-builtins}
+
+\begin{itemize}
+	\item \texttt{help} - This is probably the most basic builtin that any 
+	shell (or application for that matter) should have. It does exactly what 
+	the name says; it prints out a list of all available builtin functions and 
+	offer a helpful little explanation of what each of them does. Supplying it 
+	with the name of another builtin will print more information about how to 
+	use said function.
+	
+	\item \texttt{clear} - Another relatively self explanatory function, found 
+	in pretty much every command-line based interface; it will clear the screen 
+	for you (preserving the scroll buffer). This is done by printing the ANSI 
+	sequence ESC - {[} - 2J to the terminal.
+	
+	\item \texttt{echo} - Also one of the functions everyone knows; this will 
+	simply print whatever arguments you supply it with back out onto a new line 
+	in the terminal. It will print all 'words' (arguments) spaced out with one 
+	single space, no matter how far apart the arguments were supplied (yes, it 
+	behaves exactly like bash's \texttt{echo}).
+	
+	\item \texttt{ps} - Like its bash equivalent, \texttt{ps} will simply 
+	perform an RPC to the process manager (in the init domain), which in turn 
+	will print a list of all running processes, together with their process ID 
+	and which core they are running on.
+	
+	\item \texttt{time} - This is the last one of the commands that behaves 
+	pretty much like bash; \texttt{time} must be used as a prefix command to 
+	any other builtin or binary (with arguments or not). It simply times how 
+	long it takes for the execution of said command/program to complete. This 
+	is done by getting the clock-cycle count before and after the execution, 
+	calculating the difference and dividing it by the CPU clock frequency, 
+	which gives us the exact time in seconds and milliseconds.
+	
+	\item \texttt{led} - A new, but rather unspectacular command, that simply 
+	tells the \texttt{init} domain to toggle the D2 LED via RPC. If the LED was 
+	on it gets turned off, and vice versa. Toggle. That's all. Yes.
+	
+	\item \texttt{testsuite} - This performs a little RPC to the \texttt{init} 
+	domain, which will run a standard test suite that is built in to the OS and 
+	contains a couple of memory and regression tests that were used during the 
+	development of this operating system. It only exists because we can.
+	
+	\item \texttt{memtest} - The memory test will take a single argument (a 
+	positive number), that tells it how many bytes the user wants to test. It 
+	will then allocate a contiguous region of memory of that size and test it 
+	for read- and write-errors.
+	
+	\item \texttt{threads} - This is simply a demo of user level threads. It 
+	takes a single positive integer argument and will spawn a number of threads 
+	equal to that integer argument. Those threads simply print out the line 
+	\texttt{"Hello world from thread X"}, where \texttt{X} is its thread-id.
+	
+	\item \texttt{oncore} - Serving as another one of those prefix commands 
+	(like \texttt{time}), \texttt{oncore} will take the program spawning 
+	command it prefixes and spawn said binary on the core specified. So if we 
+	type in \texttt{'oncore 1 hello args..'}, this will spawn the binary 
+	\texttt{'hello'} on core 1 with arguments \texttt{'args..'}. This is done 
+	with a standard spawn-process RPC to init, which can already handle 
+	cross-core spawns.
+	
+	\item \texttt{detached} - This is the final prefix command like 
+	\texttt{time}. Like \texttt{oncore}, it serves as a prefix purely for 
+	spawning programs, not shell builtins. Its purpose is pretty simple; 
+	\texttt{'detached progname args..'} spawns the program \texttt{'progname'} 
+	with arguments \texttt{'args..'}, but will not wait for it to finish 
+	before returning to a new shell prompt and listening for user input.
+\end{itemize}
+
+\subsubsection{Parsing User Input}\label{sss:parsing-input}
+
+We parse the user's input every time he or she hits the end of a line and 
+starts a new one (typically by pressing \texttt{Ctrl + J}, \texttt{Ctrl + D}, 
+or \texttt{Return}). The line of text in the buffer gets split up into a series 
+of token. Each space in the line represents the end of a token and the start of 
+the next one, whereby multiple consecutive spaces get dropped and will count as 
+a single token separator. We now look at the first token and treat it as our 
+command, thus deciding what to do based on its value.
+\medskip
+
+We first check if the user wants to execute one of the builtins TurtleBack 
+provides. Our shell holds an internal list of all available built-in functions, 
+together with a handler function attached to each one of them. We can thus 
+simply iterate over this (relatively short) list, performing string matching 
+against each of the identifying commands.
+If we have a positive match, we will execute that match's handler function, 
+passing all but the first token along as its arguments.
+If we hit the end of the list without a match, we move on, treating the entered 
+command as a binary the user is trying to spawn.
+\medskip
+
+This leads us to how we handle process spawning. We use an UNIX-like approach, 
+where a program can be launched simply by typing the name of its binary into 
+the console, without a special run command. Internally this will launch an RPC 
+to the \texttt{init} process, where we look up if the queried binary name can 
+be found in our multiboot image (since we do not support a file-system, that's 
+the only place we can spawn from). \texttt{init} then launches the process 
+(again, passing all the remaining tokens along as arguments to the new 
+program), registering it in our process manager, and returns the PID it just 
+assigned to the process. TurtleBack then queries \texttt{init} (via RPC) for 
+the existence of that process, blocking until that PID could not be found 
+anymore. This ensures that we await the termination of our spawned program 
+before showing a new shell prompt and accepting user input, thus allowing the 
+spawned process to take control.
+\medskip
+
+If the requested binary could not be found, the PID returned will have a 
+special value (UINT32\_MAX), which tells TurtleBack that we still have not been 
+able to handle the user's command. At this point we know that if we were unable 
+to serve the user's request, he or she must have entered a wrong command, so we 
+echo the command back (just the first token) and tell the user that this does 
+not match to any supported command.

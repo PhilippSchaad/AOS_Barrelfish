@@ -1,0 +1,20 @@
+\section{Demand Paging}\label{s:paging}
+\subsection{Pagefault handling}
+A pagefault is triggered when virtual memory is accessed, that has not been backed with physical memory. Before handling this exception, we do some sanity checks on the accessed address. We check whether the caller tries to dereference a NULL pointer, if it is trying to access something in the kernel space (above 0x80000000) or if the current stack pointer exceeds the stack. Such a behaviour means misbehaviour or a programming error and the calling thread is killed.\\
+After these checks, the pagefault is handled. We decided to use BASE\_PAGE\_SIZE (4kB) sized pieces of memory to benefit from address locality and reduce the number of pagefaults. First, the memory is requested from the init domain using a non-malloc path (see \ref{ss:pagefault_ram}). After we received the memory, it is mapped to the caller's virtual address space (see \ref{s:mapping}).\\
+We did a quick evaluation of other sizes of memory. We run the init domain and let it run our test suite and create 5 threads. This resulted in a total of 18 pagefaults (since the start of the demand paging mechanism). We repeated the test but increased the amount of memory that is mapped by a factor of 2. This resulted in 12 pagefaults, which means a reduction of 33\%. Because the overhead of our pagefault handling is no bottleneck to the system and the savings are therefore not that big, we did not implement the larger memory size. The increase of the size would generate additional complexity on the programming side, as we would have to check first, if the next page is already mapped and would need additional testing to make sure that we cover all corner cases.\\
+The stack operates on a separate interrupt stack. We encountered an error, in which the handling of the pagefault would exceed the initial size of 4kB. Increasing the size of the stack to a really large value (16kB) solved that problem.
+
+\subsection{RAM alloc in pagefault handling}\label{ss:pagefault_ram}
+Our initial pagefault handler occasionally caused pagefaults while handling pagefaults, which led to system crashes. We circumvented this behaviour by making sure, that the pagefault handler receives a fully stack based (no memory allocation) path for requesting a new ram capability. The following additional steps were taken, to allow an as direct handling of the pagefault as possible:
+\begin{itemize}
+	\item Prevent scheduling of other threads during pagefault handling
+	\item Create a separate lmp\_channel for ram cap requests during pagefaults
+	\item Create a separate waitset for the use with the new lmp\_channel, to make sure that we give control to the domain providing ram capabilities. (And back, of course)
+\end{itemize}
+
+
+
+
+
+

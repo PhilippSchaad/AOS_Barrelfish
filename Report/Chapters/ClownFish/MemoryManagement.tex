@@ -1,0 +1,127 @@
+\section{Memory Management}\label{s:memory-management}
+
+Our memory manager (\texttt{libmm}) is kept relatively simple, such that 
+reasoning about it can be done with ease. In essence each core in our system 
+takes care of memory management by itself, receiving exactly half (in a two 
+core system, less otherwise) of the total physical system memory for itself at 
+boot. Each processor core then has an instance of \texttt{libmm} running and 
+manages distribution and tracking of its own segment of physical memory.
+
+\subsection{Resource Tracking}\label{ss:res-tracking}
+
+To track what system resources are free or in use, we employ a very basic 
+doubly linked list, where each element (called a node) has a type (we will get 
+to those in a bit), a capability for the memory region it represents, as well 
+as pointers to the next and previous node together with its region's base 
+address and size in bytes.
+\medskip
+
+We track three distinct types of memory regions with our nodes; free, 
+allocated, and wasted. Free and allocated are fairly self explanatory. The 
+'wasted' region type is rather rare, but gets used as a workaround for our 
+incomplete capability system. We will go into detail on this in a little bit, 
+but essentially it's a failsafe for when we try to re-allocate a previously 
+used region of memory, since we were unable to correctly revoke that region's 
+capability.	
+\medskip
+
+Initially our list only contains one node, which represents the entire physical 
+memory managed by this instance of \texttt{libmm}. Upon allocation we split 
+this region up, forking off a region of the size that was requested and 
+shrinking the free node accordingly.
+\medskip
+
+To look for a free region of memory we have implemented a naive algorithm which 
+simply traverses the doubly linked list starting at the head, until a node is 
+reached that has at least the size of the region we are looking for and is 
+marked as free. This gives us a worst case complexity of $O(n)$ when 
+allocating. We can reach this worst case by continuously allocating (rather 
+small) regions of memory without freeing, which implies that our list keeps 
+growing as we fork off new allocated regions from our one contiguous free 
+region at the tail, and we will always have to scan $m + 1$ regions after $m$ 
+allocations.
+\medskip
+
+We decided to use this approach because it is easiest to implement and 
+understand, therefore being less error prone and easier to maintain and 
+upgrade. In addition to that the performance does not get impaired in the 
+standard case, thus making this a viable option. A switch to a binary tree did 
+not seem attractive enough to be worth the additional book-keeping and 
+structure management, which in itself would cause overhead. We have also 
+decided to not perform rearrangement of allocated memory to reduce 
+fragmentation, as that would vastly increase the book-keeping complexity.
+
+\subsection{Capability Handling}\label{ss:cap-handling}
+
+As mentioned in \autoref{ss:res-tracking} we initially hold one big node that 
+represents all of our free memory. We section up our device memory into two 
+equally sized pieces in the \texttt{'menu.lst.armv7\_omap44xx'}, and upon 
+booting each processor's \texttt{libmm} gets one of those regions. We 
+represent this region by creating one big ram capability and assigning it to 
+our initial node. This ram capability never changes. Instead we always retype 
+this initial capability, where the new capability represents the offset of the 
+newly allocated region to our original ram capability.
+\medskip
+
+This approach gives us three major advantages: Firstly, the management and 
+tracking of capabilities is easier. If we free the memory backed by one of 
+those retyped capabilities we can simply destroy its representing capability. 
+In addition to that, if we allocate memory we now do not have to worry about 
+the chance that there might already be a retyped capability for this section of 
+memory. Secondly, destroying the memory manager remains a simple task this way, 
+leaving us solely with the responsibility of destroying all capabilities, 
+instead of having to revoke each one of the descendants. It would be harder to 
+keep track of all of those. And finally, with this approach it is easy to add 
+new ram to the manager should new one appear for some reason. All we need to do 
+in that case is to check whether the current big initial capability has run out 
+of free memory, and use the new one instead.
+
+\begin{lstlisting}[caption={Allocation Procedure (Pseudocode)}, 
+label=lst:allocation, numbers=left, stepnumber=1, float, floatplacement=tl, 
+frame=tb, language=c]
+addr allocate(size) {
+    ROUND_UP(size, BASE_PAGE_SIZE);
+    Node *node = find_node(size);
+    if (node->size > size) {
+        node->size -= size;
+        node = create_and_insert_new_node(size);
+    }
+    node->type = ALLOCATED;
+    err = cap_retype(node->cap, initial_ram_cap, offset, size);
+    if (err_is_fail(err)) {
+        node->type = WASTED;
+        return allocate(size);
+    }
+    return node->addr;
+}
+\end{lstlisting}
+
+\subsection{Allocating memory}\label{ss:alloc-mem}
+As mentioned before, our allocation procedure is rather simplistic. We simply 
+start to traverse the list of all memory regions, until we find a match where 
+the requested size fits (the region is greater than or equal to the requested 
+size), and where the region is marked with type free. Note that the size we 
+request to allocate is adjusted to be a multiple of the base page size. If we 
+have found a node that has exactly the size we requested, we simply change its 
+type to allocated. If the node is bigger, we shrink it and add a new node with 
+the size we wanted before it, inserting both back into the list. In both cases 
+we update the capability of our freshly allocated node by retyping the initial 
+ram capability with the correct size and offset.
+\medskip
+
+This is where the node-type \texttt{'wasted'} comes into play. Since we cannot 
+correctly revoke capabilities, it can happen that this retype operation fails 
+if the node has previously been allocated and freed. In that case we simply set 
+the type to wasted and recursively re-start the allocation procedure to 
+recover. \autoref{lst:allocation} shows a pseudo-code outline of this procedure.
+
+\subsection{Freeing memory}\label{ss:free-mem}
+Freeing memory is quite simple. We revoke and destroy the capability (if it
+still exists). We set the indicator to free and check if there is a free node
+right before or after the just freed node. If so, we merge the free spaces
+together so that we can allocate bigger contiguous spaces of memory.
+
+\subsection{Slab refills}\label{ss:slab-refills}
+To refill the slabs, we need memory. To allocate more memory we need slabs. To
+make sure that we don't run into a deadlock, we made sure that the slab gets
+refilled when we have less than a few slabs left.
