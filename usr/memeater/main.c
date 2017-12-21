@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
     aos_rpc_process_spawn(init_rpc, "killme", 0, &ret);
     uint32_t retbool = 0;
     debug_printf(
-        "\033[33mWe spawned 'killme' and try to kill it now.\n\033[0m");
+        "\033[33mWe spawned 'killme' with pid %d and try to kill it now.\n\033[0m", ret);
     while (retbool == 0)
         aos_rpc_process_kill(init_rpc, ret, &retbool);
     debug_printf("\033[33mkilled!\n\033[0m");

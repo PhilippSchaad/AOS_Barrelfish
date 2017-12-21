@@ -111,9 +111,9 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     strncpy(bin_name, name, bin_name_end);
     bin_name[bin_name_end] = '\0';
 
-    DBG(-1, "receive spawn request: name: %s, core %d\n", name,
+    DBG(DETAILED, "receive spawn request: name: %s, core %d\n", name,
         core);
-    DBG(-1, "spawninfo: %s size %u\n", (char *) data->payload,
+    DBG(DETAILED, "spawninfo: %s size %u\n", (char *) data->payload,
         data->size);
 
     // Check if we are on the right core, else send cross core request.
@@ -123,7 +123,7 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         recv_name[last_occurence] = '_';
 
         // Have to send cross core request.
-        DBG(-1, "spawn %s on other core\n", name);
+        DBG(DETAILED, "spawn %s on other core\n", name);
         DBG(DETAILED, "spawninfo: %s size %u\n", (char *) data->payload,
             data->size);
 
@@ -132,7 +132,7 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         if (disp_get_core_id() == 0) {
             pid = procman_register_process(bin_name, core, NULL);
         }
-        DBG(-1, "spawn %s on other core 1\n", name);
+        DBG(DETAILED, "spawn %s on other core 1\n", name);
 
         void *sto_data = data->payload;
 
@@ -143,30 +143,30 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         data->payload = newpayload;
         data->size = bytesize;
 
-        DBG(-1, "spawn %s on other core 2\n", name);
+        DBG(DETAILED, "spawn %s on other core 2\n", name);
         // We don't actually need any response, we just want to know the
         // response exists.
-        free_urpc_allocated_ack_recv_list(urpc2_rpc_over_urpc(data, NULL_CAP));
+        struct recv_list answer = urpc2_rpc_over_urpc(data, NULL_CAP);
 
-        DBG(-1, "spawn %s on other core 3\n", name);
+        DBG(DETAILED, "spawn %s on other core 3\n", name);
         free(newpayload);
         data->payload = sto_data;
 
         // TODO: we need to get the ID of the created process.
         // we should create a urpc call for that (or create a response for the
         // spawn call)
-        send_response(data, chan, NULL_CAP, 1,
-                      (unsigned int *) 42 /* TODO: changeme */);
-        DBG(-1, "spawn %s on other core 4\n", name);
+        send_response(data, chan, NULL_CAP, 1,answer.payload);
+        DBG(DETAILED, "spawn %s on other core 4\n", name);
+        free_urpc_allocated_ack_recv_list(answer);
         return SYS_ERR_OK;
     }
 
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
-    DBG(-1,"malloced si\n");
+    DBG(DETAILED,"malloced si\n");
     err = spawn_load_by_name(name, si);
-    DBG(-1,"spawned new process\n");
+    DBG(DETAILED,"spawned new process\n");
     // Preregister the process we just spawned.
     // This will create the process but the process does not know its PID yet
     // and we don't have a rpc channel.
@@ -176,9 +176,9 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     } else {
         if (chan == NULL && disp_get_core_id() != 0) { // XXX HACK: We are in URPC
             pid = *((domainid_t *) (recv_name + strlen(recv_name) + 3));
-            DBG(-1,"before procman_foreign_preregister\n");
+            DBG(DETAILED,"before procman_foreign_preregister\n");
             procman_foreign_preregister(pid, bin_name, core, si);
-            DBG(-1,"after procman_foreign_preregister\n");
+            DBG(DETAILED,"after procman_foreign_preregister\n");
         } else {
             pid = procman_register_process(bin_name, core, si);
         }
@@ -186,7 +186,6 @@ static errval_t spawn_recv_handler(struct recv_list *data,
 
     // This is done at a separate call, because some day we would want to split
     // the name server from main.
-
     if (chan == NULL) { // XXX HACK: We are in URPC
         urpc2_send_response(data, NULL_CAP, 1, &pid);
         return SYS_ERR_OK;
@@ -387,6 +386,7 @@ void recv_deal_with_msg(struct recv_list *data)
     DBG(DETAILED, "recv msg...\n");
     struct lmp_chan *chan = data->chan;
     uint32_t success;
+    struct recv_list ret_data;
     errval_t err;
     switch (data->type) {
     case RPC_MESSAGE(RPC_TYPE_NUMBER):
@@ -471,12 +471,16 @@ void recv_deal_with_msg(struct recv_list *data)
         err = procman_kill_process(*((uint32_t *) data->payload));
         if (err == PROCMAN_ERR_PROCESS_ON_OTHER_CORE) {
             // Forward to other core.
-            urpc2_rpc_over_urpc(data, NULL_CAP);
-            success = *((uint32_t *) data->payload);
+            ret_data = urpc2_rpc_over_urpc(data, NULL_CAP);
+            success = *((uint32_t *) ret_data.payload);
         } else {
             success = err_is_ok(err);
         }
-        send_response(data, chan, NULL_CAP, 1, &success);
+         if (chan == NULL) // XXX HACK: We are in URPC
+            urpc2_send_response(data, NULL_CAP, 1, &success);
+        else
+            send_response(data, chan, NULL_CAP, 1, &success);
+        break;
         break;
     case RPC_MESSAGE(RPC_TYPE_PROCESS_KILL_ME):
         // TODO: Should we destroy the dispatcher at all? the child can do that

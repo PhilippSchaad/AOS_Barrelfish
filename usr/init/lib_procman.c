@@ -185,8 +185,7 @@ errval_t procman_deregister(domainid_t proc_id)
     struct process_info *pi = NULL;
     errval_t err = find_process_by_id(proc_id, &pi);
     if(err_is_fail(err)){
-        printf("seems that the process was already removed from the proc list. skip.\n");
-        return SYS_ERR_OK;
+        return err;
     }
 
     assert(pi->prev != NULL); // That would mean deregisterint init.
@@ -277,7 +276,7 @@ errval_t procman_kill_process(domainid_t proc_id)
             DBG(DETAILED, "PROCMAN_ERR_PROCESS_NOT_YET_STARTED\n");
             return PROCMAN_ERR_PROCESS_NOT_YET_STARTED;
         }
-        // cap_destroy(pi->si->dispatcher);
+        cap_destroy(pi->si->dispatcher);
         // lmp_chan_destroy(pi->chan);
         // cap_destroy(pi->chan->remote_cap);
         // free(pi->chan);
@@ -286,6 +285,7 @@ errval_t procman_kill_process(domainid_t proc_id)
         // actual killing. this currently works using rpc which is not that
         // nice but I have not been able to
         // kill the process without locking the system.
+        // TODO: check why this blocks
         CHECK(send(pi->chan, NULL_CAP, RPC_MESSAGE(RPC_TYPE_PROCESS_KILL), 0,
                    NULL, NULL_EVENT_CLOSURE,
                    request_fresh_id(RPC_TYPE_PROCESS_KILL)));
