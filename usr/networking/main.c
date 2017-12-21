@@ -36,9 +36,6 @@ void serial_input(uint8_t *buf, size_t len){
     //debug_printf("call, buffer length is %d\n", net_msg_buf_length(&message_buffer));
 }
 
-static void sample_fun(int* arg){
-}
-
 static void message_handler(void* payload, size_t bytes){
     struct network_register_deregister_port_message* message = payload;
     struct network_message_transfer_message* transfer_message = payload;
@@ -63,6 +60,7 @@ static void message_handler(void* payload, size_t bytes){
             // new message that needs sending
             switch(transfer_message->protocol){
                 case PROTOCOL_UDP:
+                    debug_printf("received message to print\n");
                     udp_send(transfer_message->port_from, transfer_message->port_to, transfer_message->payload, transfer_message->payload_size, transfer_message->ip_to);
                     break;
                 default:
@@ -73,6 +71,8 @@ static void message_handler(void* payload, size_t bytes){
             break;
     }
 }
+
+static void sample_fun(int* arg){}
 
 /*
 static errval_t testfun(uint8_t* payload, size_t size, uint32_t src, uint16_t source_port, uint16_t dest_port){
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     CHECK(serial_init(uart_device_mapping, UART4_IRQ));
 
     printf("UART4 up\n");
-    
+
     // enable udp
     // TODO: something to do here??
     udp_init();
@@ -110,8 +110,22 @@ int main(int argc, char *argv[])
     // open new udp port
     //udp_register_port(55,testfun);
 
+    struct nameserver_info nsi;
+    struct lmp_chan recv_chan;
+    struct nameserver_properties props;
+    char result[6];
+    props.prop_name="pid";
+    sprintf(result, "%u", disp_get_domain_id());
+    props.prop_attr=result;
+    nsi.props = &props;
+    nsi.name = "Network";
+    nsi.type = "Network";
+    nsi.nsp_count = 1;
+    nsi.coreid = disp_get_core_id();
+    //init_rpc_server(NULL,&recv_chan);
+    nsi.chan_cap = recv_chan.local_cap;
+    CHECK(register_service(&nsi));
 
-    // TODO: fix this properly!!!
     int retval;
     thread_join(thread_create((thread_func_t) sample_fun, NULL), &retval);
 
@@ -120,23 +134,6 @@ int main(int argc, char *argv[])
 
     // init message handler
     rpc_register_process_message_handler(aos_rpc_get_init_channel(), message_handler);
-
-    // register at the nameserver
-    struct nameserver_info nsi;
-    struct lmp_chan recv_chan;
-    //struct nameserver_properties props;
-    //char result[6];
-    //props.prop_name="pid";
-    //sprintf(result, "%u", disp_get_domain_id());
-    //props.prop_attr=result;
-    //nsi.props = &props;
-    nsi.name = "Network";
-    nsi.type = "Network";
-    nsi.nsp_count = 0;
-    nsi.coreid = disp_get_core_id();
-    init_rpc_server(NULL,&recv_chan);
-    nsi.chan_cap = recv_chan.local_cap;
-    CHECK(register_service(&nsi));
 
     // Hang around
     struct waitset *default_ws = get_default_waitset();

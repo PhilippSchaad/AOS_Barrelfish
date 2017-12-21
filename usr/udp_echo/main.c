@@ -46,8 +46,8 @@ int main(int argc, char *argv[])
 {
     // TODO: check args
     // TODO: remove all args except port
-    if(argc != 3){
-        printf("Usage: udp_echo network-pid port\n");
+    if(argc !=2){
+        printf("Usage: udp_echo port\n");
         return EXIT_FAILURE;
     }
 
@@ -59,15 +59,18 @@ int main(int argc, char *argv[])
     if(nsi != NULL) {
         //printf("NSI with core id %u, pid %u, and propcount %d\n", nsi->coreid, strtoul(nsi->props->prop_attr, NULL, 0), nsi->nsp_count);
     }else{
-        printf("Nameserver did not know the network\n");
+        printf("Nameserver did not know \"the network\". Start the network domain first.\n");
         return EXIT_FAILURE;
     }
 
-
-    network_pid = strtoul(argv[1], NULL, 0);
+    network_pid = strtoul(nsi->props->prop_attr, NULL, 0);
     network_coreid = nsi->coreid;
-    my_port = strtoul(argv[2], NULL, 0);
+    my_port = strtoul(argv[1], NULL, 0);
 
+    if(my_port == 0){
+        printf("Usage: udp_terminal port\n");
+        return EXIT_FAILURE;
+    }
 
     // init message handler
     rpc_register_process_message_handler(aos_rpc_get_init_channel(), message_handler);

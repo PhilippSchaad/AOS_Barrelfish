@@ -33,7 +33,8 @@ static void message_handler(void* payload, size_t bytes){
         struct network_print_message* pmessage = payload;
         // message from one of my children
         // forward to the network
-        network_message_transfer(my_port, foreign_port, my_ip, foreign_ip, PROTOCOL_UDP, pmessage->payload, pmessage->payload_size, network_pid, network_coreid);
+        debug_printf("received message from child (len is %d): %s\n", pmessage->payload_size, pmessage->payload);
+        network_message_transfer(my_port, foreign_port, my_ip, foreign_ip, PROTOCOL_UDP,(uint8_t*) pmessage->payload, pmessage->payload_size, network_pid, network_coreid);
         return;
     }
 
@@ -55,7 +56,24 @@ static void message_handler(void* payload, size_t bytes){
     my_ip = message->ip_to;
 
     domainid_t ret;
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "hello a b c 4 terminalized", disp_get_core_id(), &ret);
+
+    if(message->payload_size >= 200){
+        network_message_transfer(my_port, foreign_port, my_ip, foreign_ip, PROTOCOL_UDP, (uint8_t*) "Error: max input length is 200.", 31, network_pid, network_coreid);
+    }
+
+    //remove newline character from the string
+    message->payload[message->payload_size-1] = 0x0;
+
+    if(strcmp((char*) message->payload, "") == 0 || (strlen((char*) message->payload) >= 3 && strncmp((char*) message->payload, "->:", 3) == 0)){
+        return;
+    }
+
+    char result[214];
+    sprintf(result, "%s __terminalized",  message->payload);
+    debug_printf("try to spawn: %s\n", result);
+    aos_rpc_process_spawn(aos_rpc_get_init_channel(), result, disp_get_core_id(), &ret);
+    //TODO: catch errors
+    // TODO: catch output triggered inputs. maybe use preamble on output that is checked and ignored here
 }
 
 
@@ -63,8 +81,8 @@ int main(int argc, char *argv[])
 {
     // TODO: check args
     // TODO: remove all args except port
-    if(argc != 3){
-        printf("Usage: udp_terminal network-pid port\n");
+    if(argc != 2){
+        printf("Usage: udp_terminal port\n");
         return EXIT_FAILURE;
     }
 
@@ -76,13 +94,35 @@ int main(int argc, char *argv[])
     if(nsi != NULL) {
         //printf("NSI with core id %u, pid %u, and propcount %d\n", nsi->coreid, strtoul(nsi->props->prop_attr, NULL, 0), nsi->nsp_count);
     }else{
-        printf("Nameserver did not know the network\n");
+        printf("Nameserver did not know the network. Start the network domain first!\n");
         return EXIT_FAILURE;
     }
 
-    network_pid = strtoul(argv[1], NULL, 0);
+    network_pid = strtoul(nsi->props->prop_attr, NULL, 0);
     network_coreid = nsi->coreid;
-    my_port = strtoul(argv[2], NULL, 0);
+    my_port = strtoul(argv[1], NULL, 0);
+
+    if(my_port == 0){
+        printf("Usage: udp_terminal port\n");
+        return EXIT_FAILURE;
+    }
+
+    // register self at nameserver
+    struct nameserver_info nsis;
+    struct lmp_chan recv_chan;
+    struct nameserver_properties props;
+    char result[6];
+    props.prop_name="pid";
+    sprintf(result, "%u", disp_get_domain_id());
+    props.prop_attr=result;
+    nsis.props = &props;
+    nsis.name = "Network_Terminal";
+    nsis.type = "Network_Terminal";
+    nsis.nsp_count = 1;
+    nsis.coreid = disp_get_core_id();
+    init_rpc_server(NULL,&recv_chan);
+    nsis.chan_cap = recv_chan.local_cap;
+    CHECK(register_service(&nsis));
 
     // init message handler
     rpc_register_process_message_handler(aos_rpc_get_init_channel(), message_handler);
