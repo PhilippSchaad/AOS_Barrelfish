@@ -13,28 +13,20 @@ errval_t network_register_port(uint16_t port, uint16_t protocol, domainid_t netw
     // TODO: round up size in rpc call
     aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), network_pid, network_core, &message, sizeof(struct network_register_deregister_port_message));
 
-    /*
-    // add a piece of shared memory (size is the size of two packet)
-    size_t memsize = 0;
-    switch(protocol){
-        case PROTOCOL_UDP:
-            memsize = sizeof(struct udp_datagram);
-            break;
-        default:
-            printf("Error: Protocol %d not supported.", protocol);
-            return AOS_NET_ERR_PROTOCOL_NOT_SUPPORTED;
-    }
+    return SYS_ERR_OK;
+}
+errval_t network_deregister_port(uint16_t port, uint16_t protocol, domainid_t network_pid, coreid_t network_core)
+{
+    struct network_register_deregister_port_message message;
+    message.message_type = NETWORK_DEREGISTER_PORT;
+    message.protocol = protocol;
+    message.pid = disp_get_domain_id();
+    message.core = disp_get_core_id();
+    message.port = port;
 
+    // TODO: round up size in rpc call
+    aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), network_pid, network_core, &message, sizeof(struct network_register_deregister_port_message));
 
-    // allocate the memory for sending and receiving packets
-    uint8_t* packet_send_rcv_mem = malloc(memsize);
-
-    // get the actual address of the memory
-    default_paging_state()
-
-    // tell the network process the address of the shared memory
-    // TODO: make sure that there is only one network driver
-*/
     return SYS_ERR_OK;
 }
 

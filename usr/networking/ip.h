@@ -34,7 +34,7 @@ union ip_packet{
 
 
 void ip_handle_packet(union ip_packet* packet);
-
+void ip_set_ip(uint32_t ip);
 void ip_packet_send(uint8_t *payload, size_t payload_size, uint32_t dst, uint8_t protocol);
 
 #endif

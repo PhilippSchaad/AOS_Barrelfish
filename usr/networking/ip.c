@@ -6,6 +6,12 @@
 #include "udp.h"
 #include <aos/domain_network_interface.h>
 
+static uint32_t MY_IP=(10<<24) + (0<<16) + (3<<8) + 1;
+
+void ip_set_ip(uint32_t ip){
+    MY_IP =  ip;
+}
+
 #define IP_PACKET_CHECK(boolval, failtext) \
     if (boolval){ \
         printf(failtext); \
@@ -36,7 +42,10 @@ void ip_handle_packet(union ip_packet* packet){
 
     // detect fragmentation (fragment offset of flag set)
     //debug_printf("fragmentation: %d\n", packet->header.flags_fragmentoffset);
-    IP_PACKET_CHECK((packet->header.flags_fragmentoffset & 0xbf) != 0, "Fragmentation is not supported, drop")
+    IP_PACKET_CHECK((packet->header.flags_fragmentoffset & 0xbf) != 0, "Fragmentation is not supported, drop");
+
+    // check that packet is for me
+    IP_PACKET_CHECK((packet->header.destination) != ntohl(MY_IP), "packet is not for me");
 
     // handle according to protocol
     switch(packet->header.protocol){
@@ -44,7 +53,7 @@ void ip_handle_packet(union ip_packet* packet){
             icmp_receive(payload, payload_size, src);
             break;
         case PROTOCOL_UDP:
-            udp_receive(payload, payload_size, src);
+            udp_receive(payload, payload_size, src, MY_IP);
             break;
         default:
             printf("received not supported protocol. drop. protocol was %d\n", packet->header.protocol);
@@ -75,8 +84,5 @@ void ip_packet_send(uint8_t *payload, size_t payload_size, uint32_t dst, uint8_t
 
     // add the payload
     memcpy(packet->payload + IP_HEADER_MIN_SIZE*4, payload, payload_size);
-    free(payload);
-    payload = NULL;
-
     slip_packet_send(packet);
 }

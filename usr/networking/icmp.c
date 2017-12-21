@@ -23,6 +23,7 @@ void icmp_send(uint8_t type, uint8_t code, uint8_t* payload, size_t payload_size
 
     // send
     ip_packet_send(packet, payload_size + ICMP_HEADER_SIZE, dst, PROTOCOL_ICMP);
+    free(packet);
 }
 
 void icmp_receive(uint8_t* payload, size_t size, uint32_t src){

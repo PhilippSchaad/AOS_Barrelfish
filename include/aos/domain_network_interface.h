@@ -9,7 +9,7 @@
 #define PROTOCOL_UDP 17
 
 // TODO: set this dynamically (maybe on startup of the network?)
-#define MY_IP (10<<24) + (0<<16) + (3<<8) + 1
+//#define MY_IP (10<<24) + (0<<16) + (3<<8) + 1
 
 // TODO: change this
 #define MAX_PACKET_PAYLOAD 6300
@@ -23,6 +23,7 @@ typedef enum network_control_message_type {
 } network_control_message_t;
 
 errval_t network_register_port(uint16_t port, uint16_t protocol, domainid_t network_pid, coreid_t network_core);
+errval_t network_deregister_port(uint16_t port, uint16_t protocol, domainid_t network_pid, coreid_t network_core);
 errval_t network_message_transfer(uint16_t from_port, uint16_t to_port, uint32_t from, uint32_t to, uint16_t protocol, uint8_t* payload, size_t size, domainid_t network_pid, coreid_t network_core);
 
 

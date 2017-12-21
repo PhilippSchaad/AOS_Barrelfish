@@ -377,6 +377,9 @@ errval_t aos_rpc_process_kill(struct aos_rpc *chan, domainid_t pid,
     return SYS_ERR_OK;
 }
 
+static void aos_rpc_send_message_to_process_done(void* done){
+    *((bool*) done) = true;
+}
 errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, coreid_t core, void* payload, size_t bytes)
 {
     debug_printf("size is %d\n", bytes);
@@ -392,10 +395,33 @@ errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, c
     *message = (uint32_t) pid;
     *(message+1) = (uint32_t) core;
     memcpy(message+2, payload, payload_size);
+
+    bool done = false;
+
     send(&chan->chan, NULL_CAP, RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM), bytes/4, message,
-         NOP_CLOSURE, request_fresh_id(RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM)));
+         MKCLOSURE(aos_rpc_send_message_to_process_done, &done), request_fresh_id(RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM)));
+
+    struct waitset *ws = get_default_waitset();
+    while(!done){
+        event_dispatch(ws);
+    }
+
     free(message);
     return SYS_ERR_OK;
+
+    /*
+    unsigned char id = request_fresh_id(RPC_MESSAGE(type));
+
+    bool done = false;
+    register_recv(id, RPC_ACK_MESSAGE(type), &done, inst_recv_handling,
+                  recv_handling_arg1);
+    send(chan, cap, RPC_MESSAGE(type), payloadsize, payload,
+         callback_when_done, id);
+    struct waitset *ws = get_default_waitset();
+
+    while (!done)
+        event_dispatch(ws);
+        */
 }
 
 static void aos_rpc_process_register_recv(void *arg1, struct recv_list *data)
@@ -600,7 +626,6 @@ static void aos_rpc_recv_handler(struct recv_list *data)
             // TODO: check if origin is init
             exit(1);
         case RPC_MESSAGE(RPC_TYPE_DOMAIN_TO_DOMAIN_COM):
-            debug_printf("received message (pre)\n");
             if (rpc->p_to_p_receive_handler != NULL){
                 rpc->p_to_p_receive_handler(data->payload + 1, (data->size-1)*4);
             } else {

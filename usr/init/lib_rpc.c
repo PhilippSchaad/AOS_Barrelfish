@@ -11,6 +11,7 @@
 
 #include "../tests/test.h"
 #include <aos/nameserver_internal.h>
+#include <aos/domain_network_interface.h>
 
 struct lmp_chan init_chan;
 struct capref nameserver_cap;
@@ -437,6 +438,7 @@ void recv_deal_with_msg(struct recv_list *data)
             // we are on the right core
             // forward to right domain
             chan = procman_get_channel_by_id((domainid_t) *((uint32_t*) data->payload));
+
             if (chan != NULL){
                 forward_message(data, chan, NULL_CAP, data->size - 2, data->payload + 2);
             }

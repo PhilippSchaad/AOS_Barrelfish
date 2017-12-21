@@ -46,34 +46,49 @@ static void message_handler(void* payload, size_t bytes){
         printf("ERROR: wrong protocol, was %d\n", message->protocol);
         return;
     }
-
+    int i = 0;
+    debug_printf("%d\n",++i);
     // the payload does not change. return the exact same message
     // print the output
     printf((char*) message->payload);
+    debug_printf("%d\n",++i);
     //network_message_transfer(message->port_to, message->port_from, message->ip_to, message->ip_from, PROTOCOL_UDP, message->payload, message->payload_size, network_pid, network_coreid);
     foreign_port = message->port_from;
     foreign_ip = message->ip_from;
     my_ip = message->ip_to;
+    debug_printf("%d\n",++i);
 
     domainid_t ret;
 
     if(message->payload_size >= 200){
-        network_message_transfer(my_port, foreign_port, my_ip, foreign_ip, PROTOCOL_UDP, (uint8_t*) "Error: max input length is 200.", 31, network_pid, network_coreid);
+        network_message_transfer(my_port, foreign_port, my_ip, foreign_ip, PROTOCOL_UDP, (uint8_t*) "->: Error: max input length is 200.\n", 37, network_pid, network_coreid);
     }
+    debug_printf("%d\n",++i);
 
     //remove newline character from the string
     message->payload[message->payload_size-1] = 0x0;
+    debug_printf("%d\n",++i);
 
-    if(strcmp((char*) message->payload, "") == 0 || (strlen((char*) message->payload) >= 3 && strncmp((char*) message->payload, "->:", 3) == 0)){
+    if(message->payload == NULL || strcmp((char*) message->payload, "") == 0 || (strlen((char*) message->payload) >= 3 && strncmp((char*) message->payload, "->:", 3) == 0)){
         return;
     }
+    debug_printf("%d\n",++i);
+    if(strlen((char*) message->payload) >= 4 && strncmp((char*) message->payload, "exit", 4) == 0){
+        network_deregister_port(my_port, PROTOCOL_UDP, network_pid, network_coreid);
+        exit(EXIT_SUCCESS);
+    }
+    debug_printf("%d\n",++i);
 
     char result[214];
+    debug_printf("%d\n",++i);
     sprintf(result, "%s __terminalized",  message->payload);
     debug_printf("try to spawn: %s\n", result);
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), result, disp_get_core_id(), &ret);
-    //TODO: catch errors
-    // TODO: catch output triggered inputs. maybe use preamble on output that is checked and ignored here
+    errval_t err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), result, disp_get_core_id(), &ret);
+    debug_printf("%d\n",++i);
+    if(err_is_fail(err) || ret == UINT32_MAX){
+        network_message_transfer(my_port, foreign_port, my_ip, foreign_ip, PROTOCOL_UDP, (uint8_t*) "->: Error: command not found\n", 30, network_pid, network_coreid);
+    }
+    debug_printf("%d\n",++i);
 }
 
 

@@ -70,6 +70,11 @@ static errval_t udp_port_remove(uint16_t portnum){
             struct udp_port* tmp = current_element->next;
             current_element->next = tmp->next;
             free(tmp);
+        } else if (current_element->next == NULL && current_element->portnum == portnum){
+            // we are at the beginning of the list and there is only one entry left
+            // delete last element from list
+            port_list_head = NULL;
+            free(current_element);
         } else {
             // error: port does not exist
             thread_mutex_unlock(&mutex);
@@ -103,7 +108,7 @@ static errval_t search_udp_port(uint16_t portnum, struct udp_port **port){
     return SYS_ERR_OK;
 }
 
-void udp_receive(uint8_t* payload, size_t size, uint32_t src){
+void udp_receive(uint8_t* payload, size_t size, uint32_t src, uint32_t dst){
     errval_t err;
     struct udp_datagram* datagram = (struct udp_datagram*) payload;
     //debug_printf("received UDP packet from port %d to port %d\n", ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port));
@@ -119,7 +124,7 @@ void udp_receive(uint8_t* payload, size_t size, uint32_t src){
     }
 
     // send message to handling process
-    err = network_message_transfer(ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port), src, MY_IP, PROTOCOL_UDP, payload + UDP_HEADER_SIZE, size - UDP_HEADER_SIZE, port->pid, port->core);
+    err = network_message_transfer(ntohs(datagram->header.source_port), ntohs(datagram->header.dest_port), src, dst, PROTOCOL_UDP, payload + UDP_HEADER_SIZE, size - UDP_HEADER_SIZE, port->pid, port->core);
     //debug_printf("udp receive finished\n");
 
     //free(payload);
@@ -139,6 +144,7 @@ void udp_send(uint16_t source_port, uint16_t dest_port, uint8_t* payload, size_t
     //free(payload);
 
     ip_packet_send((uint8_t*) datagram, payload_size+UDP_HEADER_SIZE, dst, PROTOCOL_UDP);
+    free(datagram);
 }
 
 void udp_register_port(uint16_t portnum, domainid_t pid, coreid_t core){

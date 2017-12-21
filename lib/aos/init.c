@@ -89,6 +89,7 @@ static void libc_assert(const char *expression, const char *file,
 }
 
 /* Write to the terminal */
+static bool sending = false;
 static size_t terminal_write(const char *buf, size_t len)
 {
     if (len) {
@@ -96,15 +97,17 @@ static size_t terminal_write(const char *buf, size_t len)
             // If we are the init domain, write via syscall.
             sys_print(buf, len);
         } else if(network_terminal_domain){
+            if(sending) return 0;
             // domain belonging to a network terminal report back to the network
             struct network_print_message* message = malloc(sizeof(struct network_print_message));
             message->message_type = NETWORK_PRINT_MESSAGE;
             message->payload_size = 200;
             memset(message->payload, 0x0, 200);
-            snprintf(message->payload, 200, "->: %s", buf);
-            debug_printf("send the following  message %s\n", message->payload);
+            snprintf(message->payload, len+5, "->: %s\0", buf);
+            sending = true;
             CHECK(aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), terminal_domain, disp_get_core_id(), message, sizeof(struct network_print_message)));
             free(message);
+            sending = false;
         }else {
             // If we are NOT init, write via rpc -> init.
             char *buf_cpy = malloc((len + 1) * sizeof(char));

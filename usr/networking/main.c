@@ -54,7 +54,13 @@ static void message_handler(void* payload, size_t bytes){
             }
             break;
         case NETWORK_DEREGISTER_PORT:
-            printf("deregistering port not yet implemented");
+            switch(message->protocol){
+                case PROTOCOL_UDP:
+                    udp_deregister_port(message->port);
+                    break;
+                default:
+                    printf("Protocol %d not supported\n", message->protocol);
+            }
             break;
         case NETWORK_TRANSFER_MESSAGE:
             // new message that needs sending
@@ -82,8 +88,40 @@ static errval_t testfun(uint8_t* payload, size_t size, uint32_t src, uint16_t so
 }
 */
 
+static void parse_and_set_ip(char* ip_string){
+    uint8_t digits[4];
+    char buff[4];
+    int done = 0;
+    int currpos = 0;
+    for(int i = 0; i<=strlen(ip_string); ++i){
+        if(ip_string[i] == '.'||ip_string[i] == '\0'||ip_string[i] == ' '){
+            digits[done++] = (uint8_t) strtoul(buff, NULL, 0);
+            currpos = 0;
+            memset(buff,0x0,4);
+        } else {
+            buff[currpos++] = ip_string[i];
+        }
+    }
+    if(done == 4){
+        ip_set_ip((digits[0]<<24) + (digits[1]<<16) + (digits[2]<<8) + digits[3]);
+        printf("Our IP address is: %d.%d.%d.%d\n", digits[0], digits[1], digits[2], digits[3]);
+    } else {
+        printf("Error: unable to parse ip address\n");
+        printf("Usage: network ip_addr\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
+    if(argc != 2){
+        printf("Usage: network ip_addr\n");
+        return EXIT_FAILURE;
+    }
+    parse_and_set_ip(argv[1]);
+
+
     printf("\nWelcome. I am your connection to the world.\n");
 
     errval_t err;
