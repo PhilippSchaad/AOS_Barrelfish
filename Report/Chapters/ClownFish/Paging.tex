@@ -32,7 +32,7 @@ mapped and would need additional testing to make sure that we cover all corner
 cases.
 \medskip
 
-The stack operates on a separate interrupt stack. We encountered an error, in 
+The pagefault handler operates on a separate interrupt stack. We encountered an error, in 
 which the handling of the pagefault would exceed the initial size of 4kB. 
 Increasing the size of the stack to a really large value (16kB) solved that 
 problem.

@@ -1,4 +1,4 @@
-\section{Network}\label{s:network}
+\section{Network (Jan Müller)}\label{s:network}
 \subsection{Overview}
 The implemented network stack is organised on a code level according to the OSI reference layer. However, on the running system, only the transport layer is running isolated from the others. An overview over the implementation can be seen in figure \ref{f:network_overview}. The receiving side of the slip protocol, the IP protocol and the transport protocols (UDP, ICMP) are running on the same thread to reduce the overhead introduced by scheduling or the even larger overhead of a call to the RPC system. Another advantage of this system is, that there is less possibility of an internal buffer overflow.\\
 For the communication between different network related domains, an internal network messaging protocol (INMP) was implemented. This protocol relies on the underlying RPC/URPC implementation. This allows for multiple user level domains accessing the network, for example the implemented udp\_echo and udp\_terminal domains. There is one master domain called network, which starts the network logic. This process takes the own IP address as input. Currently, it is not possible, to change the IP address after this initial setup. \\
@@ -6,7 +6,7 @@ Currently, there are two drawbacks: Because the nameserver is used to connect th
 
 \begin{figure}
 \centering
-		\includegraphics[width=0.3\textwidth]{Images/Network}
+		\includegraphics[width=0.2\textwidth]{Images/Network}
 		\caption{Code structured according to the OSI reference model.}
 \end{figure}
 
@@ -58,24 +58,36 @@ Two user space applications were implemented. An UDP echo server was implemented
 The UDP terminal server is more interesting. This application is a minimal shell, that allows the user to spawn processes and returns the output of that process to the user. It is currently not allowed to start the TurtleBack shell, as the input integration is not done. The way this works, is that the network terminal app passes a special flag to a spawning process, that signals that it should report to the network terminal. The new process will then use the nameserver to redirect its output to the network terminal. This system could be improved by integrating it to the TurtleBack shell. From a security point of view, a login mechanism should be added.
 
 \subsection{Performance}
-\todo{Measure max bandwidth}
 
-\subsubsection{Ping}
+\subsubsection{Internal message handling \label{ss:network_internal_message_handling}}
+Figure \ref{f:internal_rtt_figure} shows a measurement of the latency of the internal packet handling. For the test, the hardware counter was reset once a packet was completed. The time measurement was taken, before the message was handed back to the serial handler. To get a useful number out of the number of clock cycles, it was divided by the clock frequency of the processor to get the amount of ms passed. The measurement was done once using ICMP packets (figure \ref{f:ping_internal_rtt}) and once using UDP packets (figure \ref{f:udp_internal_rtt}). The values from this measurement steadied on a certain value after one or two measurements. We think, this might be because of allocation of additional ressources, that have to be done when a larger test is run the first tim. \\
+We note, that for both protocols, the computation time is linearly increasing with the payload size. We also see, that UDP performes worse than ICMP. This is because there are two extra RPC calls and two context switches more involved in handling these packets.
+
+\subsubsection{Ping \label{ss:network_performance_ping}}
 Two tests were performed to measure the performance of the implemented ping-reply mechanism. Both tests consisted of sending pings with 31 different payload sizes. The tests were run 100 times for each size. The Linux ping utility was used to perform both tests.\\
 The first test checked the reliability of the system. For a single payload size, we send 100 packets and note, how many replies we receive. The amount of received ping replies is shown in figure \ref{f:ping_yield}. We note, that for sizes that up to about 1.5kB, at least 98\% of the ping packets generate an answer from the system. Note that on sizes larger than 1kB, some of the icmp echo-reply answers contain a faulty payload. This means, that the message sent and received do not have the same payload. However, only less than 3\% of the packets are affected. We see, that there were no replies of the system for payloads larger than 1.5kB. The reason is, that the packets are dropped by the tunsip utility. The error code of -7 indicates a ICMP checksum error. The error happens on the host side, before the packets reach the device under test.\\
 In the second test, the actual RTT time for the differently sized ping requests were measured. Sizes larger than 1.5kB were excluded from the test, because of the 0 yield. The mean, as well as the lowest and the highest values for the RTTs can be seen in figure \ref{f:ping_rtt}. Different things can be noted from the data collected: 
 \begin{itemize}
-	\item The mean RTT is linearly increasing from 0 up to about 800B of payload. \todo{what does this tell us?}
-	\item At around 1kB of payload, the system performed the worst. \todo{find out why}
-	\item \todo{write more}
-	\item larger peaks
-	\item reduced RTT after about 950 B
+	\item The mean RTT is linearly increasing from 0 up to about 800B of payload.
+	\item At around 1kB of payload, the system performed the worst. After a peak, the performance gets better again. The cause of this behaviour could not be found.
+	\item We note, that the worst case RTT increases for larger payloads
 \end{itemize}
+The serial connection runs on 115200 Baud. When neglecting the overhead of the slip protocol, this means that we should have a bitrate of about 14kBps. Together with the measurements from \ref{ss:network_internal_message_handling}, we conclude that most of the time that is needed to handle a packet, is needed by the serial connection between the two devices and the interrupt based handling of the incoming and outgoing traffic. 
 
-115200
-14400 Bps
-14kBps
-1.2 ms/B increase
+\begin{figure}
+	\begin{subfigure}[c]{0.50\textwidth}
+	\centering
+		\includegraphics[width=0.9\textwidth]{ping_internal_rtt}
+		\subcaption{internal RTT measurement for ICMP \label{f:ping_internal_rtt}}
+	\end{subfigure}
+\begin{subfigure}[c]{0.50\textwidth}
+\centering
+		\includegraphics[width=0.9\textwidth]{udp_internal_rtt}
+		\subcaption{internal RTT measurement for ICMP \label{f:udp_internal_rtt}}
+	\end{subfigure}
+	\caption{Latency between completion of packet from serial and handing over of packet to serial}
+	\label{f:internal_rtt_figure}
+\end{figure}
 
 \begin{figure}
 	\begin{subfigure}[c]{0.50\textwidth}
@@ -98,6 +110,6 @@ maximum latency: 230 ms\\
 minimum latency: 47 ms\\
 mean latency: 68.5 ms\\
 the measured values had a standard deviation of 21.7 ms.
-\todo{comment on this}
+Similar statements on the performance as in section \ref{ss:network_performance_ping} can be made.
 
 

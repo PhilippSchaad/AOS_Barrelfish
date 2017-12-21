@@ -10,8 +10,8 @@ manages distribution and tracking of its own segment of physical memory.
 \subsection{Resource Tracking}\label{ss:res-tracking}
 
 To track what system resources are free or in use, we employ a very basic 
-doubly linked list, where each element (called a node) has a type (we will get 
-to those in a bit), a capability for the memory region it represents, as well 
+doubly linked list, where each element (called a node) has a type, 
+a capability for the memory region it represents, as well 
 as pointers to the next and previous node together with its region's base 
 address and size in bytes.
 \medskip
