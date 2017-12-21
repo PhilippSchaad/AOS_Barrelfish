@@ -1,11 +1,12 @@
 \section{Network}\label{s:network}
 \subsection{Overview}
 The implemented network stack is organised on a code level according to the OSI reference layer. However, on the running system, only the transport layer is running isolated from the others. An overview over the implementation can be seen in figure \ref{f:network_overview}. The receiving side of the slip protocol, the IP protocol and the transport protocols (UDP, ICMP) are running on the same thread to reduce the overhead introduced by scheduling or the even larger overhead of a call to the RPC system. Another advantage of this system is, that there is less possibility of an internal buffer overflow.\\
-For the communication between different network related domains, an internal network messaging protocol (INMP) was implemented. This protocol relies on the underlying RPC/URPC implementation. This allows for multiple user level domains accessing the network, for example the implemented udp\_echo and udp\_terminal domains. There is one master domain called network, which starts the network logic. This process takes the own IP address as input. Currently, it is not possible, to change the IP address after this initial setup. 
+For the communication between different network related domains, an internal network messaging protocol (INMP) was implemented. This protocol relies on the underlying RPC/URPC implementation. This allows for multiple user level domains accessing the network, for example the implemented udp\_echo and udp\_terminal domains. There is one master domain called network, which starts the network logic. This process takes the own IP address as input. Currently, it is not possible, to change the IP address after this initial setup. \\
+Currently, there are two drawbacks: Because the nameserver is used to connect the network domains and does not support cross core lookups, all network tasks have to run on same core. The other drawback is, that it is not possible to have multiple IP addresses, currently. If one tries to run a second network stack on the other core, the behaviour is not defined as the interrupts are not guaranteed to work as intended anymore.
 
 \begin{figure}
 \centering
-		\includegraphics[width=0.5\textwidth]{Images/Network}
+		\includegraphics[width=0.3\textwidth]{Images/Network}
 		\caption{Code structured according to the OSI reference model.}
 \end{figure}
 
@@ -33,7 +34,8 @@ When the IP handler receives a packet from the SLIP handler, it does some sanity
 \end{itemize}
 If any of these tests fail, the packet is dropped.\\
 If the packet passes the tests, the byte order of the source IP address is changed from network byte order to little-endian and is delivered together with the payload to the right protocol. Currently, there are the ICMP and UDP protocols supported. Again, if the packet uses another protocol, the message is dropped.\\
-\todo{Hop count not reduced due to no further hops}
+Because the os is not meant to be used as a routing device, the hop count is not reduced or checked on incoming packets.
+
 \subsubsection{Sending}
 When the IP handler receives a packet, a standard set of headers are set and the checksum is computed. After the IP packet is arranged, it is handed to the SLIP handler. At the moment, there is no possibility for a domain sending a packet to change the headers of the IP packet (besides the destination address of course). We apply a standard set of headers to all outgoing packets. 
 
@@ -44,19 +46,23 @@ The ICMP handler offers a function which allows any user level domain to send ar
 
 \subsection{UDP}
 \subsubsection{Open new port}
-All UDP ports are implemented by user level domains. A domain can open a new port by sending the appropriate message using the INMP. The domain has to implement the handler for the incoming messages and can then send a request to open a new port to the UDP handler. The handler will check if the port exists and if not, add it to a singly linked list and direct incoming datagrams on that port to the specified domain (again using the internal network message protocol). An open port can be closed by the 
+All UDP ports are implemented by user level domains. A domain can open a new port by sending the appropriate message using the INMP. The domain has to implement the handler for the incoming messages and can then send a request to open a new port to the UDP handler. The handler will check if the port exists and if not, add it to a singly linked list and direct incoming datagrams on that port to the specified domain (again using the internal network message protocol). An open port can be closed again. Currently, there is no check on who is trying to close a port. An obvious improvement would be, to only allow the domain that opened the port and some monitor domain to close the ports. Also, there is currently no check, if the receiving handler of the port is still running or has crashed or exited without closing the port.
 
 \subsubsection{Receiving}
-When the UDP handler receives a packet, it UDP handler checks the destination port and forwards the packet to the right user level domain. If the port number is not known, the packet is dropped. The incoming and the outgoing port, as well as the source ip address and the payload is sent to the handling domain using the internal network messaging protocol.
+When the UDP handler receives a packet, it UDP handler checks the destination port and forwards the packet to the right user level domain using the INMP. If the port number is not known, the packet is dropped. The incoming and the outgoing port, as well as the source ip address and the payload is sent to the handling domain using the internal network messaging protocol.
 \subsubsection{Sending}
-Using the internal network messaging protocol, a user level domain can send a packet to the UDP handler which writes the header of the datagram and forwards it to the IP handler. No checksum is created, because the UDP checksum is optional for IPv4. \todo{ref}
+Using the internal network messaging protocol, a user level domain can send a packet to the UDP handler which writes the header of the datagram and forwards it to the IP handler. No checksum is created, because according to the RFC on UDP, the UDP checksum is optional.\cite{RFC0768}
+
+\subsection{User Space Applications}
+Two user space applications were implemented. An UDP echo server was implemented, that automatically connects to the network process on the same core using the nameserver. All this process does, is to fetch the user input and return it to the user.\\
+The UDP terminal server is more interesting. This application is a minimal shell, that allows the user to spawn processes and returns the output of that process to the user. It is currently not allowed to start the TurtleBack shell, as the input integration is not done. The way this works, is that the network terminal app passes a special flag to a spawning process, that signals that it should report to the network terminal. The new process will then use the nameserver to redirect its output to the network terminal. This system could be improved by integrating it to the TurtleBack shell. From a security point of view, a login mechanism should be added.
 
 \subsection{Performance}
-\todo{Measure everything}
+\todo{Measure max bandwidth}
 
 \subsubsection{Ping}
 Two tests were performed to measure the performance of the implemented ping-reply mechanism. Both tests consisted of sending pings with 31 different payload sizes. The tests were run 100 times for each size. The Linux ping utility was used to perform both tests.\\
-The first test checked the reliability of the system. For a single payload size, we send 100 packets and note, how many replies we receive. The amount of received ping replies is shown in figure \ref{f:ping_yield}. We note, that for sizes that up to about 1.5kB, at least 98\% of the ping packets generate an answer from the system. Note that on sizes larger than 1kB, some of the icmp echo-reply answers contain a faulty payload. This means, that the message sent and received do not have the same payload. However, only less than 3\% of the packets are affected. We see, that there were no replies of the system for payloads larger than 1.5kB \todo{find out why}.\\
+The first test checked the reliability of the system. For a single payload size, we send 100 packets and note, how many replies we receive. The amount of received ping replies is shown in figure \ref{f:ping_yield}. We note, that for sizes that up to about 1.5kB, at least 98\% of the ping packets generate an answer from the system. Note that on sizes larger than 1kB, some of the icmp echo-reply answers contain a faulty payload. This means, that the message sent and received do not have the same payload. However, only less than 3\% of the packets are affected. We see, that there were no replies of the system for payloads larger than 1.5kB. The reason is, that the packets are dropped by the tunsip utility. The error code of -7 indicates a ICMP checksum error. The error happens on the host side, before the packets reach the device under test.\\
 In the second test, the actual RTT time for the differently sized ping requests were measured. Sizes larger than 1.5kB were excluded from the test, because of the 0 yield. The mean, as well as the lowest and the highest values for the RTTs can be seen in figure \ref{f:ping_rtt}. Different things can be noted from the data collected: 
 \begin{itemize}
 	\item The mean RTT is linearly increasing from 0 up to about 800B of payload. \todo{what does this tell us?}
@@ -65,6 +71,11 @@ In the second test, the actual RTT time for the differently sized ping requests 
 	\item larger peaks
 	\item reduced RTT after about 950 B
 \end{itemize}
+
+115200
+14400 Bps
+14kBps
+1.2 ms/B increase
 
 \begin{figure}
 	\begin{subfigure}[c]{0.50\textwidth}
@@ -89,7 +100,4 @@ mean latency: 68.5 ms\\
 the measured values had a standard deviation of 21.7 ms.
 \todo{comment on this}
 
-\subsection{Shortcommings}
-run all network tasks on same core
-multiple network stacks are not supported and lead to crash
 
