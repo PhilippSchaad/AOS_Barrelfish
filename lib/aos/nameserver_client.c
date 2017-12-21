@@ -67,7 +67,7 @@ rpc_framework(void (*inst_recv_handling)(void *arg1, struct recv_list *data),
 
 static void ns_rpc_recv_handler(struct recv_list *data)
 {
-    DBG(-1,"ns_rpc_recv_handler, raw type %u, id %u\n",(unsigned int)data->type,(unsigned int)data->id);
+    DBG(VERBOSE,"ns_rpc_recv_handler, raw type %u, id %u\n",(unsigned int)data->type,(unsigned int)data->id);
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
@@ -203,10 +203,11 @@ static void lookup_recv_handler(void*arg1, struct recv_list* data) {
 errval_t lookup(struct nameserver_query* nsq, struct nameserver_info** result) { //first fit
     if(!nameserver_connection.init)
         handshake_with_ns();
-    char *ser = serialize_nameserver_query(nsq);
+    size_t len = 0;
+    char *ser = serialize_nameserver_query(nsq,&len);
     uintptr_t *out;
     size_t outsize;
-    convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[4])+5,&out,&outsize);
+    convert_charptr_to_uintptr_with_padding_and_copy(ser,len+1,&out,&outsize);
     free(ser);
     rpc_framework(lookup_recv_handler,result,NS_RPC_TYPE_LOOKUP,&nameserver_connection.chan,NULL_CAP,outsize,out,NULL_EVENT_CLOSURE);
     free(out);
@@ -248,7 +249,7 @@ static void enumerate_recv_handler(void*arg1, struct recv_list*data) {
     memcpy(temp,pl,strlen);
     temp[strlen] = '\0';
     arr[index] = temp;
-    debug_printf(arr[0]);
+    //debug_printf(arr[0]);
     *res = arr;
     index++;
     arr[index] = 0;
@@ -257,10 +258,11 @@ static void enumerate_recv_handler(void*arg1, struct recv_list*data) {
 errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result) { //all hits
     if(!nameserver_connection.init)
         handshake_with_ns();
-    char *ser = serialize_nameserver_query(nsq);
+    size_t len = 0;
+    char *ser = serialize_nameserver_query(nsq,&len);
     uintptr_t *out;
     size_t outsize;
-    convert_charptr_to_uintptr_with_padding_and_copy(ser,strlen(&ser[4])+5,&out,&outsize);
+    convert_charptr_to_uintptr_with_padding_and_copy(ser,len+1,&out,&outsize);
     free(ser);
     rpc_framework(enumerate_recv_handler,result,NS_RPC_TYPE_ENUMERATE,&nameserver_connection.chan,NULL_CAP,outsize,out,NULL_EVENT_CLOSURE);
     char** temp = *result;
@@ -275,12 +277,13 @@ errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result) { 
 
     return SYS_ERR_OK;
 }
+/*
 errval_t enumerate_complex(struct nameserver_query* nsq, size_t *num, struct nameserver_info** result) { //all hits, names only
     if(!nameserver_connection.init)
         handshake_with_ns();
     return LIB_ERR_NOT_IMPLEMENTED;
 }
-
+*/
 void ns_debug_dump(void) {
     if(!nameserver_connection.init)
         handshake_with_ns();

@@ -102,6 +102,47 @@ static bool validate_entry(struct nameserver_info* entry) {
     return true;
 }
 
+//this is inefficient but reasonably simple. A more complex approach could be more performant by looping differently
+static bool query_prop_cmp(struct query_props nsqp, struct nameserver_info *nsi) {
+//    debug_printf("nsq has %u elements and pointer %p\n",nsqp.count,nsqp.qps);
+//    debug_printf("displaying nsi with name %s and propcount %d\n",nsi->name,nsi->nsp_count);
+    for(int i = 0; i < nsqp.count; i++) {
+        bool fullfilled = false;
+        for(int j = 0; j < nsi->nsp_count && !fullfilled; j++) {
+//            debug_printf("comparing names: %s %s\n",nsqp.qps[i].nsp->prop_name,nsi->props[j].prop_name);
+            if(!strcmp(nsqp.qps[i].nsp->prop_name,nsi->props[j].prop_name)) {
+                fullfilled = true;
+                size_t qattrlen = strlen(nsqp.qps[i].nsp->prop_attr);
+                size_t attrlen = strlen(nsi->props[j].prop_attr);
+                if(attrlen < qattrlen) //if the attr is less than what we try to compare with, it's necessarily not doable
+                    return false;
+                switch(nsqp.qps[i].nsqpt) {
+                    case nsqp_is:
+                        if(strcmp(nsqp.qps[i].nsp->prop_attr,nsi->props[j].prop_attr))
+                            return false;
+                        break;
+                    case nsq_beginswith:
+                        if(strncmp(nsqp.qps[i].nsp->prop_attr,nsi->props[j].prop_attr,qattrlen))
+                            return false;
+                        break;
+                    case nsq_endswith:
+                        if(strcmp(nsqp.qps[i].nsp->prop_attr,nsi->props[j].prop_attr  + attrlen - qattrlen))
+                            return false;
+                        break;
+                    case nsq_contains:
+                        if(!strstr(nsqp.qps[i].nsp->prop_attr,nsi->props[j].prop_attr))
+                            return false;
+                        break;
+                }
+            }
+        }
+        if(!fullfilled)
+            return false;
+    }
+//    debug_printf("success!\n");
+    return true;
+}
+
 static bool eval_query(struct nameserver_query *nsq, struct nameserver_info *nsi) {
     DBG(VERBOSE,"tag is: %u",(unsigned int) nsq->tag);
     switch(nsq->tag) {
@@ -111,6 +152,9 @@ static bool eval_query(struct nameserver_query *nsq, struct nameserver_info *nsi
         case nsq_type:
             DBG(VERBOSE,"Current comparison: %s == %s\n",nsi->type,nsq->type);
             return strcmp(nsq->type,nsi->type) == 0;
+        case nsq_props:
+            DBG(VERBOSE,"comparing props...\n");
+            return query_prop_cmp(nsq->qp,nsi);
     }
     DBG(ERR,"The impossible occured. Beware the nasal demons\n");
     return false;
@@ -244,8 +288,9 @@ static bool ns_remove_self_handler(struct lmp_chan *requester_chan) {
     struct process *prev = NULL;
     struct process *cur = ns.processes;
     while(cur != NULL) {
-        if(cur->connection_chan != requester_chan)
+        if(cur->connection_chan == requester_chan) {
             break;
+        }
         prev = cur;
         cur = cur->next;
     }
@@ -384,7 +429,7 @@ static void ns_lookup_enumerate(struct recv_list *data) {
 
 static void ns_active_chan_handler(struct recv_list *data) {
     DBG(VERBOSE,"post handshake msg\n");
-    //kill_dead_services();
+    kill_dead_services();
     //dump_ns();
     bool res;
     switch(data->type) {

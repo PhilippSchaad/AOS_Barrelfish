@@ -824,7 +824,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
         debug_printf("serialserv requesting from nameserver...\n");
         nsq.type = "Serial Console";
         err =lookup(&nsq,&nsi);
-        debug_printf("hello\n");
+//        debug_printf("hello\n");
         if(!err_is_ok(err) || nsi == NULL) {
             DBG(ERR,"no serial server registered with the nameserver\n");
             assert(!"oops serialserv not registered with nameserver");
