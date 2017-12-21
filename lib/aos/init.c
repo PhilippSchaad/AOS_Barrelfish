@@ -27,6 +27,7 @@
 #include "threads_priv.h"
 #include "init.h"
 #include <aos/domain_network_interface.h>
+#include <nameserver.h>
 
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
@@ -96,11 +97,14 @@ static size_t terminal_write(const char *buf, size_t len)
             sys_print(buf, len);
         } else if(network_terminal_domain){
             // domain belonging to a network terminal report back to the network
-            struct network_print_message message;
-            message.message_type = NETWORK_PRINT_MESSAGE;
-            message.payload_size = len + 1;
-            snprintf((char*) message.payload, len+1, "%s\0", buf);
-            CHECK(aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), terminal_domain, disp_get_core_id(), &message, sizeof(struct network_print_message) - 200 + len));
+            struct network_print_message* message = malloc(sizeof(struct network_print_message));
+            message->message_type = NETWORK_PRINT_MESSAGE;
+            message->payload_size = 200;
+            memset(message->payload, 0x0, 200);
+            snprintf(message->payload, 200, "->: %s", buf);
+            debug_printf("send the following  message %s\n", message->payload);
+            CHECK(aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), terminal_domain, disp_get_core_id(), message, sizeof(struct network_print_message)));
+            free(message);
         }else {
             // If we are NOT init, write via rpc -> init.
             char *buf_cpy = malloc((len + 1) * sizeof(char));
@@ -197,13 +201,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     aos_rpc_init(&init_rpc);
     ram_alloc_set(NULL);
 
-    // check if we run from the network terminal
-    if(params->argc != 1 && strcmp(params->argv[params->argc-1],"terminalized") == 0){
-        --params->argc;
-        // get the port
-        terminal_domain = strtoul(params->argv[--params->argc], NULL, 0);
-        network_terminal_domain = true;
-    }
 
     // Register ourselves in the process manager.
     DBG(VERBOSE, "We're gonna register ourself with the procman now\n");
@@ -212,7 +209,27 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     aos_rpc_process_register(aos_rpc_get_process_channel(), domain_name);
 
     DBG(VERBOSE, "Registration completed, running main now\n");
-    
+
+
+    // check if we run from the network terminal
+    if(params->argc != 1 && strcmp(params->argv[params->argc-1],"__terminalized") == 0){
+        --params->argc;
+        network_terminal_domain = true;
+        // get the port from the nameserver
+         struct nameserver_query nsq;
+        nsq.tag = nsq_name;
+        nsq.name = "Network_Terminal";
+        struct nameserver_info *nsi;
+        CHECK(lookup(&nsq,&nsi));
+        if(nsi != NULL) {
+            //printf("NSI with core id %u, pid %u, and propcount %d\n", nsi->coreid, strtoul(nsi->props->prop_attr, NULL, 0), nsi->nsp_count);
+        }else{
+            printf("Requested spawn by network terminal, but seems that no network terminal is registered\n");
+            return EXIT_FAILURE;
+        }
+        terminal_domain = strtoul(nsi->props->prop_attr, NULL, 0);
+    }
+
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;

@@ -223,15 +223,15 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     //we are out, so we need to 1. use from buffer
     //and 2. refill
     if(sa->space == 0) {
-        if(print)
-            debug_printf("aos_rpc_ram4\n");
+//        if(print)
+//            debug_printf("aos_rpc_ram4\n");
         USER_PANIC("fix me \n");
 //        lmp_chan_set_recv_slot(&chan->chan,todo);
     } else {
         lmp_chan_alloc_recv_slot(&chan->chan);
     }
-    if(print)
-        debug_printf("aos_rpc_ram6\n");
+//    if(print)
+//        debug_printf("aos_rpc_ram6\n");
 //and to the dark gods I sacrifice this code, may it sate their hunger for bugs and hacks
     /*
     lmp_chan_register_recv(&chan->chan, &mem_ws,
@@ -276,8 +276,8 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
 
 //now back to normal
-    if(print)
-        debug_printf("aos_rpc_ram9\n");
+    //if(print)
+    //    debug_printf("aos_rpc_ram9\n");
 
 
     DBG(DETAILED, "rpc_get_ram_cap done\n");
@@ -383,7 +383,6 @@ errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, c
     bytes +=8;
     uintptr_t* message = malloc(bytes);
     memset(message,0x0, bytes);
-    debug_printf("message is at %p\n", message);
     *message = (uint32_t) pid;
     *(message+1) = (uint32_t) core;
     memcpy(message+2, payload, payload_size);

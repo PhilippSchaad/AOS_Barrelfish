@@ -50,6 +50,6 @@ struct network_message_transfer_message{
 struct network_print_message{
     network_control_message_t message_type;
     size_t payload_size;
-    uint8_t payload[200];
+    char payload[200];
 };
 #endif
