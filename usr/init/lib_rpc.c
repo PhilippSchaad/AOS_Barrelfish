@@ -535,7 +535,7 @@ void recv_deal_with_msg(struct recv_list *data)
         return;
     }
 }
-static errval_t handshake_recv_handler(struct capref *child_cap)
+static errval_t handshake_recv_handler(unsigned int id,struct capref *child_cap)
 {
     DBG(DETAILED, "init received cap\n");
 
@@ -568,7 +568,7 @@ static errval_t handshake_recv_handler(struct capref *child_cap)
 
     // Send ACK to the child including new cap to bind to
     send(&dom->chan, dom->chan.local_cap, RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE),
-         0, NULL, NULL_EVENT_CLOSURE,0);
+         1, &id, NULL_EVENT_CLOSURE,0);
 //         request_fresh_id(RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
 
     DBG(DETAILED, "successfully received cap\n");
@@ -581,7 +581,7 @@ static void recv_handshake_handler(struct recv_list *data)
     DBG(VERBOSE, "recv handshake...\n");
     switch (data->type) {
     case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
-        handshake_recv_handler(&data->cap);
+        handshake_recv_handler(data->id, &data->cap);
         break;
     default:
         DBG(ERR, "Received non-handshake RPC with handshake handler. This "

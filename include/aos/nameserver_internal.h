@@ -11,7 +11,7 @@
 #define NS_RPC_TYPE_DEREGISTER_SERVICE  0x4
 #define NS_RPC_TYPE_LOOKUP              0x5
 #define NS_RPC_TYPE_ENUMERATE           0x6
-#define NS_RPC_TYPE_ENUMERATE_COMPLEX    0x7
+#define NS_RPC_TYPE_ENUMERATE_COMPLEX   0x7
 #define NS_RPC_TYPE_DEBUG_DUMP          0x8
 
 char* serialize_nameserver_prop(struct nameserver_properties* ns_p);

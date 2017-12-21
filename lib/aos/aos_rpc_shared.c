@@ -200,7 +200,8 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
                 if(chan_entry->chan == chan) {//found chan
                     done = true;
                 }else{
-                    if(chan->connstate == LMP_DISCONNECTED) {
+                    //disabled that case for now
+                    if(false && chan->connstate == LMP_DISCONNECTED) {
                         debug_printf("found disconnected channel, removing it\n");
                         //todo: callback that channel was disconnected
                         if(prev != NULL) {
@@ -230,7 +231,7 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
         }
 
     bool need_to_start = false;
-    DBG(DETAILED, "Sending message with: type 0x%x id %u\n", type >> 1, id);
+    DBG(DETAILED, "Sending message with: raw type %u id %u\n", type, id);
     synchronized(chan_entry->rpc_send_queue.thread_mutex)
     {
         struct send_queue *sq = malloc(sizeof(struct send_queue));
@@ -274,9 +275,9 @@ static struct recv_list *rpc_recv_lookup(struct recv_list *head,
                                          unsigned char type, unsigned char id)
 {
     while (head != NULL) {
-        if(type == 11)
+/*        if(type == 11)
             debug_printf("found type %u with id %u\n",(unsigned int)head->type,(unsigned int)id);
-        if (head->type == type && head->id == id)
+*/        if (head->type == type && head->id == id)
             return head;
         head = head->next;
     }
