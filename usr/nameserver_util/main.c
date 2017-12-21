@@ -8,6 +8,13 @@
 
 struct lmp_chan recv_chan;
 
+static void print_enumeration(size_t num, char **res) {
+    printf("enumerate found %u results: \n",num);
+    for(size_t j = 0; j < num; j++) {
+        printf("    %s\n",res[j]);
+    }
+    printf("end of enumeration\n");
+}
 
 int main(int argc, char *argv[])
 {
@@ -55,31 +62,143 @@ int main(int argc, char *argv[])
                 char *ser = serialize_nameserver_info(nsi);
                 ser += sizeof(unsigned int) + sizeof(int);
                 printf("NSI with core id %u, and propcount %d: %s\n", nsi->coreid, nsi->nsp_count, ser);
+                free_nameserver_info(nsi);
             }else{
                 printf("Could not find process with query: %s\n",nsq.name);
             }
         } else if(0 == strcmp(argv[i],"enumerate")) {
             struct nameserver_query nsq;
-            nsq.tag = nsq_name;
-            nsq.name = "FlatHierarchy";
+            struct query_prop qp;
+            struct nameserver_properties qpp;
+            if(i+2 < argc) {
+                if(argv[i+1][0] == '0') {
+                    printf("querying for name %s\n",argv[i+2]);
+                    nsq.tag = nsq_name;
+                    nsq.name = argv[i+2];
+                    i+=2;
+                }
+                else if(argv[i+1][0] == '1') {
+                    printf("querying for type %s\n",argv[i+2]);
+                    nsq.tag = nsq_type;
+                    nsq.type = argv[i+2];
+                    i+=2;
+                }
+                else if(argv[i+1][0] == '2') {
+                    printf("querying for props...\n");
+                    nsq.tag = nsq_props;
+                    nsq.qp.count = 1;
+                    bool invalid = false;
+                    switch (argv[i + 1][1]) {
+                        case '0':
+                            printf("querying for equality\n");
+                            qp.nsqpt = nsqp_is;
+                            break;
+                        case '1':
+                            printf("querying for same beginning\n");
+                            qp.nsqpt = nsq_beginswith;
+                            break;
+                        case '2':
+                            printf("querying for same ending\n");
+                            qp.nsqpt = nsq_endswith;
+                            break;
+                        case '3':
+                            printf("querying for containing\n");
+                            qp.nsqpt = nsq_contains;
+                            break;
+                        default:
+                            printf("invalid test for nsq_props query, needs to be from 0 to 3\n");
+                            invalid = true;
+                            break;
+                    }
+                    if (invalid)
+                        continue;
+                    printf("the prop to query for is: %s\n", argv[i + 2]);
+                    char *t = argv[i + 2];
+                    invalid = true;
+                    while (*t) {
+                        if (*t == ':') {
+                            *t = '\0';
+                            t++;
+                            invalid = false;
+                            break;
+                        }
+                        t++;
+                    }
+                    if (invalid)
+                        continue;
+                    qpp.prop_name = argv[i + 2];
+                    qpp.prop_attr = t;
+                    qp.nsp = &qpp;
+                    nsq.qp.qps = &qp;
+                    i+=2;
+                }else if(argv[i+1][0] == '3') {
+                    printf("enumerating for name FlatHierarchy\n");
+                    nsq.tag = nsq_name;
+                    nsq.name = "FlatHierarchy";
+                    i++;
+                }else{
+                    printf("invalid range for query, needs to be from 0 to 3\n");
+                    continue;
+                }
+            }else{
+                nsq.tag = nsq_name;
+                nsq.name = "FlatHierarchy";
+            }
+            char** res;
+            size_t num;
+            CHECK(enumerate(&nsq,&num,&res));
+            debug_printf("test\n");
+            if(res != NULL) {
+                debug_printf("here\n");
+                print_enumeration(num, res);
+            }else
+                printf("Could not find any processes with query\n");
+        } else if(0 == strcmp(argv[i],"enumerate_all")) {
+            struct nameserver_query nsq;
+            nsq.tag = nsq_props;
+            nsq.qp.count = 0;
+            nsq.qp.qps = NULL;
             char** res;
             size_t num;
             CHECK(enumerate(&nsq,&num,&res));
             if(res != NULL) {
-                debug_printf("enumerate found: \n");
+                print_enumeration(num, res);
+            }else
+                printf("Could not find any processes with query: %s\n",nsq.name);
+        } else if(0 == strcmp(argv[i],"enumerate_all_complex")) {
+            struct nameserver_query nsq;
+            nsq.tag = nsq_props;
+            nsq.qp.count = 0;
+            nsq.qp.qps = NULL;
+            char** res;
+            size_t num;
+            CHECK(enumerate(&nsq,&num,&res));
+            if(res != NULL) {
+                printf("enumerate found: \n");
                 for(size_t j = 0; j < num; j++) {
-                    debug_printf("    %s\n",res[j]);
+                    struct nameserver_query nsq2;
+                    nsq2.tag = nsq_name;
+                    nsq2.name = res[j];
+                    struct nameserver_info *nsi;
+                    CHECK(lookup(&nsq2,&nsi));
+                    if(nsi != NULL) {
+                        char *ser = serialize_nameserver_info(nsi);
+                        ser += sizeof(unsigned int) + sizeof(int);
+                        printf("NSI with core id %u, and propcount %d: %s\n", nsi->coreid, nsi->nsp_count, ser);
+                        free(ser-(sizeof(unsigned int) + sizeof(int)));
+                        free_nameserver_info(nsi);
+                    } else {
+                        printf("got %s back but could not look that service up again\n",res[j]);
+                    }
                 }
-                debug_printf("end of enumeration\n");
+                printf("end of enumeration\n");
             }else{
                 printf("Could not find any processes with query: %s\n",nsq.name);
             }
-
-        } else if(0 == strcmp(argv[i],"enumerate_complex")) {
         } else if(0 == strcmp(argv[i],"dump")) {
             ns_debug_dump();
         } else {
-            printf("unknown command, known are: remove_self, register, deregister, lookup, enumerate, enumerate_complex\n");
+            printf("unknown command, known are: remove_self, register, deregister, lookup, enumerate, enumerate_all, enumerate_all_complex\n");
         }
     }
 }

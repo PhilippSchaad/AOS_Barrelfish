@@ -219,7 +219,7 @@ errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
                 }
             }
             if(!done) {
-                debug_printf("making new chan list entry\n");
+                DBG(VERBOSE,"making new chan list entry\n");
                 chan_entry = malloc(sizeof(struct chan_list));
                 chan_entry->chan = chan;
                 thread_mutex_init(&chan_entry->rpc_send_queue.thread_mutex);

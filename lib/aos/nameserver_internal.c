@@ -63,33 +63,108 @@ errval_t deserialize_nameserver_prop(char* input, struct nameserver_properties**
     return SYS_ERR_OK;
 }
 
-char* serialize_nameserver_query(struct nameserver_query* ns_q) {
+char* serialize_nameserver_query(struct nameserver_query* ns_q, size_t *serlen) {
     size_t len = 0;
-    switch(ns_q->tag) {
-        case nsq_name:
-            len = strlen(ns_q->name);
-            break;
-        case nsq_type:
-            len = strlen(ns_q->type);
-            break;
+    char *res = NULL;
+    if(ns_q->tag == nsq_name || ns_q->tag == nsq_type) {
+        switch (ns_q->tag) {
+            case nsq_name:
+                len = strlen(ns_q->name);
+                break;
+            case nsq_type:
+                len = strlen(ns_q->type);
+                break;
+            default:
+                assert(!"never");
+        }
+        *serlen = len + 1 + sizeof(enum nameserver_query_tag);
+        res = malloc(*serlen);
+        char *res2 = res;
+        memcpy(res, &(ns_q->tag), sizeof(enum nameserver_query_tag));
+        res2 += sizeof(enum nameserver_query_tag);
+        switch (ns_q->tag) {
+            case nsq_name:
+                strncpy(res2, ns_q->name, len);
+                break;
+            case nsq_type:
+                strncpy(res2, ns_q->type, len);
+                break;
+            default:
+                assert(!"never");
+        }
+        res2[len] = '\0';
+        DBG(VERBOSE,"query ser: '%s'\n",res2);
+    }else {
+        if(ns_q->tag == nsq_props) {
+            char **proparr = NULL;
+            if(ns_q->qp.count > 0) {
+                proparr = malloc(sizeof(char *) * ns_q->qp.count);
+                for (int j = 0; j < ns_q->qp.count; j++) {
+                    char *ser_prop = serialize_nameserver_prop(ns_q->qp.qps[j].nsp);
+                    proparr[j] = ser_prop;
+                    len += strlen(ser_prop) + sizeof(enum nameserver_queryprops_type);
+//                    debug_printf("query prop %s\n",proparr[j]);
+                }
+            }
+            res = malloc(len + 1 + sizeof(enum nameserver_query_tag) + sizeof(size_t));
+            char *res2 = res;
+            memcpy(res, &(ns_q->tag), sizeof(enum nameserver_query_tag));
+            res2 += sizeof(enum nameserver_query_tag);
+            *serlen += sizeof(enum nameserver_query_tag);
+            memcpy(res2, &(ns_q->qp.count),sizeof(size_t));
+            res2 += sizeof(size_t);
+            *serlen += sizeof(size_t);
+            if(ns_q->qp.count > 0) {
+                for (int j = 0; j < ns_q->qp.count; j++) {
+                    memcpy(res2, &ns_q->qp.qps[j].nsqpt,sizeof(enum nameserver_queryprops_type));
+                    res2 += sizeof(enum nameserver_queryprops_type);
+                    *serlen += sizeof(enum nameserver_queryprops_type);
+                    strcpy(res2,proparr[j]);
+//                    debug_printf("query prop %s\n",res2);
+                    size_t len3 = strlen(proparr[j]);
+                    res2 += len3;
+                    *serlen += len3;
+                }
+            }
+            *res2 = '\0';
+            (*serlen)++;
+//            debug_printf("ser'd count: %u and total size: %u\n",*debugres,*serlen);
+        }else{
+            assert(!"also never");
+        }
     }
-    char * res = malloc(len+1+sizeof(enum nameserver_query_tag));
-    char *res2 = res;
-    memcpy(res,&(ns_q->tag),sizeof(enum nameserver_query_tag));
-    res2 += sizeof(enum nameserver_query_tag);
-    switch(ns_q->tag) {
-        case nsq_name:
-            strncpy(res2,ns_q->name,len);
-            break;
-        case nsq_type:
-            strncpy(res2,ns_q->type,len);
-            break;
-    }
-    res2[len] = '\0';
-    DBG(VERBOSE,"query ser: '%s'\n",res2);
 //    debug_printf("%u\n",(unsigned int) sizeof(enum nameserver_query_tag));
     return res;
 }
+//nameserver_util enumerate 20 IsSystemService:True
+
+static errval_t deserialize_nsq_props(char* input, struct nameserver_query* ns_q) {
+    DBG(VERBOSE,"des_nsq_props input: '%s'\n",input+sizeof(size_t));
+    size_t count;
+    memcpy(&count,input,sizeof(size_t));
+    //debug_printf("temp count: %u\n",*(unsigned int*)input);
+    ns_q->qp.count = count;
+    input += sizeof(size_t);
+    //debug_printf("count: %u\n",count);
+    if(count == 0) {
+        ns_q->qp.qps = NULL;
+        return SYS_ERR_OK;
+    }
+    ns_q->qp.qps = malloc(sizeof(struct query_prop)*count);
+    for(int i = 0; i < count; i++) {
+        enum nameserver_queryprops_type nsqpt;
+        memcpy(&nsqpt,input,sizeof(enum nameserver_queryprops_type));
+        input += sizeof(enum nameserver_queryprops_type);
+        ns_q->qp.qps[i].nsqpt = nsqpt;
+        int k;
+        errval_t  err = deserialize_nameserver_prop(input,&ns_q->qp.qps[i].nsp,&k);
+        input += k;
+        if(!err_is_ok(err))
+            return err;
+    }
+    return SYS_ERR_OK;
+}
+
 errval_t deserialize_nameserver_query(char* input, struct nameserver_query** ns_q_out) {
     *ns_q_out = malloc(sizeof(struct nameserver_query));
     (*ns_q_out)->tag = *(enum nameserver_query_tag*)input;
@@ -99,12 +174,17 @@ errval_t deserialize_nameserver_query(char* input, struct nameserver_query** ns_
     strcpy(str,input);
     str[len] = '\0';
     DBG(VERBOSE,"query core string des: '%s'\n",str);
+//    debug_printf("des'd prop tag: %u\n",(unsigned int)(*ns_q_out)->tag);
     switch((*ns_q_out)->tag) {
         case nsq_name:
             (*ns_q_out)->name = str;
             break;
         case nsq_type:
             (*ns_q_out)->type = str;
+            break;
+        case nsq_props:
+            deserialize_nsq_props(input,*ns_q_out);
+            free(str);
             break;
     }
     return SYS_ERR_OK;
@@ -139,7 +219,7 @@ char* serialize_nameserver_info(struct nameserver_info* ns_i) {
     }
     *res = '}'; res++;
     *res = '}'; res++;
-    res = '\0';
+    *res = '\0';
     return out;
 }
 errval_t deserialize_nameserver_info(char* input, struct nameserver_info** ns_i_out) {

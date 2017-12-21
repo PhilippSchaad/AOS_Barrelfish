@@ -16,7 +16,7 @@
 
 char* serialize_nameserver_prop(struct nameserver_properties* ns_p);
 errval_t deserialize_nameserver_prop(char* input, struct nameserver_properties** ns_p_out, int* str_consumed);
-char* serialize_nameserver_query(struct nameserver_query* ns_q);
+char* serialize_nameserver_query(struct nameserver_query* ns_q, size_t *serlen);
 errval_t deserialize_nameserver_query(char* input, struct nameserver_query** ns_q_out);
 //does not serialize or deserialize the caps ofc
 char* serialize_nameserver_info(struct nameserver_info* ns_i);

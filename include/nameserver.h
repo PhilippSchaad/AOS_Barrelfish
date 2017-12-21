@@ -18,12 +18,25 @@ struct nameserver_properties {
 //data Ops2 = Any [Ops2] | All [Ops2] | Ops2Str OpsString
 //data OpsString = Is String | BeginsWith String | EndsWith String | Contains String
 //data Query2 = Q2 [(Ops1 Ops2,[Ops1 Ops2])]
-enum nameserver_query_tag { nsq_name, nsq_type};
+
+
+enum nameserver_queryprops_type { nsqp_is, nsq_beginswith, nsq_endswith, nsq_contains };
+struct query_prop {
+    enum nameserver_queryprops_type nsqpt;
+    struct nameserver_properties *nsp;
+};
+struct query_props {
+    size_t count;
+    struct query_prop *qps;
+};
+
+enum nameserver_query_tag { nsq_name, nsq_type, nsq_props};
 struct nameserver_query {
    enum nameserver_query_tag tag;
    union {
        char *name;
        char *type;
+       struct query_props qp;
    };
 };
 
@@ -41,7 +54,6 @@ extern errval_t register_service(struct nameserver_info *nsi);
 extern errval_t deregister(char* name);
 extern errval_t lookup(struct nameserver_query* nsq, struct nameserver_info** result); //first fit
 extern errval_t enumerate(struct nameserver_query* nsq, size_t *num, char*** result); //all hits, names only
-extern errval_t enumerate_complex(struct nameserver_query* nsq, size_t *num, struct nameserver_info** result); //all hits
 extern void free_nameserver_info(struct nameserver_info* nsi);
 
 #endif //NAMESERVER_H
