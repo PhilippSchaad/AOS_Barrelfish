@@ -1,0 +1,20 @@
+\section{URPC}\label{s:URPC}
+As we do not have a fully unified system we have the init<->init cross core communication bit which is dubbed URPC
+
+Originally it was just a single page split into two 2 roughly 2kb section (slightly less as we had a smaller shared head at the top of the page) and could just transfer messages in ~2kb blogs and signalling the other side that the message arrived.
+
+This got adapted when the actual cross core communication chapter came up and said it should be done in cache lines (or fake cache lines, rather). So we adapted it to be chunked and used that opportunity to adopt it to a similiar framework system as the RPC one - again, sadly we missed the opportunity to unify it at this point and then never got to it as it continued to be more and more work to actually do so.
+
+As the URPC system does not involve the kernel it turned out to be a much simpler system and way less buggy (impl of the actual meat of the system is found in urpc2.c). We segmented the page into 64byte chunks, which had 1 byte for flags and 63 bytes for data and we kept track of them as a ringbuffer. We learned from the RPC system here and did a better encoding - in part aided by this system only having to deal with a single "channel" and as we will later see a FIFO queue of messages - we only send the length and the metadata once. The flag byte is primarily used to signify if this entry is empty or written to, as well as what encoding we will be using (to parse the size correctly, this could have been extracted out but we had flags left, so it was easier this way). We also used flags to signify the start and end of a message but, in retrospect that was unnecessary.
+
+A neat little thing is that because we send in a loop we only need a single memory barrier (conveniently made easy and clear as MEM\_BARRIER macro) at the start of the send (and also the recv loop, which is just the inverse of the send loop, really) as well as after the loop for when we exit the loop due to the queue being full (or empty, in the recv's case), or the message fully send (or received)
+
+ontop of these two core loops, we run an endless loop which checks if can (and have something to) send (or receive) (here we learned it's crucial to thread\_yield() when we have nothing to send/receive, or the queue is full/empty, to achieve good performance)
+
+this means the thread ever only does that. Ontop of that is a somewhat familiar machinary - we can enqueue messages and register receive handlers. The enqueuing is done from another thread, into a shared threadsafe queue
+
+For implementing the actual URPC calls we first considered making an RPC equivalent for every single URPC call, but then instead added some more machinary - which while fairly ugly code and being a bit hacky due to, once more, time constraints - allowed us to root an arbitrary RPC call to init over URPC, thus allowing the two init processes to act as if they were a single one for the purposes of RPC.
+
+an init process just receives a fake call to its rpc receive handler with a normal recv\_list struct, except that the channel is set to NULL - which can never happen in a normal RPC call and is thus a fairly obvious and simple distinguisher of the source.
+
+In theory, this same system could be used to allow an arbitrary pair of processes to communicate directly with each other, if they can be arranged to share memory. This, however, we never got around to implementing and instead just implemented a proxy service using the init processes for communication. Which has the benefit of not having the extra looping thread overhead and is easier to set up than sharing physical memory across cores (since that'd require us to mint a new ram cap and if we want to properly track it we'd need to extend the memory manager to somehow deal with memory shared across cores. This is in particular a problem as we can not revoke capabilities and thus can not reave the memory when one of the processes dies.)
