@@ -734,6 +734,7 @@ errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap)
                       RPC_TYPE_GET_MEM_SERVER, &rpc->chan, NULL_CAP, 0, NULL,
                       NULL_EVENT_CLOSURE);
     } else {
+        debug_printf("Requesting memory server from nameserver...\n");
         struct nameserver_query nsq;
         nsq.tag = nsq_type;
         nsq.type = "Memory";
@@ -797,9 +798,6 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     set_init_rpc(rpc);
     //we just init everything here
-    if(!part_of_initial_set) {
-        debug_printf("memserv requesting from nameserver...\n");
-    }
     complete_mem_server_setup();
     proc_chan = malloc(sizeof(struct aos_rpc));
     serial_chan = malloc(sizeof(struct aos_rpc));
@@ -807,7 +805,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
         aos_rpc_generic_init(proc_chan,aos_rpc_recv_handler,cap_initep);
         aos_rpc_generic_init(serial_chan,aos_rpc_recv_handler,cap_initep);
     }else{
-        debug_printf("procman requesting from nameserver...\n");
+        debug_printf("Requesting process manager from nameserver...\n");
         struct nameserver_query nsq;
         nsq.tag = nsq_type;
         nsq.type = "Processes";
@@ -821,7 +819,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
         nsi->chan_cap = NULL_CAP;
         free_nameserver_info(nsi);
         nsi = NULL;
-        debug_printf("serialserv requesting from nameserver...\n");
+        debug_printf("Requesting serial server from nameserver...\n");
         nsq.type = "Serial Console";
         err =lookup(&nsq,&nsi);
 //        debug_printf("hello\n");
