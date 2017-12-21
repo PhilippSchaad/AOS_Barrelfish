@@ -95,6 +95,7 @@ int main(int argc, char *argv[])
     terminal_init(my_core_id);
     debug_printf("t driver online\n");
 
+
     if (my_core_id == 0) {
         // Initialize the master URPC server (aka core 0).
         urpc_master_init_and_run(buf);
@@ -105,6 +106,7 @@ int main(int argc, char *argv[])
         debug_printf("spawned ns\n");
         while(!nameserver_online()) event_dispatch(get_default_waitset());
         debug_printf("received nameserver registration\n");
+
         // Spawn the TurtleBack Shell.
         struct spawninfo *si = malloc(sizeof(struct spawninfo));
         CHECK(spawn_load_by_name("turtleback", si));
@@ -123,6 +125,13 @@ int main(int argc, char *argv[])
         debug_printf("post that\n");
         // Register ourselves (init on core 1) with the process manager.
         procman_register_process("init", 1, NULL);
+
+        struct spawninfo *si_ns =
+                (struct spawninfo *) malloc(sizeof(struct spawninfo));
+        spawn_load_by_name("nameserver",si_ns);
+        debug_printf("spawned ns\n");
+        while(!nameserver_online()) event_dispatch(get_default_waitset());
+        debug_printf("received nameserver registration\n");
     }
     debug_printf("all systems operational\n");
 
