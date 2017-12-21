@@ -94,10 +94,14 @@ domainid_t procman_register_process(char *name, coreid_t core_id,
         USER_PANIC("Failed to create Process-Info for new process!\n");
         // TODO: handle?
     }
-
+    //persisting string...
+    int name_len = strlen(name);
+    char *per_name = malloc(name_len+1);
+    strcpy(per_name,name);
+    per_name[name_len] = '\0';
     new_proc->id = pid;
     new_proc->core = core_id;
-    new_proc->name = name;
+    new_proc->name = per_name;
     new_proc->next = NULL;
     new_proc->prev = pi;
     new_proc->si = si;

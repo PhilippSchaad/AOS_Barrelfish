@@ -14,7 +14,9 @@
 
 #include <aos/aos_rpc.h>
 #include <aos/generic_threadsafe_queue.h>
+#include <nameserver.h>
 
+bool aos_rpc_mutex_init = false;
 struct thread_mutex aos_rpc_mutex;
 
 struct rpc_call {
@@ -29,11 +31,15 @@ struct rpc_call {
 struct waitset mem_ws;
 
 struct aos_rpc *mem_chan;
+struct aos_rpc *proc_chan;
+struct aos_rpc *serial_chan;
 
 struct rpc_call *rpc_call_buffer_head = NULL;
 
 bool rpc_type_ram_call_buffer_in_use[10];
 struct rpc_call rpc_type_ram_call_buffer[10];
+
+bool part_of_initial_set = false;
 
 static void register_recv(unsigned char id, unsigned char type, bool *done,
                           void (*inst_recv_handling)(void *arg1,
@@ -528,6 +534,7 @@ errval_t aos_rpc_get_irq_cap(struct aos_rpc *rpc, struct capref *retcap)
 static void aos_rpc_recv_handler(struct recv_list *data)
 {
     DBG(VERBOSE,"aos_rpc_recv_handler\n");
+//    debug_printf("aos_rpc_recv_handler with type: %u, id: %u\n",(unsigned int)data->type,(unsigned int)data->id);
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list
@@ -698,9 +705,21 @@ static void get_mem_server_recv_handler(void *arg1, struct recv_list *data)
 
 errval_t aos_rpc_get_mem_server(struct aos_rpc *rpc, struct capref *retcap)
 {
-    rpc_framework(get_mem_server_recv_handler, (void *) retcap,
-                  RPC_TYPE_GET_MEM_SERVER, &rpc->chan, NULL_CAP, 0, NULL,
-                  NULL_EVENT_CLOSURE);
+    if(part_of_initial_set) {
+        rpc_framework(get_mem_server_recv_handler, (void *) retcap,
+                      RPC_TYPE_GET_MEM_SERVER, &rpc->chan, NULL_CAP, 0, NULL,
+                      NULL_EVENT_CLOSURE);
+    } else {
+        struct nameserver_query nsq;
+        nsq.tag = nsq_type;
+        nsq.type = "Memory";
+        struct nameserver_info *nsi;
+        errval_t err =lookup(&nsq,&nsi);
+        if(!err_is_ok(err) || nsi == NULL)
+            assert(!"oops memserv not registered with nameserver");
+        *retcap = nsi->chan_cap;
+        free_nameserver_info(nsi);
+    }
     return SYS_ERR_OK;
 }
 
@@ -717,36 +736,80 @@ errval_t aos_rpc_get_nameserver(struct aos_rpc *rpc, struct capref *retcap)
     return SYS_ERR_OK;
 }
 
-
 unsigned int id = 1337;
-errval_t aos_rpc_init(struct aos_rpc *rpc)
-{
-    thread_mutex_init(&aos_rpc_mutex);
-
-    for (int i = 0; i < 10; i++) {
-        rpc_type_ram_call_buffer_in_use[i] = false;
-    }
-
+static errval_t aos_rpc_generic_init(struct aos_rpc *rpc, void (*recv_handler)(struct recv_list*), struct capref remote_cap) {
     assert(rpc != NULL);
     rpc->init = false;
-    CHECK(init_rpc_client(aos_rpc_recv_handler, &rpc->chan, cap_initep));
+    CHECK(init_rpc_client(aos_rpc_recv_handler, &rpc->chan, remote_cap));
 
-    // Send local ep to init and wait for init to acknowledge receiving
+    // Send local ep to target and wait for target to acknowledge receiving
     // the endpoint.
-    // Set send handler.
     rpc_framework(handshake_recv, rpc, RPC_TYPE_HANDSHAKE, &rpc->chan,
                   rpc->chan.local_cap, 0, NULL, NULL_EVENT_CLOSURE);
     rpc->id = id;
     id++;
-
     // Wait for ACK.
     struct waitset *ws = get_default_waitset();
     while (!rpc->init)
         CHECK(event_dispatch(ws));
+    return SYS_ERR_OK;
+}
+
+errval_t aos_rpc_init(struct aos_rpc *rpc)
+{
+    const char *procname = disp_name();
+    if(!strcmp("init",procname) || !strcmp("nameserver",procname)) { //todo: make this more robust somehow? Also needs to be extended once services are split off from init
+        part_of_initial_set = true;
+    }
+    if(!aos_rpc_mutex_init) {
+        thread_mutex_init(&aos_rpc_mutex);
+        aos_rpc_mutex_init = true;
+        for (int i = 0; i < 10; i++) {
+            rpc_type_ram_call_buffer_in_use[i] = false;
+        }
+    }
+
+    aos_rpc_generic_init(rpc,aos_rpc_recv_handler,cap_initep);
 
     set_init_rpc(rpc);
-
+    //we just init everything here
+    if(!part_of_initial_set) {
+        debug_printf("memserv requesting from nameserver...\n");
+    }
     complete_mem_server_setup();
+    proc_chan = malloc(sizeof(struct aos_rpc));
+    serial_chan = malloc(sizeof(struct aos_rpc));
+    if(part_of_initial_set) {
+        aos_rpc_generic_init(proc_chan,aos_rpc_recv_handler,cap_initep);
+        aos_rpc_generic_init(serial_chan,aos_rpc_recv_handler,cap_initep);
+    }else{
+        debug_printf("procman requesting from nameserver...\n");
+        struct nameserver_query nsq;
+        nsq.tag = nsq_type;
+        nsq.type = "Processes";
+        struct nameserver_info *nsi;
+        errval_t err =lookup(&nsq,&nsi);
+        if(!err_is_ok(err) || nsi == NULL) {
+            DBG(ERR,"no proc manager registered with the nameserver\n");
+            assert(!"oops procman not registered with nameserver");
+        }
+        aos_rpc_generic_init(proc_chan,aos_rpc_recv_handler,nsi->chan_cap);
+        nsi->chan_cap = NULL_CAP;
+        free_nameserver_info(nsi);
+        nsi = NULL;
+        debug_printf("serialserv requesting from nameserver...\n");
+        nsq.type = "Serial Console";
+        err =lookup(&nsq,&nsi);
+        debug_printf("hello\n");
+        if(!err_is_ok(err) || nsi == NULL) {
+            DBG(ERR,"no serial server registered with the nameserver\n");
+            assert(!"oops serialserv not registered with nameserver");
+        }
+        aos_rpc_generic_init(serial_chan,aos_rpc_recv_handler,nsi->chan_cap);
+        free_nameserver_info(nsi);
+        debug_printf("all done requesting!\n");
+
+    }
 
     return SYS_ERR_OK;
 }
@@ -778,8 +841,7 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
  */
 struct aos_rpc *aos_rpc_get_process_channel(void)
 {
-    // TODO check if we want to create a separate process server
-    return get_init_rpc();
+    return proc_chan;
 }
 
 /**
@@ -787,6 +849,5 @@ struct aos_rpc *aos_rpc_get_process_channel(void)
  */
 struct aos_rpc *aos_rpc_get_serial_channel(void)
 {
-    // TODO check if we want to create a separate serial server
-    return get_init_rpc();
+    return serial_chan;
 }

@@ -110,9 +110,9 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     strncpy(bin_name, name, bin_name_end);
     bin_name[bin_name_end] = '\0';
 
-    DBG(DETAILED, "receive spawn request: name: %s, core %d\n", name,
+    DBG(-1, "receive spawn request: name: %s, core %d\n", name,
         core);
-    DBG(DETAILED, "spawninfo: %s size %u\n", (char *) data->payload,
+    DBG(-1, "spawninfo: %s size %u\n", (char *) data->payload,
         data->size);
 
     // Check if we are on the right core, else send cross core request.
@@ -131,6 +131,7 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         if (disp_get_core_id() == 0) {
             pid = procman_register_process(bin_name, core, NULL);
         }
+        DBG(-1, "spawn %s on other core 1\n", name);
 
         void *sto_data = data->payload;
 
@@ -141,10 +142,12 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         data->payload = newpayload;
         data->size = bytesize;
 
+        DBG(-1, "spawn %s on other core 2\n", name);
         // We don't actually need any response, we just want to know the
         // response exists.
         free_urpc_allocated_ack_recv_list(urpc2_rpc_over_urpc(data, NULL_CAP));
 
+        DBG(-1, "spawn %s on other core 3\n", name);
         free(newpayload);
         data->payload = sto_data;
 
@@ -153,15 +156,16 @@ static errval_t spawn_recv_handler(struct recv_list *data,
         // spawn call)
         send_response(data, chan, NULL_CAP, 1,
                       (unsigned int *) 42 /* TODO: changeme */);
+        DBG(-1, "spawn %s on other core 4\n", name);
         return SYS_ERR_OK;
     }
 
     struct spawninfo *si =
         (struct spawninfo *) malloc(sizeof(struct spawninfo));
     errval_t err;
-    DBG(VERBOSE,"malloced si\n");
+    DBG(-1,"malloced si\n");
     err = spawn_load_by_name(name, si);
-    DBG(VERBOSE,"spawned new process\n");
+    DBG(-1,"spawned new process\n");
     // Preregister the process we just spawned.
     // This will create the process but the process does not know its PID yet
     // and we don't have a rpc channel.
@@ -171,7 +175,9 @@ static errval_t spawn_recv_handler(struct recv_list *data,
     } else {
         if (chan == NULL && disp_get_core_id() != 0) { // XXX HACK: We are in URPC
             pid = *((domainid_t *) (recv_name + strlen(recv_name) + 3));
+            DBG(-1,"before procman_foreign_preregister\n");
             procman_foreign_preregister(pid, bin_name, core, si);
+            DBG(-1,"after procman_foreign_preregister\n");
         } else {
             pid = procman_register_process(bin_name, core, si);
         }
@@ -481,6 +487,7 @@ void recv_deal_with_msg(struct recv_list *data)
             DBG(DETAILED, "I remove pid %d\n",
                 *((domainid_t *) data->payload));
             procman_deregister(*((domainid_t *) data->payload));
+            urpc2_send_response(data,NULL_CAP,0,NULL);
         } else {
             struct domain *domain = find_domain(&data->cap);
             DBG(DETAILED, "I remove %s pid %d\n", domain->name, domain->id);
@@ -535,7 +542,7 @@ void recv_deal_with_msg(struct recv_list *data)
         return;
     }
 }
-static errval_t handshake_recv_handler(struct capref *child_cap)
+static errval_t handshake_recv_handler(unsigned int id,struct capref *child_cap)
 {
     DBG(DETAILED, "init received cap\n");
 
@@ -568,7 +575,7 @@ static errval_t handshake_recv_handler(struct capref *child_cap)
 
     // Send ACK to the child including new cap to bind to
     send(&dom->chan, dom->chan.local_cap, RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE),
-         0, NULL, NULL_EVENT_CLOSURE,0);
+         1, &id, NULL_EVENT_CLOSURE,0);
 //         request_fresh_id(RPC_ACK_MESSAGE(RPC_TYPE_HANDSHAKE)));
 
     DBG(DETAILED, "successfully received cap\n");
@@ -581,7 +588,7 @@ static void recv_handshake_handler(struct recv_list *data)
     DBG(VERBOSE, "recv handshake...\n");
     switch (data->type) {
     case RPC_MESSAGE(RPC_TYPE_HANDSHAKE):
-        handshake_recv_handler(&data->cap);
+        handshake_recv_handler(data->id, &data->cap);
         break;
     default:
         DBG(ERR, "Received non-handshake RPC with handshake handler. This "

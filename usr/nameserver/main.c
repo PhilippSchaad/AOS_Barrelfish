@@ -116,18 +116,7 @@ static bool eval_query(struct nameserver_query *nsq, struct nameserver_info *nsi
     return false;
 }
 
-static void free_entry(struct nameserver_info *nsi) {
-    free(nsi->name);
-    free(nsi->type);
-    for(int i = 0; i < nsi->nsp_count; i++) {
-        free(nsi->props[i].prop_name);
-        free(nsi->props[i].prop_attr);
-    }
-    if(nsi->nsp_count > 0)
-        free(nsi->props);
-    free(nsi);
-}
-
+__unused
 static void kill_dead_services(void) {
     struct process *prev = NULL;
     struct process *cur = ns.processes;
@@ -137,7 +126,7 @@ static void kill_dead_services(void) {
             struct linked_list_of_nsi *prev2 = NULL;
             struct linked_list_of_nsi *cur2 = cur->services;
             while (cur2 != NULL) {
-                free_entry(cur2->entry);
+                free_nameserver_info(cur2->entry);
                 prev2 = cur2;
                 cur2 = cur2->next;
                 free(prev2);
@@ -265,6 +254,7 @@ static bool ns_remove_self_handler(struct lmp_chan *requester_chan) {
         struct linked_list_of_nsi* next2;
         while(cur2 != NULL) {
             next2 = cur2->next;
+            free_nameserver_info(cur2->entry);
             free(cur2);
             cur2 = next2;
         }
@@ -394,7 +384,7 @@ static void ns_lookup_enumerate(struct recv_list *data) {
 
 static void ns_active_chan_handler(struct recv_list *data) {
     DBG(VERBOSE,"post handshake msg\n");
-    kill_dead_services();
+    //kill_dead_services();
     //dump_ns();
     bool res;
     switch(data->type) {

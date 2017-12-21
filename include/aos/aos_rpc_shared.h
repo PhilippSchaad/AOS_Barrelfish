@@ -34,28 +34,28 @@
 
 #define RPC_MESSAGE(message_type)       (message_type << 1)
 #define RPC_ACK_MESSAGE(message_type)   ((message_type << 1) + 0x1)
-#define RPC_TYPE_NUMBER                 0x2
-#define RPC_TYPE_STRING                 0x3
-#define RPC_TYPE_RUN_TESTSUITE          0x4
-#define RPC_TYPE_RAM                    0x5
-#define RPC_TYPE_PUTCHAR                0x6
-#define RPC_TYPE_GETCHAR                0x7
-#define RPC_TYPE_HANDSHAKE              0x8
-#define RPC_TYPE_PROCESS_SPAWN          0x9
-#define RPC_TYPE_PROCESS_GET_NAME       0x10
-#define RPC_TYPE_PROCESS_GET_PIDS       0x11
-#define RPC_TYPE_PROCESS_KILL_ME        0x12
-#define RPC_TYPE_PROCESS_REGISTER       0x13
-#define RPC_TYPE_PROCESS_KILL           0x14
-#define RPC_TYPE_IRQ_CAP                0x15
-#define RPC_TYPE_DEV_CAP                0x16
-#define RPC_TYPE_PRINT_PROC_LIST        0x17
-#define RPC_TYPE_LED_TOGGLE             0x18
-#define RPC_TYPE_PROCESS_AWAIT_COMPL    0x19
-#define RPC_TYPE_GET_MEM_SERVER         0x20
-#define RPC_TYPE_REGISTER_AS_NAMESERVER 0x21
-#define RPC_TYPE_GET_NAME_SERVER        0x22
-#define RPC_TYPE_DOMAIN_TO_DOMAIN_COM   0x23
+#define RPC_TYPE_NUMBER                 2
+#define RPC_TYPE_STRING                 3
+#define RPC_TYPE_RUN_TESTSUITE          4
+#define RPC_TYPE_RAM                    5
+#define RPC_TYPE_PUTCHAR                6
+#define RPC_TYPE_GETCHAR                7
+#define RPC_TYPE_HANDSHAKE              8
+#define RPC_TYPE_PROCESS_SPAWN          9
+#define RPC_TYPE_PROCESS_GET_NAME       10
+#define RPC_TYPE_PROCESS_GET_PIDS       11
+#define RPC_TYPE_PROCESS_KILL_ME        12
+#define RPC_TYPE_PROCESS_REGISTER       13
+#define RPC_TYPE_PROCESS_KILL           14
+#define RPC_TYPE_IRQ_CAP                15
+#define RPC_TYPE_DEV_CAP                16
+#define RPC_TYPE_PRINT_PROC_LIST        17
+#define RPC_TYPE_LED_TOGGLE             18
+#define RPC_TYPE_PROCESS_AWAIT_COMPL    19
+#define RPC_TYPE_GET_MEM_SERVER         20
+#define RPC_TYPE_REGISTER_AS_NAMESERVER 21
+#define RPC_TYPE_GET_NAME_SERVER        22
+#define RPC_TYPE_DOMAIN_TO_DOMAIN_COM   23
 
 struct recv_list {
     unsigned char type;

@@ -187,3 +187,14 @@ errval_t deserialize_nameserver_info(char* input, struct nameserver_info** ns_i_
     return SYS_ERR_OK;
 }
 
+void free_nameserver_info(struct nameserver_info* nsi) {
+    free(nsi->name);
+    free(nsi->type);
+    for(int i = 0; i < nsi->nsp_count; i++) {
+        free(nsi->props[i].prop_name);
+        free(nsi->props[i].prop_attr);
+    }
+    if(nsi->nsp_count > 0)
+        free(nsi->props);
+    free(nsi);
+}

@@ -67,7 +67,7 @@ rpc_framework(void (*inst_recv_handling)(void *arg1, struct recv_list *data),
 
 static void ns_rpc_recv_handler(struct recv_list *data)
 {
-    DBG(VERBOSE,"ns_rpc_recv_handler, raw type %u, id %u\n",(unsigned int)data->type,(unsigned int)data->id);
+    DBG(-1,"ns_rpc_recv_handler, raw type %u, id %u\n",(unsigned int)data->type,(unsigned int)data->id);
     // do actions depending on the message type
     // Check the message type and handle it accordingly.
     if (data->type & 1) { // ACK, so we check the recv list

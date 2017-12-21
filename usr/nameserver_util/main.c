@@ -11,7 +11,7 @@ struct lmp_chan recv_chan;
 
 int main(int argc, char *argv[])
 {
-    debug_printf("Namespace Util reporting in!\n");
+    debug_printf("Nameserver Util reporting in!\n");
     for (int i = 1; i < argc; ++i) {
         if(0 == strcmp(argv[i],"remove_self")) {
             printf("removing self\n");
