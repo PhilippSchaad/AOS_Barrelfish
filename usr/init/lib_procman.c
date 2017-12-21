@@ -183,7 +183,11 @@ errval_t procman_deregister(domainid_t proc_id)
     assert(pt->head != NULL);
 
     struct process_info *pi = NULL;
-    CHECK(find_process_by_id(proc_id, &pi));
+    errval_t err = find_process_by_id(proc_id, &pi);
+    if(err_is_fail(err)){
+        printf("seems that the process was already removed from the proc list. skip.\n");
+        return SYS_ERR_OK;
+    }
 
     assert(pi->prev != NULL); // That would mean deregisterint init.
     assert(proc_id != 0);
