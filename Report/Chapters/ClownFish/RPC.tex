@@ -1,0 +1,109 @@
+\section{RPC}\label{s:RPC}
+For terminology, our actual remote procedure call system is split into two sections:
+The RPC system is build on lmp\_chan's and for transferring messages between processes on the same core.
+The URPC system is build on a shared memory page and is for transferring messages between the init processes on the two cores.
+
+Now, our biggest regret is that we never unified those two systems properly. An approach at unification which would have involved rewriting aos\_rpc to account for that could have likely provided an uniform interface and saved us a lot of pain along the way. But, we didn't get there.
+
+The development of the RPC system started out as an adhoc implementation of just adding one RPC call after another and having all the machinery there directly in every single call. This was, naturally, horribly error prone. Also it was based on a missunderstanding of how to approach this - we registered a send and recv handler on the channel every time we made one of those RPC calls, this turned out to lead to massive issues with multithreading and meant processes could only ever receive if they had just sent. We then had a single shared recv handler, but the memory RPC call needed its own recv handler as that design didn't quite work for that one. "The memory RPC call needs to be handled extra" is a common theme that would repeat throughout our changes to this system.
+
+At first we tried to make some macros and functions while keeping the same basic structure, but that too turned out to be really messy and then it became time for the grand rewrite to the first version of the current system. Instead of init and other processes both doing their own ad-hoc things with the RPC setup and calls, we developed a shared framework for it all.
+
+This framework is set up such that first we automatically grab a fresh ID to mark the logical call we are in so we can associate responses with it, then the memory for the logical call gets persisted and enqueued in the list of things to send. Further, we register ourselves on the channel for sending if nothing is registered there yet.  
+Then when it is time to send it automatically gets a standardized encoding scheme applied to it (the first 32bit word of every physical message gets encoded to contain the type of call, id of the call and length of the total payload of the logical message this is part of) and sends it until it is all gone or an issue occured.
+Further, the framework also has a standardized receive handler which receives all calls on that channel and recovers the logical message from the physical messages sent, it does so based on the type and id and having a list of which unfinished calls it has where it can look up that type and id pair. Then finally, when a message is fully reassembled we call a process specific (in fact, actually process and channel specific - as we'll see later in the detailed API description). (here an optimisation opportunity for small messages - which are the vast majority - presented itself. Instead of persisting it all and adding it to the list and all those things, we can do it mallocfree by just having that element on the stack and handing it off, as we'll return into this function again and in the normal case free the memory.)
+While this framework now standardized the encoding of messages - and made it really convenient to work with rpc calls as we will see in the API description - it also presented a large increase in complexity of the code in one particular place (yet still better than the thing before, since before we had a bunch of places that were not as difficult but still difficult and also very labor intensive to keep consistent and we had bug troubles a lot more before the rewrite)
+The rewrite, however, still had issues. After the first series of minor bugs was fixed, we ran into a pretty big issue: The ram RPC handler now ran over that system... which used mallocs in various places due to its generality and the thus arising need to persist various sizes etc.
+Our first approach was to do a very hacky thing where we added special conditions for when we were doing the ram\_rpc call, using buffers of the structs involved instead of malloc'ing and taking a slightly special path. This, while working for a bit, was naturally doomed to fail as we still got pagefaults at times and the pile of hacks we needed to keep it running kept ever increasing.
+The next step then was to move it partially out of the system - only receiving as part of it, sending on its own. This cut down on the mallocs further and we had a buffer for what was still needed, which got us a bit further. But the actual solution to this problem came later however, after it had plagued us for weeks with occuring only spuriously and the code around it being annoyingly complex and hard to comprehend - and only getting worse.
+The solution was, that the ram RPC got moved into its own channel, independently of the others (as at this time, all RPC calls were with init, still) and used entirely its own machinery - very reminiscent of the original implementation in fact. Luckily, on init's side it did not have to be handled differently.
+However, we still got pagefaults and the occassional strangeness ... which later got tracked down to a critical bug in the RPC system's sending - it had only a single queue for sending instead of a per-channel queue, which meant that in particular cases it was possible for messages to not get send to the proper channel or trying to send a message when the channel is not ready but another channel is. This got fixed after a lot of painful investigation as it was really tricky to track down that this was what happened.
+The current RPC subsystem system is split in two parts - in aos\_rpc\_shared is (most of) the machinary which was just described.
+
+The most important calls there are:
+
+\begin{lstlisting}[caption={rpc system inits}, 
+label=lst:allocation, numbers=left, stepnumber=1, float, floatplacement=tl, 
+frame=tb, language=c]
+errval_t init_rpc_server(void (*recv_deal_with_msg)(struct recv_list *),
+struct lmp_chan *chan);
+
+errval_t init_rpc_client(void (*recv_deal_with_msg)(struct recv_list *),
+struct lmp_chan *chan, struct capref dest);
+\end{lstlisting}
+
+this creates a new lmp\_chan and sets it up, in particular, it creates it with an empty remote\_cap, waiting for anyone to connect to it. Also, it uses the handler provided as recv\_deal\_with\_msg as the callback to use when on this channel a logical message is fully reconstructed. The struct recv\_list contains the payload (both the data and a capref if any was sent) and its metadata (rpc call type, id, size)
+
+this is logically the same as init\_rpc\_server, except you need to provide it a remote cap to connect to. (In fact, the implementations are currently the same except for the setting of the remote cap in lmp\_chan\_accept)
+
+as well as two for message sending, send and send\_response.
+
+\begin{lstlisting}[caption={send}, 
+label=lst:allocation, numbers=left, stepnumber=1, float, floatplacement=tl, 
+frame=tb, language=c]
+errval_t send(struct lmp_chan *chan, struct capref cap, unsigned char type,
+size_t payloadsize, uintptr_t *payload, struct event_closure callback_when_done, unsigned char id);
+\end{lstlisting}
+this is the primary way to send messages, it does all the explained converting, enqueuing and registering (send\_loop does the actual partitioning and sending).
+
+Something that at the time seemed useful was having a callback to be called once the message was fully sent, but in practice our system never evolved to be callback based enough for this to become useful. 
+And something that we should have, but only noticed too late and ran out of time to implement, is a callback to be called in case sending goes wrong, so that we can do custom and message specific handling of issues.
+
+and finally the convenience function send\_response
+
+
+\begin{lstlisting}[caption={send\_response}, 
+label=lst:allocation, numbers=left, stepnumber=1, float, floatplacement=tl, 
+frame=tb, language=c]
+errval_t send_response(struct recv_list *rl, struct lmp_chan *chan,
+struct capref cap, size_t payloadsize, void *payload);
+\end{lstlisting}
+
+
+which answers a RPC call with the given cap and data. It does a bit of encoding to make sure that the receiver gets the ID of its original RPC call in an expected place, but sadly at the cost of another level of persisting which currently is implemented rather inefficiently (a full copy of the data). If we had the time, this could be rewritten in a way which doesn't require that, for example by adding an extra field to the recv\_list where it can get persisted in or something along those lines.
+
+=======
+
+the real gain, however, was not in having those functions, but that they allowed us to write the rpc\_framework function
+
+
+\begin{lstlisting}[caption={rpc\_framework}, 
+label=lst:allocation, numbers=left, stepnumber=1, float, floatplacement=tl, 
+frame=tb, language=c]
+rpc_framework(void (*inst_recv_handling)(void *arg1, struct recv_list *data),
+					void *recv_handling_arg1, unsigned char type,
+					struct lmp_chan *chan, struct capref cap, 
+					size_t payloadsize, uintptr_t *payload,
+					struct event_closure callback_when_done)
+\end{lstlisting}
+
+which looks like a really wild one - and it is. It is in aos\_rpc and works in conjunction with a logical message recv handler which is set up in such a way that it takes the type and id info we were given and looks it up in the list of calls that we made which we are waiting for an answer on.
+
+Now, what rpc\_framework does is that in the first two parameters, it takes the function which handles the response to the call we are about to make - as well as some state for it (arg1 we provide here, data we will get provided). And the other parameters are just all the info we need to make a call.
+Then it registers us that we want to get a response, sends out the message and pumps the waitset until we have received an answer (thus being blocking). Which means all we now needed to do to add another RPC call was to implement a very simple recv handler (which usually just deserialized and copied the data from the thing we got in response into the thing we stored as arg1) and serialize our data for sending.
+
+For example a call for getting the nameserver's cap (so we can connect with all the other services by asking the nameserver for those) is just:
+
+\begin{lstlisting}[caption={aos\_rpc\_get with helper function}, 
+label=lst:allocation, numbers=left, stepnumber=1, float, floatplacement=tl, 
+frame=tb, language=c]
+static void get_nameserver_recv_handler(void *arg1, struct recv_list *data)
+{
+	struct capref *retcap = (struct capref *) arg1;
+	*retcap = data->cap;
+}
+
+errval_t aos_rpc_get_nameserver(struct aos_rpc *rpc, struct capref *retcap)
+{
+	rpc_framework(get_nameserver_recv_handler, (void *) retcap,
+				  			RPC_TYPE_GET_NAME_SERVER, &rpc->chan, NULL_CAP,
+				  			0, NULL, NULL_EVENT_CLOSURE);
+	return SYS_ERR_OK;
+}
+\end{lstlisting}
+
+So, overall, the RPC system had a great API that was really simple to use and didn't need a deep understanding of how lmp\_chan's work. However, this was paid for in bugs and complexity, but in the end it was a worthwhile tradeoff as we could rapidly extend this as needed.
+
+Our one big complaint is that we never made it backend agnostic to integrate the cross-core communication system (dubbed URPC) into it.
+
+
