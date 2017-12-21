@@ -118,6 +118,18 @@ int main(int argc, char *argv[])
         printf("Usage: network ip_addr\n");
         return EXIT_FAILURE;
     }
+
+    // check that there is no previous network domain
+    struct nameserver_query nsq;
+    nsq.tag = nsq_name;
+    nsq.name = "Network";
+    struct nameserver_info *nsia;
+    CHECK(lookup(&nsq,&nsia));
+    if(nsia != NULL) {
+        printf("ERROR: There is already a network domain running on this core. exit.");
+        return EXIT_FAILURE;
+    }
+
     parse_and_set_ip(argv[1]);
 
 
