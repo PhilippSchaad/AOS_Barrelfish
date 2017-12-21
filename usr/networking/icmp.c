@@ -10,7 +10,7 @@ void icmp_send(uint8_t type, uint8_t code, uint8_t* payload, size_t payload_size
     // set the payload
     if(payload && payload_size > 0){
         memcpy(packet + ICMP_HEADER_SIZE, payload, payload_size);
-        free(payload);
+        //free(payload);
     }
 
     // create the header

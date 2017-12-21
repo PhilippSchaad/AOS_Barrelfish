@@ -66,7 +66,6 @@ static void message_handler(void* payload, size_t bytes){
             // new message that needs sending
             switch(transfer_message->protocol){
                 case PROTOCOL_UDP:
-                    debug_printf("received message to print\n");
                     udp_send(transfer_message->port_from, transfer_message->port_to, transfer_message->payload, transfer_message->payload_size, transfer_message->ip_to);
                     break;
                 default:

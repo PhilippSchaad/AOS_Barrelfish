@@ -40,7 +40,6 @@ errval_t network_message_transfer(uint16_t from_port, uint16_t to_port, uint32_t
     message->ip_to = to;
     message->payload_size = size;
     memcpy(message->payload, payload, size);
-    debug_printf("size is: %d", sizeof(struct network_message_transfer_message) - MAX_PACKET_PAYLOAD + size);
     aos_rpc_send_message_to_process(aos_rpc_get_init_channel(), pid, core, message, sizeof(struct network_message_transfer_message) - MAX_PACKET_PAYLOAD + size);
     free(message);
     return SYS_ERR_OK;

@@ -93,7 +93,7 @@ static errval_t search_udp_port(uint16_t portnum, struct udp_port **port){
         thread_mutex_unlock(&mutex);
         return AOS_NET_ERR_UDP_NO_SUCH_PORT;
     } else {
-        while(current_element->next != NULL && current_element->next->portnum >= portnum){
+        while(current_element->next != NULL && current_element->portnum < portnum){
             current_element = current_element->next;
         }
         if(current_element != NULL && current_element->portnum == portnum){

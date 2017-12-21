@@ -382,7 +382,6 @@ static void aos_rpc_send_message_to_process_done(void* done){
 }
 errval_t aos_rpc_send_message_to_process(struct aos_rpc *chan, domainid_t pid, coreid_t core, void* payload, size_t bytes)
 {
-    debug_printf("size is %d\n", bytes);
     size_t payload_size = bytes;
     // make sure that the size is rounded up to 32bit
     if (bytes%4 != 0){
