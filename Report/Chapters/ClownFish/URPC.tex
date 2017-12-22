@@ -1,7 +1,7 @@
 \section{URPC}\label{s:URPC}
 
-As we do not have a fully unified system we have the init<->init cross core 
-communication bit which is dubbed URPC.
+As we do not have a fully unified system, we have the init<->init cross core 
+communication system which is dubbed URPC.
 \medskip
 
 Originally it was just a single page split into two 2 roughly 2kb section 
@@ -10,40 +10,37 @@ could just transfer messages in ~2kb blogs and signalling the other side that
 the message arrived.
 \medskip
 
-This got adapted when the actual cross core communication chapter came up and 
-said it should be done in cache lines. So we 
-adapted it to be chunked and used that opportunity to adopt it to a similiar 
-framework system as the RPC one.
+This got adapted when the actual cross core communication chapter came half a week later and required a handling using cache lines. So we 
+adapted it to be chunked and used that opportunity to adopt it to a similar 
+framework system as the RPC one (see \ref{ss:rpc_implementation} for more details).
 \medskip
 
-As the URPC system does not involve the kernel it turned out to be a much 
-simpler system and way less error prone. We segmented the page into 64byte chunks, which had 1 byte 
-for flags and 63 bytes for data and we kept track of them as a ringbuffer. We 
-learned from the RPC system here and did a better encoding. Because urpc only has to deal with a single "channel" and therefore a single FIFO queue of messages, we only send the length and the metadata once. 
+As the URPC system does not involve the kernel, it turned out to be a much 
+simpler system and way less error prone. We segmented the page into 64byte chunks. 1 byte is used 
+for flags and 63 bytes are used for data. We kept track of these chunks using a ringbuffer. We 
+learned from the RPC system here and did a better encoding. Because urpc only has to deal with a single "channel" and therefore a single FIFO queue of messages, we only send the length and the metadata once per logical message. 
 The flag byte is primarily used to signify if this entry is empty or written 
 to, as well as what encoding we will be using. 
 \medskip
 
 A good side-effect of our implementation is, that because we send and receive in a loop, we only need a single 
-memory barrier each. 
+memory barrier in each loop. 
 \medskip
 
 On top of these two core loops, we run an endless loop which polls for available messages or messages ready to be sent.
 \medskip
 
 On top of that is a somewhat 
-familiar machinary. We can enqueue messages and register receive handlers. 
+familiar machinery. We can enqueue messages and register receive handlers. 
 \medskip
 
 For implementing the actual URPC calls we first considered making an RPC 
 equivalent for every single URPC call, but then instead added some more 
-machinary which allowed us to root an arbitrary RPC call to init over 
+logic which allowed us to root an arbitrary RPC call to init over 
 URPC, thus allowing the two init processes to act as if they were a single one 
 for the purposes of RPC.
-\medskip
-
-An init process just receives a fake call to its rpc receive handler with a 
-normal recv\_list struct, except that the channel is set to NULL, which can 
+An init process receives a fake call to its rpc receive handler with a 
+normal recv\_list struct pointer, except that the channel points to NULL, which can 
 never happen in a normal RPC call and is thus a fairly obvious and simple 
 distinguisher between an RPC or URPC call.
 \medskip

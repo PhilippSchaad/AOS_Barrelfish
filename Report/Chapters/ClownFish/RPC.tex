@@ -60,7 +60,7 @@ really convenient to work with rpc calls, it also presented a large increase in 
 particular place. However, it reduced the overall complexity by reducing the complexity and gain managability in many other places.
 The rewrite, however, still had issues. 
 
-\subsection{RAM rpc calls}
+\subsection{RAM rpc calls\label{ss:rpc_ram}}
 After the first series of minor bugs 
 was fixed, we ran into a pretty big issue: The ram RPC handler now ran over 
 that system, which used mallocs in various places due to its generality and 
@@ -90,7 +90,7 @@ that in particular cases it was possible for messages not to get sent to the
 proper channel. In other cases, a message was tried to send despite the wrong channel being ready. This got fixed after a lot of painful investigation as it 
 was hard to track down that this caused the errors.
 
-\subsection{Implementation}
+\subsection{Implementation \label{ss:rpc_implementation}}
 The current RPC subsystem system is split in two parts. In 
 aos\_rpc\_shared is (most of) the machinery described so far.
 \medskip
