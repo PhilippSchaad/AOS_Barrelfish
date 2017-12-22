@@ -12,7 +12,7 @@ the memory mapping and paging process.
     its simplicity. This might introduce additional overhead when mapping 
     memory, when the process has run some time and the memory is fragmented. 
     The lookup scales with $0\klammern{n}$. Currently, freed nodes are simply 
-    appended to the list and scale with $0\klammern{1}$ 
+    prepended to the list. This scales with $0\klammern{1}$ 
 
 	\item Mappings: To be able to unmap a piece of memory again, the mappings 
     are stored. This is done using a singly linked list. A new mapping is 
