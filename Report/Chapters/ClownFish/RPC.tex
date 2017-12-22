@@ -52,7 +52,7 @@ messages sent. It does so based on the type, id and a list of
 unfinished calls to match the type and id to. 
 When a message is fully reassembled, we call a process/channel specific handler. Here, an optimisation opportunity for small 
 messages (which are the vast majority) presented itself. Instead of 
-persisting it all and adding it to the list and doing all the other steps involved, we can do it malloc-free by passing that element to the handler on the stack. This works because we return into this function again and in the normal case free the memory.\\
+persisting it all and adding it to the list and doing all the other steps involved, we can do it malloc-free by passing that element to the handler on the stack. This works because we return into this function again and in the normal case free the memory.
 
 \medskip
 While this framework now standardised the encoding of messages and made it 
@@ -70,8 +70,9 @@ conditions for ram\_rpc calls. We relied on using buffers of the
 structs involved instead of allocating new memory and therefore taking a slightly special path. 
 This, while working for some time, was naturally doomed to fail as we still got 
 pagefaults at times and the pile of patches that held our os together was 
-ever increasing.\\
+ever increasing.
 \medskip
+
 The next step then was to move the ram\_rpc procedure partially out of the system. 
 Receiving calls is still part of it, sending is not. This cut down on the amount of memory allocations 
 further and we had a buffer for the rest, which got us a bit 
