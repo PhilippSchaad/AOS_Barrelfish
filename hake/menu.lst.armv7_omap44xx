@@ -32,6 +32,20 @@ module /armv7/sbin/nameserver
 # a small util to show the nameserver off
 module /armv7/sbin/nameserver_util
 
+# Grading
+module /armv7/sbin/serialtest
+module /armv7/sbin/memtest
+module /armv7/sbin/memtest_mt
+module /armv7/sbin/mem_if
+module /armv7/sbin/spawntest
+module /armv7/sbin/procutils
+module /armv7/sbin/rpctest
+module /armv7/sbin/m7_fs
+module /armv7/sbin/m2_test
+module /armv7/sbin/m2_echo_args
+module /armv7/sbin/spin
+module /armv7/sbin/m6_test
+
 # For pandaboard, use following values.
 mmap map 0x40000000 0x40000000 13 # Devices
 mmap map 0x80000000 0x20000000  1

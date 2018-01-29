@@ -15,10 +15,16 @@ let    -- Default list of modules to build/install
                        "turtleback", "network", "nameserver", "nameserver_util",
                        "udp_echo", "udp_terminal" ]
 
+    modules_grading = [ "serialtest", "memtest", "memtest_mt", "mem_if",
+                        "spawntest", "procutils", "m7_fs", "simplechild",
+                        "rpctest", "m2_test", "m2_echo_args", "spin",
+                        "m6_test" ]
+
+
     -- ARMv7-a Pandaboard modules: ADd
     pandaModules = [ "/sbin/" ++ f | f <- [
                         "cpu_omap44xx"
-                        ] ++ modules_common ]
+                        ] ++ modules_common ++ modules_grading ]
 
     -- ARMv7-A modules for Versatile Express EMM board (GEM5, qemu)
     vExpressEMMModules_A15 = [ "/sbin/" ++ f | f <- [
