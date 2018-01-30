@@ -3,13 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <aos/aos_rpc.h>
-#include "../common/get_rpc.h"
 
 int main(int argc, char *argv[])
 {
     debug_printf("spawntest started: testing process spawning\n");
 
-    struct aos_rpc *spawnd = grading_get_init_rpc();
+    struct aos_rpc *spawnd = aos_rpc_get_process_channel();
 
     domainid_t mtpid;
     errval_t err;

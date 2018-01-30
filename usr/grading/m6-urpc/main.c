@@ -14,7 +14,6 @@
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
 #include <spawn/spawn.h>
-#include "../common/get_rpc.h"
 #include <grading.h>
 
 static errval_t
@@ -114,7 +113,7 @@ count_processes(const char *proc_name, int *count) {
 
 int
 main(int argc, char *argv[]) {
-    struct aos_rpc *spawnd = grading_get_init_rpc();
+    struct aos_rpc *spawnd = aos_rpc_get_process_channel();
     errval_t err;
 
     if(argc > 1 && !strcmp(argv[1], "client")) {

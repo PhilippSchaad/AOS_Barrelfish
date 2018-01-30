@@ -13,7 +13,6 @@
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
-#include "../common/get_rpc.h"
 
 #if 0
 
@@ -173,7 +172,7 @@ static void test_spawn_args(struct aos_rpc *spawnd)
 
 int
 main(int argc, char *argv[]) {
-    struct aos_rpc *spawnd = grading_get_init_rpc();    
+    struct aos_rpc *spawnd = aos_rpc_get_process_channel();
 
     #if TEST == 1
     test_spawn_many(spawnd, SPAWN_NUM);

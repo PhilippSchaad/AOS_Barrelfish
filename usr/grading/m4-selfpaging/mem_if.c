@@ -4,15 +4,12 @@
 #include <string.h>
 #include <aos/aos_rpc.h>
 #include <aos/sys_debug.h>
-#include "../common/get_rpc.h"
-
-#include <arch/arm/barrelfish_kpi/asm_inlines_arch.h>
 
 int main(int argc, char *argv[])
 {
     debug_printf("mem_if started: testing memory serving RPC\n");
 
-    struct aos_rpc *memserv = grading_get_init_rpc();
+    struct aos_rpc *memserv = aos_rpc_get_memory_channel();
 
     errval_t err;
     size_t retbytes = 0;
